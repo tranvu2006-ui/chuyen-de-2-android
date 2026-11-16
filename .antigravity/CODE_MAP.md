@@ -1048,11 +1048,14 @@ scripts/
   generate_project_firebase_docs.py
   migrate_orders_driver_to_shipper.py
   reset_firebase_data.py
+  toggle_login_otp.py
 .firebaserc
 .gitignore
 admin.html
 BANG_PHAN_CONG_CONG_VIEC_TRELLO.md
 BAO_CAO_CHUYEN_DE_2_OISHI_FOOD.md
+BAO_CAO_CUOI_KY_OISHI_FOOD_FULL_v2.docx
+BAO_CAO_CUOI_KY_OISHI_FOOD_FULL_v3.docx
 BAO_CAO_DATABASE.md
 build.gradle.kts
 CHUC_NANG_4_ACTORS.docx
@@ -7421,12 +7424,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.lifecycleScope
 import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
 import com.chuyen_de_2.foodorder.core.util.InsetUtils
 import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
 import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.customer.databinding.ActivityLoginBinding
 import com.chuyen_de_2.foodorder.customer.ui.home.HomeActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 
@@ -7454,6 +7462,7 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+        syncBypassOtpConfig()
 
         val isLogout = intent.getBooleanExtra("LOGOUT", false)
         if (isLogout) {
@@ -7534,6 +7543,20 @@ class LoginActivity : AppCompatActivity() {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
+    }
+
+    private fun syncBypassOtpConfig() {
+        try {
+            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        } catch (_: Exception) {}
     }
 
     private fun observeViewModel() {
@@ -11445,324 +11468,6 @@ class MenuAdapter(
     private class DiffCallback : DiffUtil.ItemCallback<Dish>() {
         override fun areItemsTheSame(old: Dish, new: Dish) = old.id == new.id
         override fun areContentsTheSame(old: Dish, new: Dish) = old == new
-    }
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/MenuViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.menu
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Cart
-import com.chuyen_de_2.foodorder.core.data.model.CartItem
-import com.chuyen_de_2.foodorder.core.data.model.CartPayload
-import com.chuyen_de_2.foodorder.core.data.model.Dish
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.util.Constants
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * ViewModel cho màn hình Menu — load dữ liệu từ Firebase, thêm vào giỏ hàng.
- * Hỗ trợ giao diện b5.html: Nửa trên (selectedDish), Nửa dưới (filteredDishes), Bottom Bar (cartTotal).
- */
-@OptIn(FlowPreview::class)
-@HiltViewModel
-class MenuViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val auth: FirebaseAuth
-) : ViewModel() {
-
-    private val allDishes = mutableListOf<Dish>()
-
-    private val _dishes = MutableLiveData<List<Dish>>()
-    val dishes: LiveData<List<Dish>> = _dishes
-
-    val menuItems: LiveData<List<Dish>> get() = _dishes
-
-    // Món đang được chọn hiển thị ở nửa trên (Top Detail Section - b5.html)
-    private val _selectedDish = MutableLiveData<Dish?>()
-    val selectedDish: LiveData<Dish?> = _selectedDish
-
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    // Trạng thái giỏ hàng local — phản hồi UI ngay lập tức
-    private val _cartItems = MutableLiveData<MutableMap<String, CartItem>>(mutableMapOf())
-    val cartItems: LiveData<MutableMap<String, CartItem>> = _cartItems
-
-    private val _cartCount = MutableLiveData(0)
-    val cartCount: LiveData<Int> = _cartCount
-
-    private val _cartTotalPrice = MutableLiveData(0L)
-    val cartTotalPrice: LiveData<Long> = _cartTotalPrice
-
-    private val _categories = MutableLiveData<List<String>>(emptyList())
-    val categories: LiveData<List<String>> = _categories
-
-    val currentCategoryName: String
-        get() = currentCategory
-
-    private var currentShopId: String = ""
-    private var currentShopName: String = ""
-    private var currentCategory: String = "ALL"
-
-    private val cartUpdates = MutableSharedFlow<CartPayload>(
-        replay = 0,
-        extraBufferCapacity = 64,
-        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
-    )
-
-    init {
-        viewModelScope.launch {
-            cartUpdates
-                .debounce(Constants.DEBOUNCE_TIMEOUT_MS)
-                .distinctUntilChanged()
-                .collectLatest { payload ->
-                    firebaseRepository.syncCartToFirebase(payload)
-                }
-        }
-    }
-
-    private var currentShopDistrict: String = ""
-    private var currentShopAddress: String = ""
-
-    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null, initialDish: Dish? = null) {
-        currentShopId = shopId
-        currentShopName = shopName
-
-        // Optimistic UI: Nếu có món truyền từ trang chủ, lập tức chọn và cộng giỏ hàng tức thì (0ms)
-        if (initialDish != null) {
-            _selectedDish.value = initialDish
-            addToCart(initialDish)
-        }
-
-        loadMenu(shopId, initialDishId)
-        observeShopCart(shopId)
-        loadShopDetails(shopId)
-    }
-
-    private val _store = MutableLiveData<Store?>()
-    val store: LiveData<Store?> = _store
-
-    private fun loadShopDetails(shopId: String) {
-        viewModelScope.launch {
-            try {
-                firebaseRepository.observeStore(shopId).collectLatest { store ->
-                    if (store != null) {
-                        currentShopDistrict = store.district
-                        currentShopAddress = store.address
-                        _store.postValue(store)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun observeShopCart(shopId: String) {
-        val userId = auth.currentUser?.uid ?: return
-        viewModelScope.launch {
-            firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
-                val currentLocal = _cartItems.value ?: emptyMap()
-                if (cart != null && cart.items.isNotEmpty()) {
-                    val merged = cart.items.toMutableMap()
-                    // Giữ lại các món local nếu người dùng đã cộng dồn (tránh bị Firebase snapshot cũ ghi đè)
-                    for ((k, v) in currentLocal) {
-                        val remote = merged[k]
-                        if (remote == null || remote.quantity < v.quantity) {
-                            merged[k] = v
-                        }
-                    }
-                    _cartItems.value = merged
-                    updateCartTotals()
-                } else if (currentLocal.isNotEmpty()) {
-                    // Nếu Firebase trả về null nhưng local đã thêm món, giữ nguyên giỏ hàng hiện tại
-                    updateCartTotals()
-                }
-            }
-        }
-    }
-
-    private fun loadMenu(shopId: String, initialDishId: String? = null) {
-        _isLoading.value = true
-        viewModelScope.launch {
-            // Quan sát thực đơn thời gian thực từ Firebase Realtime Database
-            firebaseRepository.observeStoreDishes(shopId).collectLatest { firebaseDishes ->
-                val visibleDishes = firebaseDishes.filter { !it.isHidden && it.isAvailable }
-                if (visibleDishes.isNotEmpty()) {
-                    allDishes.clear()
-                    allDishes.addAll(visibleDishes)
-
-                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
-                        .filter { it.isNotBlank() }
-                        .distinct()
-                    _categories.value = uniqueCats
-
-                    applyFilter()
-
-                    // Chọn món theo initialDishId hoặc mặc định món đầu tiên
-                    if (!initialDishId.isNullOrEmpty()) {
-                        val targetDish = visibleDishes.find { it.id == initialDishId }
-                        if (targetDish != null) {
-                            _selectedDish.value = targetDish
-                            // Chỉ cộng nếu chưa được cộng lúc khởi tạo setShopInfo
-                            if (getItemQuantity(targetDish.id) == 0) {
-                                addToCart(targetDish)
-                            }
-                        }
-                    } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
-                        val firstDish = visibleDishes.first()
-                        _selectedDish.value = firstDish
-                    }
-                    _isLoading.value = false
-                } else {
-                    allDishes.clear()
-                    _categories.value = emptyList()
-                    applyFilter()
-                    _selectedDish.value = null
-                    _isLoading.value = false
-                }
-            }
-        }
-    }
-
-    fun selectDish(dish: Dish) {
-        _selectedDish.value = dish
-    }
-
-    fun filterByCategory(categoryName: String) {
-        currentCategory = categoryName
-        applyFilter()
-    }
-
-    private fun applyFilter() {
-        if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
-            _dishes.value = allDishes
-        } else {
-            _dishes.value = allDishes.filter { dish ->
-                dish.category.equals(currentCategory, ignoreCase = true) ||
-                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
-                dish.category.contains(currentCategory, ignoreCase = true) ||
-                dish.platformCategory.contains(currentCategory, ignoreCase = true)
-            }
-        }
-    }
-
-    fun addToCart(dish: Dish) {
-        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
-        val existing = currentMap[dish.id]
-
-        if (existing != null) {
-            currentMap[dish.id] = existing.copy(quantity = existing.quantity + 1)
-        } else {
-            currentMap[dish.id] = CartItem(
-                itemId = dish.id,
-                name = dish.name,
-                price = dish.price,
-                quantity = 1,
-                imageUrl = dish.imageUrl
-            )
-        }
-
-        _cartItems.value = currentMap
-        updateCartTotals()
-        emitCartUpdate()
-    }
-
-    fun addCustomCartItem(cartItem: CartItem) {
-        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
-        val existing = currentMap[cartItem.itemId]
-
-        if (existing != null) {
-            currentMap[cartItem.itemId] = existing.copy(quantity = existing.quantity + cartItem.quantity)
-        } else {
-            currentMap[cartItem.itemId] = cartItem
-        }
-
-        _cartItems.value = currentMap
-        updateCartTotals()
-        emitCartUpdate()
-    }
-
-    fun removeFromCart(itemId: String): Boolean {
-        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
-        val targetKey = if (currentMap.containsKey(itemId)) {
-            itemId
-        } else {
-            currentMap.keys.find { it.startsWith("${itemId}_") }
-        } ?: return false
-
-        val existing = currentMap[targetKey] ?: return false
-
-        if (existing.quantity > 1) {
-            currentMap[targetKey] = existing.copy(quantity = existing.quantity - 1)
-        } else {
-            currentMap.remove(targetKey)
-        }
-
-        _cartItems.value = currentMap
-        updateCartTotals()
-        emitCartUpdate()
-        return true
-    }
-
-    fun getItemQuantity(itemId: String): Int {
-        val items = _cartItems.value ?: return 0
-        return items.filter { it.key == itemId || it.key.startsWith("${itemId}_") }
-            .values.sumOf { it.quantity }
-    }
-
-    private fun updateCartTotals() {
-        val items = _cartItems.value?.values ?: emptyList()
-        _cartCount.value = items.sumOf { it.quantity }
-        _cartTotalPrice.value = items.sumOf { it.price * it.quantity }
-    }
-
-    private fun emitCartUpdate() {
-        val userId = auth.currentUser?.uid ?: return
-        val items = _cartItems.value ?: return
-        val total = items.values.sumOf { it.price * it.quantity }
-
-        val cart = Cart(
-            shopId = currentShopId,
-            shopName = currentShopName,
-            shopDistrict = currentShopDistrict,
-            shopAddress = currentShopAddress,
-            totalAmount = total,
-            items = items
-        )
-
-        cartUpdates.tryEmit(CartPayload(userId, currentShopId, cart))
-    }
-
-    fun flushCart() {
-        val userId = auth.currentUser?.uid ?: return
-        val items = _cartItems.value ?: return
-        if (items.isEmpty()) return
-        val total = items.values.sumOf { it.price * it.quantity }
-        val cart = Cart(
-            shopId = currentShopId,
-            shopName = currentShopName,
-            shopDistrict = currentShopDistrict,
-            shopAddress = currentShopAddress,
-            totalAmount = total,
-            items = items
-        )
-        viewModelScope.launch {
-            firebaseRepository.syncCartToFirebase(CartPayload(userId, currentShopId, cart))
-        }
     }
 }
 ````
@@ -24956,63 +24661,6 @@ object FirebaseModule {
 }
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/di/NetworkModule.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.di
-
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
-import javax.inject.Singleton
-
-/**
- * Hilt Module cung cấp OkHttpClient và Retrofit cho các nhu cầu kết nối HTTP ngoài (nếu có).
- */
-@Module
-@InstallIn(SingletonComponent::class)
-object NetworkModule {
-
-    private const val BASE_URL = "https://api.foodorder.example.com/"
-
-    @Provides
-    @Singleton
-    fun provideLoggingInterceptor(): HttpLoggingInterceptor {
-        return HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
-        }
-    }
-
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor
-    ): OkHttpClient {
-        return OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
-        return Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .client(okHttpClient)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-    }
-}
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/AccountLockWatcher.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.util
@@ -25321,6 +24969,393 @@ object CategoryIconCache {
 
     fun clear() {
         bitmapCache.evictAll()
+    }
+}
+````
+
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/CccdOcrHelper.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.util
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayInputStream
+import java.text.Normalizer
+import java.util.regex.Pattern
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+data class CccdScanResult(
+    val cccdNumber: String? = null,
+    val fullName: String? = null,
+    val dateOfBirth: String? = null,
+    val gender: String? = null,
+    val address: String? = null,
+    val district: String? = null,
+    val rawText: String = ""
+) {
+    val isSuccess: Boolean
+        get() = !cccdNumber.isNullOrBlank() || !fullName.isNullOrBlank()
+}
+
+object CccdOcrHelper {
+
+    private val DISTRICTS_HCMC = listOf(
+        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
+        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
+    )
+
+    private val IGNORED_NAME_KEYWORDS = listOf(
+        "CONG HOA", "CỘNG HÒA", "XA HOI", "XÃ HỘI", "CHU NGHIA", "CHỦ NGHĨA",
+        "DOC LAP", "ĐỘC LẬP", "TU DO", "TỰ DO", "HANH PHUC", "HẠNH PHÚC",
+        "CAN CUOC", "CĂN CƯỚC", "CHUNG MINH", "CHỨNG MINH", "CONG DAN", "CÔNG DÂN",
+        "NHAN DAN", "NHÂN DÂN", "VIET NAM", "VIỆT NAM", "CITIZEN", "IDENTITY", "CARD",
+        "HO VA TEN", "HỌ VÀ TÊN", "FULL NAME", "GIOI TINH", "GIỚI TÍNH", "NGAY SINH",
+        "DATE OF BIRTH", "NOI THUONG TRU", "NƠI THƯỜNG TRÚ", "QUE QUAN", "QUÊ QUÁN",
+        "QUOC TICH", "QUỐC TỊCH", "CO GIA TRI", "CÓ GIÁ TRỊ"
+    )
+
+    /**
+     * Nhận diện thẻ CCCD từ ảnh Bitmap
+     */
+    suspend fun scanCccdFromBitmap(bitmap: Bitmap): Result<CccdScanResult> = withContext(Dispatchers.Default) {
+        try {
+            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+            val inputImage = InputImage.fromBitmap(bitmap, 0)
+
+            val text: Text = suspendCancellableCoroutine { cont ->
+                recognizer.process(inputImage)
+                    .addOnSuccessListener { visionText ->
+                        if (cont.isActive) cont.resume(visionText)
+                    }
+                    .addOnFailureListener { error ->
+                        if (cont.isActive) cont.resumeWithException(error)
+                    }
+            }
+
+            val result = parseCccdText(text.text)
+            Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Nhận diện thẻ CCCD từ Uri (chụp ảnh hoặc thư viện)
+     */
+    suspend fun scanCccdFromUri(context: Context, uri: Uri): Result<CccdScanResult> = withContext(Dispatchers.IO) {
+        try {
+            val bitmap = decodeRotatedBitmap(context, uri, maxDimension = 1280)
+                ?: return@withContext Result.failure(IllegalArgumentException("Không thể đọc ảnh thẻ"))
+            scanCccdFromBitmap(bitmap)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Thuật toán phân tích chuỗi văn bản OCR để trích xuất CCCD, Họ tên, Ngày sinh, v.v.
+     */
+    fun parseCccdText(rawText: String): CccdScanResult {
+        if (rawText.isBlank()) return CccdScanResult(rawText = "")
+
+        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+        var cccdNumber: String? = null
+        var fullName: String? = null
+        var dateOfBirth: String? = null
+        var gender: String? = null
+        var address: String? = null
+        var district: String? = null
+
+        // 1. Tìm số CCCD (12 chữ số) hoặc CMND (9 chữ số)
+        // Ưu tiên dòng có chữ "Số" / "No." / "Số định danh"
+        for (i in lines.indices) {
+            val line = lines[i]
+            val digitsOnly = line.replace(Regex("[^0-9]"), "")
+
+            if (digitsOnly.length == 12) {
+                cccdNumber = digitsOnly
+                break
+            }
+
+            val isNumberLabel = line.contains("Số", true) ||
+                    line.contains("No", true) ||
+                    line.contains("định danh", true) ||
+                    line.contains("identification", true)
+
+            if (isNumberLabel) {
+                // Kiểm tra 12 số trong cùng dòng
+                val match12 = Regex("""\b\d{12}\b""").find(line)
+                if (match12 != null) {
+                    cccdNumber = match12.value
+                    break
+                }
+                // Hoặc kiểm tra dòng kế tiếp
+                if (i + 1 < lines.size) {
+                    val nextDigits = lines[i + 1].replace(Regex("[^0-9]"), "")
+                    if (nextDigits.length == 12) {
+                        cccdNumber = nextDigits
+                        break
+                    }
+                }
+            }
+        }
+
+        // Fallback số 12 số bất kỳ nếu chưa tìm thấy
+        if (cccdNumber == null) {
+            val match = Regex("""\b(\d{12})\b""").find(rawText.replace(" ", ""))
+            if (match != null) {
+                cccdNumber = match.value
+            } else {
+                // Thử tìm regex có thể có khoảng trắng ở giữa: 079 095 012345
+                val spaceMatch = Regex("""\b0\d{2}[\s.-]?\d{3}[\s.-]?\d{6}\b""").find(rawText)
+                if (spaceMatch != null) {
+                    cccdNumber = spaceMatch.value.replace(Regex("""[\s.-]"""), "")
+                }
+            }
+        }
+
+        // 2. Tìm Họ và tên
+        for (i in lines.indices) {
+            val line = lines[i]
+            val isNameLabel = line.contains("Họ và tên", true) ||
+                    line.contains("Họ tên", true) ||
+                    line.contains("Họ, chữ đệm", true) ||
+                    line.contains("Full name", true)
+
+            if (isNameLabel) {
+                // Trường hợp tên nằm sau dấu hai chấm cùng dòng: "Họ và tên / Full name: NGUYỄN VĂN A"
+                val colonIdx = line.indexOf(":")
+                if (colonIdx >= 0 && colonIdx < line.length - 1) {
+                    val afterColon = line.substring(colonIdx + 1).trim()
+                    val cleanCandidate = cleanNameCandidate(afterColon)
+                    if (isValidVietnameseName(cleanCandidate)) {
+                        fullName = cleanCandidate
+                        break
+                    }
+                }
+
+                // Trường hợp tên nằm ở dòng tiếp theo ngay bên dưới (phổ biến nhất trên CCCD gắn chip)
+                if (i + 1 < lines.size) {
+                    val nextLine = lines[i + 1].trim()
+                    val cleanCandidate = cleanNameCandidate(nextLine)
+                    if (isValidVietnameseName(cleanCandidate)) {
+                        fullName = cleanCandidate
+                        break
+                    }
+                }
+            }
+        }
+
+        // Fallback Họ và tên: Quét các dòng chữ IN HOA không chứa số/từ cấm
+        if (fullName == null) {
+            for (line in lines) {
+                val clean = cleanNameCandidate(line)
+                if (isValidVietnameseName(clean)) {
+                    fullName = clean
+                    break
+                }
+            }
+        }
+
+        // 3. Tìm Ngày sinh
+        val dobRegex = Regex("""\b(\d{1,2}[/-]\d{1,2}[/-]\d{4})\b""")
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (line.contains("sinh", true) || line.contains("birth", true)) {
+                val match = dobRegex.find(line)
+                if (match != null) {
+                    dateOfBirth = match.value.replace("-", "/")
+                    break
+                }
+                if (i + 1 < lines.size) {
+                    val nextMatch = dobRegex.find(lines[i + 1])
+                    if (nextMatch != null) {
+                        dateOfBirth = nextMatch.value.replace("-", "/")
+                        break
+                    }
+                }
+            }
+        }
+        if (dateOfBirth == null) {
+            dateOfBirth = dobRegex.find(rawText)?.value?.replace("-", "/")
+        }
+
+        // 4. Tìm Giới tính
+        for (line in lines) {
+            if (line.contains("Giới tính", true) || line.contains("Sex", true)) {
+                when {
+                    line.contains("Nam", true) || line.contains("Male", true) -> gender = "Nam"
+                    line.contains("Nữ", true) || line.contains("Female", true) -> gender = "Nữ"
+                }
+                break
+            }
+        }
+
+        // 5. Tìm Quận/Huyện và Địa chỉ nơi thường trú / nơi cư trú
+        for (i in lines.indices) {
+            val line = lines[i]
+            if (line.contains("thường trú", true) ||
+                line.contains("cư trú", true) ||
+                line.contains("residence", true) ||
+                line.contains("Quê quán", true) ||
+                line.contains("origin", true)
+            ) {
+                val candidateAddress = buildString {
+                    val colonIdx = line.indexOf(":")
+                    if (colonIdx >= 0 && colonIdx < line.length - 1) {
+                        append(line.substring(colonIdx + 1).trim()).append(" ")
+                    }
+                    var k = i + 1
+                    while (k < lines.size && k <= i + 3) {
+                        val nextL = lines[k]
+                        if (nextL.contains("giá trị", true) || nextL.contains("expiry", true)) break
+                        append(nextL).append(" ")
+                        k++
+                    }
+                }.trim()
+
+                if (candidateAddress.isNotBlank()) {
+                    address = candidateAddress
+                    break
+                }
+            }
+        }
+
+        // Trích xuất Quận/Huyện TP.HCM nếu xuất hiện trong address hoặc rawText
+        val searchText = (address ?: rawText)
+        for (d in DISTRICTS_HCMC) {
+            if (searchText.contains(d, ignoreCase = true)) {
+                district = d
+                break
+            }
+        }
+
+        return CccdScanResult(
+            cccdNumber = cccdNumber,
+            fullName = fullName,
+            dateOfBirth = dateOfBirth,
+            gender = gender,
+            address = address,
+            district = district,
+            rawText = rawText
+        )
+    }
+
+    private fun cleanNameCandidate(text: String): String {
+        return text.replace(Regex("""[^a-zA-ZÀ-ỹ\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+    }
+
+    private fun isValidVietnameseName(candidate: String): Boolean {
+        if (candidate.length < 5 || candidate.length > 40) return false
+        val words = candidate.split(" ").filter { it.isNotBlank() }
+        if (words.size < 2 || words.size > 7) return false
+
+        val unaccented = removeAccents(candidate).uppercase()
+        for (kw in IGNORED_NAME_KEYWORDS) {
+            if (unaccented.contains(kw)) return false
+        }
+
+        // Tên CCCD phải là chữ in hoa toàn bộ hoặc in hoa từng từ
+        val isAllUpper = candidate.all { !it.isLetter() || it.isUpperCase() }
+        val isTitleCase = words.all { it.first().isUpperCase() }
+        return isAllUpper || isTitleCase
+    }
+
+    /**
+     * Bỏ dấu tiếng Việt (chuẩn hóa ASCII) phục vụ in hoa không dấu cho Tên tài khoản ngân hàng
+     */
+    fun removeAccents(str: String): String {
+        val nfd = Normalizer.normalize(str, Normalizer.Form.NFD)
+        val pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
+        return pattern.matcher(nfd)
+            .replaceAll("")
+            .replace("Đ", "D")
+            .replace("đ", "d")
+            .trim()
+    }
+
+    /**
+     * Chuẩn hóa Họ tên theo dạng Title Case (Nguyễn Văn A)
+     */
+    fun toTitleCase(str: String): String {
+        return str.lowercase().split(" ").joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }.trim()
+    }
+
+    /**
+     * Đọc Bitmap xoay đúng chiều EXIF từ Uri
+     */
+    private fun decodeRotatedBitmap(context: Context, uri: Uri, maxDimension: Int): Bitmap? {
+        val contentResolver = context.contentResolver
+        val rawBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        if (rawBytes.isEmpty()) return null
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
+        val origW = bounds.outWidth
+        val origH = bounds.outHeight
+        if (origW <= 0 || origH <= 0) return null
+
+        var sampleSize = 1
+        var halfW = origW
+        var halfH = origH
+        while (halfW > maxDimension * 2 || halfH > maxDimension * 2) {
+            sampleSize *= 2
+            halfW /= 2
+            halfH /= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOptions) ?: return null
+
+        var orientation = ExifInterface.ORIENTATION_NORMAL
+        try {
+            ByteArrayInputStream(rawBytes).use { exifInput ->
+                val exif = ExifInterface(exifInput)
+                orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+            }
+        } catch (_: Exception) {}
+
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
+        }
+
+        val currentW = bitmap.width
+        val currentH = bitmap.height
+        val maxCurr = maxOf(currentW, currentH).toFloat()
+        val scale = if (maxCurr > maxDimension) maxDimension.toFloat() / maxCurr else 1f
+        if (scale < 1f) {
+            matrix.postScale(scale, scale)
+        }
+
+        return Bitmap.createBitmap(bitmap, 0, 0, currentW, currentH, matrix, true)
     }
 }
 ````
@@ -26205,7 +26240,10 @@ object OtpSessionManager {
 
     private const val PREFS_NAME = "foodorder_otp_session_prefs"
     private const val KEY_PREFIX = "otp_verified_at_"
+    private const val KEY_BYPASS_OTP = "bypass_login_otp"
     const val SESSION_DURATION_MS = 24L * 60L * 60L * 1000L // 24 giờ (1 ngày)
+
+    private var cachedBypassOtp: Boolean? = null
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -26216,10 +26254,41 @@ object OtpSessionManager {
     }
 
     /**
-     * Kiểm tra xem email này có phiên xác minh OTP hợp lệ (chưa quá 24h) trên thiết bị không.
+     * Cập nhật trạng thái cấu hình bỏ qua OTP (từ Firebase Realtime Database hoặc mặc định).
+     */
+    fun updateBypassOtpConfig(context: Context, enabled: Boolean) {
+        cachedBypassOtp = enabled
+        try {
+            getPrefs(context).edit().putBoolean(KEY_BYPASS_OTP, enabled).apply()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Kiểm tra xem tính năng bỏ qua OTP đăng nhập đang được kích hoạt hay không.
+     */
+    fun isBypassOtpEnabled(context: Context): Boolean {
+        cachedBypassOtp?.let { return it }
+        return try {
+            val prefs = getPrefs(context)
+            if (prefs.contains(KEY_BYPASS_OTP)) {
+                val value = prefs.getBoolean(KEY_BYPASS_OTP, AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP)
+                cachedBypassOtp = value
+                value
+            } else {
+                AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+            }
+        } catch (_: Exception) {
+            AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+        }
+    }
+
+    /**
+     * Kiểm tra xem email này có phiên xác minh OTP hợp lệ (chưa quá 24h) trên thiết bị không,
+     * hoặc nếu tính năng bỏ qua OTP đang bật thì cho phép vào thẳng.
      * Tài khoản admin@gmail.com luôn được miễn OTP.
      */
     fun isSessionValid(context: Context, email: String): Boolean {
+        if (isBypassOtpEnabled(context)) return true
         val cleanEmail = normalizeEmail(email)
         if (cleanEmail.isBlank()) return false
         if (cleanEmail == "admin@gmail.com") return true
@@ -28778,6 +28847,16 @@ object RegistrationOtpManager {
 </LinearLayout>
 ````
 
+## File: core/src/main/res/xml/file_paths.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="camera_cache" path="." />
+    <external-cache-path name="external_camera_cache" path="." />
+    <files-path name="camera_files" path="." />
+</paths>
+````
+
 ## File: core/src/main/AndroidManifest.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -28786,6 +28865,97 @@ object RegistrationOtpManager {
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 </manifest>
+````
+
+## File: core/build.gradle.kts
+````kotlin
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.google.ksp)
+    alias(libs.plugins.google.hilt)
+}
+
+android {
+    namespace = "com.chuyen_de_2.foodorder.core"
+    compileSdk = 35
+
+    defaultConfig {
+        minSdk = 26
+        // Cho phép thay project Supabase bằng Gradle property; fallback giữ project hiện tại.
+        val supabaseUrl = providers.gradleProperty("supabaseUrl")
+            .orElse("https://niynxugrtceotpvaoiru.supabase.co")
+            .get()
+        // Chỉ dùng publishable/anon key ở Android; tuyệt đối không dùng service_role/secret key trong binary.
+        val supabaseAnonKey = providers.gradleProperty("supabaseAnonKey")
+            .orElse("sb_publishable_FVBFb_yxt1oXxACNWC6A9Q_6z60kBIF")
+            .get()
+        // Sinh BuildConfig để EmailOtpApi gọi Supabase Auth REST API trong app.
+        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
+
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+    // AndroidX
+    implementation(libs.androidx.core.ktx)
+
+    // Lifecycle
+    implementation(libs.androidx.lifecycle.viewmodel)
+    implementation(libs.androidx.lifecycle.runtime)
+    implementation(libs.androidx.lifecycle.livedata)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+
+    // Hilt DI
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+
+    // Retrofit & OkHttp
+    implementation(libs.squareup.retrofit)
+    implementation(libs.squareup.retrofit.gson)
+    implementation(libs.squareup.okhttp)
+    implementation(libs.squareup.okhttp.logging)
+    implementation(libs.google.gson)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.database)
+    implementation(libs.firebase.messaging)
+
+    // Glide
+    api(libs.glide)
+
+    // Google Play Services
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
+    implementation(libs.play.services.auth)
+    implementation(libs.zxing.core)
+    api(libs.mlkit.text.recognition)
+}
 ````
 
 ## File: gradle/wrapper/gradle-wrapper.properties
@@ -28799,13 +28969,119 @@ zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
 ````
 
-## File: scripts/cleanup_firebase_nodes.py
+## File: gradle/libs.versions.toml
+````toml
+[versions]
+agp = "8.7.3"
+kotlin = "2.1.0"
+ksp = "2.1.0-1.0.29"
+coreKtx = "1.15.0"
+appcompat = "1.7.0"
+material = "1.12.0"
+constraintlayout = "2.2.0"
+lifecycle = "2.8.7"
+navigation = "2.8.5"
+activity = "1.9.3"
+fragment = "1.8.5"
+recyclerview = "1.3.2"
+coroutines = "1.9.0"
+hilt = "2.54"
+retrofit = "2.11.0"
+okhttp = "4.12.0"
+gson = "2.11.0"
+firebaseBom = "33.8.0"
+playServicesMaps = "19.0.0"
+playServicesLocation = "21.3.0"
+playServicesAuth = "21.3.0"
+glide = "4.16.0"
+googleServices = "4.4.2"
+googleCrashlytics = "3.0.2"
+swiperefreshlayout = "1.1.0"
+zxingCore = "3.5.3"
+zxingEmbedded = "4.3.0"
+mlkitTextRecognition = "16.0.1"
+
+[libraries]
+# AndroidX Core
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
+androidx-activity = { group = "androidx.activity", name = "activity-ktx", version.ref = "activity" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
+androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefreshlayout" }
+
+# Lifecycle
+androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycle" }
+
+# Navigation
+androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navigation" }
+androidx-navigation-ui = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navigation" }
+
+# Material Design
+google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+
+# Coroutines
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# Hilt DI
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+
+# Retrofit & OkHttp
+squareup-retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+squareup-retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+squareup-okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+squareup-okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+
+# Firebase (BOM — không khai báo version riêng cho từng lib)
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-database = { group = "com.google.firebase", name = "firebase-database" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+
+# Google Play Services
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+
+# Image Loading
+glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
+zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
+mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+google-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
+````
+
+## File: scripts/toggle_login_otp.py
 ````python
 # -*- coding: utf-8 -*-
 """
-Script dọn rác và tối ưu các node trên Firebase Realtime Database:
-1. Xóa các key rác và các tracking cũ của đơn đã kết thúc trong node 'tracking'
-2. Đồng bộ cấu hình sang 'system_config/delivery_countdown' và xóa node dư thừa 'delivery_time_frames'
+Script bật/tắt tính năng Bỏ qua mã OTP khi đăng nhập (Bypass Login OTP)
+trực tiếp trên Firebase Realtime Database tại node 'system_config/bypass_login_otp'.
+
+Cách sử dụng:
+  - Xem trạng thái hiện tại:
+      python scripts/toggle_login_otp.py
+  - TẮT OTP (Vào thẳng không cần mã):
+      python scripts/toggle_login_otp.py on
+  - BẬT LẠI OTP (Bắt buộc nhập mã OTP):
+      python scripts/toggle_login_otp.py off
 """
 ⋮----
 API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
@@ -28821,43 +29097,21 @@ req = urllib.request.Request(url, data=body, headers=headers, method=method)
 ⋮----
 content = resp.read().decode("utf-8")
 ⋮----
-def main()
-⋮----
-# Đăng nhập Admin
+def get_admin_token()
 ⋮----
 auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
 auth_res = make_request(auth_url, method="POST", data={
-id_token = auth_res.get("idToken")
 ⋮----
-# 1. Dọn dẹp node tracking
+def main()
 ⋮----
-orders_url = f"{DATABASE_URL}/orders.json?auth={id_token}"
-orders = make_request(orders_url, method="GET") or {}
+args = sys.argv[1:]
+id_token = get_admin_token()
 ⋮----
-tracking_url = f"{DATABASE_URL}/tracking.json?auth={id_token}"
-trackings = make_request(tracking_url, method="GET") or {}
+target_url = f"{DATABASE_URL}/system_config/bypass_login_otp.json?auth={id_token}"
 ⋮----
-removed_tracking = 0
-active_statuses = {"DELIVERING", "ARRIVED_AT_CUSTOMER", "RETURNING_TO_STORE"}
+current_status = make_request(target_url, method="GET")
 ⋮----
-order = orders.get(t_id)
-# Xóa nếu không phải mã đơn hợp lệ hoặc đơn không còn active
-is_invalid_key = not t_id.startswith("OISHI_")
-is_ended = order is not None and order.get("status", "").upper() not in active_statuses
-is_not_found = order is None
-⋮----
-del_url = f"{DATABASE_URL}/tracking/{t_id}.json?auth={id_token}"
-⋮----
-# 2. Xóa node dư thừa delivery_time_frames sau khi đảm bảo system_config đã có
-⋮----
-dtf_url = f"{DATABASE_URL}/delivery_time_frames.json?auth={id_token}"
-dtf = make_request(dtf_url, method="GET")
-⋮----
-cfg = dtf["countdown_config"]
-# Đảm bảo lưu sang system_config
-sys_cfg_url = f"{DATABASE_URL}/system_config/delivery_countdown.json?auth={id_token}"
-⋮----
-# Xóa node delivery_time_frames
+action = args[0].lower()
 ````
 
 ## File: .firebaserc
@@ -39618,647 +39872,6 @@ class ChefPendingOrdersAdapter(
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.driver
-
-import android.graphics.Color
-import android.view.LayoutInflater
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
-
-class DriverAdapter(
-    private val onCallClick: (String) -> Unit,
-    private val onDeleteClick: (Driver) -> Unit = {}
-) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
-        val binding = ItemDriverBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
-        return DriverViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: DriverViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class DriverViewHolder(
-        private val binding: ItemDriverBinding
-    ) : RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(driver: Driver) {
-            binding.tvDriverName.text = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
-            binding.tvDriverCode.text = driver.driverCode.ifBlank { "TX" }
-            binding.tvDriverPhone.text = "📞 ${driver.phone.ifBlank { "Chưa cập nhật" }}"
-
-            // Load avatar
-            if (driver.avatarUrl.isNotBlank()) {
-                Glide.with(binding.root.context)
-                    .load(driver.avatarUrl)
-                    .placeholder(R.drawable.bg_badge_offline)
-                    .error(R.drawable.bg_badge_offline)
-                    .into(binding.ivDriverAvatar)
-            } else {
-                binding.ivDriverAvatar.setImageResource(android.R.drawable.ic_menu_myplaces)
-            }
-
-            // Status Badge & Styling
-            when (driver.dutyStatus) {
-                Driver.DutyStatus.AVAILABLE -> {
-                    binding.tvStatusBadge.text = "🟢 Đang trực (Sẵn sàng)"
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
-
-                    binding.tvActionNote.text = "✓ Sẵn sàng nhận đơn"
-                    binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
-                    binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
-                }
-                Driver.DutyStatus.DELIVERING -> {
-                    val isReturning = driver.currentOrderCode.contains("Trả hàng", ignoreCase = true) ||
-                            driver.currentOrderCode.contains("Trả món", ignoreCase = true)
-                    if (isReturning) {
-                        binding.tvStatusBadge.text = "🚨 Đang trả món về quán"
-                        binding.tvActionNote.text = "Quay về quán trả món"
-                    } else {
-                        binding.tvStatusBadge.text = "🚚 Đang giao đơn"
-                        binding.tvActionNote.text = "Đang giao trên đường"
-                    }
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
-                    binding.tvActionNote.background = null
-                    binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
-                }
-                else -> {
-                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca (OFF)"
-                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
-                    binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
-
-                    val noteText = driver.note.ifBlank { "Tài xế đang ngắt kết nối" }
-                    binding.tvActionNote.text = noteText
-                    binding.tvActionNote.background = null
-                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
-                }
-            }
-
-            // Xe máy
-            val vehicleModelStr = driver.vehicleModel.trim()
-            val vehiclePlateStr = driver.vehiclePlate.trim()
-            val vehicleInfo = when {
-                vehicleModelStr.isNotBlank() && vehiclePlateStr.isNotBlank() -> "$vehicleModelStr ($vehiclePlateStr)"
-                vehiclePlateStr.isNotBlank() -> vehiclePlateStr
-                vehicleModelStr.isNotBlank() -> vehicleModelStr
-                else -> "Chưa cập nhật xe"
-            }
-            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleInfo"
-
-            // Đơn giao
-            if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
-                val ordCode = driver.currentOrderCode.ifBlank { "Đang giao đơn của quán" }
-                binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#DC2626"))
-            } else if (driver.dutyStatus == Driver.DutyStatus.AVAILABLE) {
-                val today = driver.todayOrdersCount
-                val total = driver.totalOrdersCount
-                binding.tvOrderStats.text = "📦 Sẵn sàng • Đã giao $today đơn hôm nay ($total đơn tổng)"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#059669"))
-            } else {
-                binding.tvOrderStats.text = "📦 Tài xế đang tắt ca, không nhận đơn"
-                binding.tvOrderStats.setTextColor(Color.parseColor("#64748B"))
-            }
-
-            // Đánh giá
-            val ratingStr = String.format("%.1f", if (driver.ratingAvg > 0) driver.ratingAvg else 5.0f)
-            binding.tvRating.text = "⭐ Đánh giá uy tín: $ratingStr / 5.0 (Tài xế trực thuộc quán)"
-
-            // Gọi điện
-            binding.btnCall.setOnClickListener {
-                if (driver.phone.isNotBlank()) {
-                    onCallClick(driver.phone)
-                }
-            }
-
-            // Xóa tài xế
-            binding.btnDeleteDriver.setOnClickListener {
-                onDeleteClick(driver)
-            }
-        }
-    }
-
-    private class DriverDiffCallback : DiffUtil.ItemCallback<Driver>() {
-        override fun areItemsTheSame(oldItem: Driver, newItem: Driver): Boolean {
-            return oldItem.driverId == newItem.driverId
-        }
-
-        override fun areContentsTheSame(oldItem: Driver, newItem: Driver): Boolean {
-            return oldItem == newItem
-        }
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperProfileFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.net.Uri
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import android.app.Dialog
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.view.Window
-import android.widget.EditText
-import android.widget.ImageView
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperProfileBinding
-import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
-import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.util.Base64
-import java.io.ByteArrayOutputStream
-import com.bumptech.glide.Glide
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Quản Lý Hồ Sơ Tài Xế & Cấu Hình Định Vị GPS Nền (Shipper Profile & Background Location Service)
- * Cách hoạt động:
- *  - Hiển thị thông tin cá nhân của tài xế (Tên, Email, Trạng thái hoạt động).
- *  - Cung cấp công tắc bật/tắt dịch vụ chạy nền [LocationForegroundService] để gửi tọa độ GPS định kỳ lên Firebase cho khách hàng theo dõi.
- *  - Cung cấp số hotline hỗ trợ khẩn cấp liên hệ tổng đài / quản lý.
- *  - Cho phép tài xế đăng xuất an toàn và dừng GPS nền.
- * Luồng hướng tới:
- *  - Bật GPS -> Khởi động [LocationForegroundService] cập nhật vị trí lên Realtime Database.
- *  - Đăng xuất -> Chuyển hướng về [LoginActivity].
- */
-@AndroidEntryPoint
-class ShipperProfileFragment : Fragment() {
-
-    private var _binding: FragmentShipperProfileBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private var currentDriver: Driver? = null
-    private var pendingAvatarBase64: String? = null
-    private var currentDialogAvatarPreview: ImageView? = null
-    private var currentDialogAvatarPlaceholder: View? = null
-
-    private val pickAvatarLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            processAndPreviewAvatar(uri)
-        }
-    }
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarseLocation = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        if (fineLocation || coarseLocation) {
-            binding.switchProfileGps.isChecked = true
-            startLocationService()
-        } else {
-            binding.switchProfileGps.isChecked = false
-            Toast.makeText(requireContext(), "Cần quyền vị trí để kích hoạt GPS nền", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentShipperProfileBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View hồ sơ tài xế
-     * Cách hoạt động: Cập nhật thông tin tài xế và gắn sự kiện công tắc GPS, nút gọi tổng đài, nút đăng xuất.
-     * Luồng hướng tới: Hiển thị giao diện cài đặt tài xế.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupUI()
-        setupListeners()
-        autoEnableGps()
-    }
-
-    private fun autoEnableGps() {
-        val hasFine = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFine || hasCoarse) {
-            binding.switchProfileGps.isChecked = true
-            startLocationService()
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị thông tin định danh tài xế
-     * Cách hoạt động: Lấy thông tin từ FirebaseAuth (displayName, email) và bind vào giao diện.
-     * Luồng hướng tới: Hiển thị tên và email tài xế.
-     */
-    private fun setupUI() {
-        val user = auth.currentUser
-        val uid = user?.uid.orEmpty()
-        val defaultName = user?.displayName?.ifBlank { user.email?.substringBefore("@") ?: "Tài xế" } ?: "Tài xế"
-        val email = user?.email ?: ""
-        val phone = user?.phoneNumber.orEmpty()
-
-        binding.tvProfileName.text = defaultName
-        binding.tvProfileSub.text = if (phone.isNotBlank()) phone else email
-
-        // Lắng nghe dữ liệu hồ sơ Driver thời gian thực
-        if (uid.isNotBlank()) {
-            viewLifecycleOwner.lifecycleScope.launch {
-                firebaseRepository.observeDriver(uid).collectLatest { driver ->
-                    if (driver != null) {
-                        currentDriver = driver
-                        bindDriverData(driver)
-                    }
-                }
-            }
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val storeInfo = firebaseRepository.resolveStoreForDriver(uid)
-                if (storeInfo.first.isNotBlank()) {
-                    binding.tvAffiliationStoreName.text = storeInfo.second.ifBlank { "Quán ăn trực thuộc" }
-                    val store = firebaseRepository.getStoreOnce(storeInfo.first)
-                    if (store != null && store.address.isNotBlank()) {
-                        binding.tvAffiliationStoreAddress.text = store.address
-                    }
-                }
-            }
-        }
-    }
-
-    private fun bindDriverData(driver: Driver) {
-        val name = driver.name.ifBlank { auth.currentUser?.displayName ?: "Tài xế" }
-        val phone = driver.phone.ifBlank { auth.currentUser?.phoneNumber ?: "Chưa cập nhật" }
-        val model = driver.vehicleModel.trim()
-        val plate = driver.vehiclePlate.trim()
-        val vehicleInfo = when {
-            model.isNotBlank() && plate.isNotBlank() -> "$model $plate"
-            plate.isNotBlank() -> plate
-            model.isNotBlank() -> model
-            else -> ""
-        }
-        val cccd = driver.cccdNumber.ifBlank { "Chưa cập nhật" }
-        val license = driver.licenseNumber.ifBlank { "Chưa cập nhật" }
-
-        binding.tvProfileName.text = name
-        binding.tvProfileSub.text = if (phone.isNotBlank() && phone != "Chưa cập nhật") {
-            if (vehicleInfo.isNotBlank()) "$phone • $vehicleInfo" else phone
-        } else {
-            if (vehicleInfo.isNotBlank()) vehicleInfo else (auth.currentUser?.email.orEmpty())
-        }
-        if (driver.driverCode.isNotBlank()) {
-            binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
-        }
-
-        val avatarUrl = driver.avatarUrl.ifBlank { auth.currentUser?.photoUrl?.toString().orEmpty() }
-        displayAvatar(avatarUrl)
-
-        binding.tvDetailDriverPhone.text = phone
-        binding.tvDetailVehicleModel.text = model.ifBlank { "Chưa cập nhật" }
-        binding.tvDetailVehiclePlate.text = plate.ifBlank { "Chưa cập nhật" }
-        binding.tvDetailCccd.text = cccd
-        binding.tvDetailLicense.text = license
-    }
-
-    private fun displayAvatar(avatarUrl: String) {
-        if (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
-            binding.ivDriverAvatar.visibility = View.VISIBLE
-            binding.tvDriverAvatarEmoji.visibility = View.GONE
-            Glide.with(this)
-                .load(avatarUrl)
-                .circleCrop()
-                .placeholder(R.drawable.bg_badge_orange)
-                .error(R.drawable.bg_badge_orange)
-                .into(binding.ivDriverAvatar)
-        } else {
-            binding.ivDriverAvatar.visibility = View.GONE
-            binding.tvDriverAvatarEmoji.visibility = View.VISIBLE
-        }
-    }
-
-    private fun processAndPreviewAvatar(uri: Uri) {
-        try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap != null) {
-                val maxDim = 200
-                val width = originalBitmap.width
-                val height = originalBitmap.height
-                val ratio = width.toFloat() / height.toFloat()
-                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
-                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
-
-                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
-                val outputStream = ByteArrayOutputStream()
-                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
-                val byteArray = outputStream.toByteArray()
-
-                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-                pendingAvatarBase64 = base64String
-
-                currentDialogAvatarPreview?.let { iv ->
-                    iv.visibility = View.VISIBLE
-                    currentDialogAvatarPlaceholder?.visibility = View.GONE
-                    Glide.with(this).load(scaledBitmap).circleCrop().into(iv)
-                }
-                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện!", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập các sự kiện tương tác
-     * Cách hoạt động: Bắt sự kiện bật GPS nền, bấm số gọi tổng đài điều phối, và xác nhận đăng xuất.
-     * Luồng hướng tới: Điều phối tương ứng.
-     */
-    private fun setupListeners() {
-        binding.switchProfileGps.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                checkLocationPermission()
-            } else {
-                stopLocationService()
-            }
-        }
-
-        binding.btnEditDriverProfile.setOnClickListener {
-            showEditDriverDialog()
-        }
-
-        binding.btnEditDriverDetails.setOnClickListener {
-            showEditDriverDialog()
-        }
-
-        binding.layoutCallManager.setOnClickListener {
-            val intent = Intent(Intent.ACTION_DIAL).apply {
-                data = Uri.parse("tel:19001234")
-            }
-            startActivity(intent)
-        }
-
-        binding.btnProfileLogout.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("🚪 Đăng xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    stopLocationService()
-                    authRepository.logout()
-                    val intent = Intent(requireContext(), LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    }
-                    startActivity(intent)
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại chỉnh sửa thông tin hồ sơ tài xế
-     * Cách hoạt động: Cho phép tài xế chỉnh sửa họ tên, SĐT, dòng xe, biển kiểm soát, CCCD, GPLX và lưu lên Firebase.
-     * Luồng hướng tới: Cập nhật node drivers/{uid} và users/{uid} đồng bộ ngay lập tức.
-     */
-    private fun showEditDriverDialog() {
-        val user = auth.currentUser ?: return
-        val uid = user.uid
-
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_edit_driver_profile)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        pendingAvatarBase64 = null
-        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditDriverAvatarPreview)
-        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditDriverAvatarPlaceholder)
-        val flAvatar = dialog.findViewById<View>(R.id.flEditDriverAvatar)
-        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickDriverAvatar)
-
-        currentDialogAvatarPreview = ivAvatarPreview
-        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
-
-        val etName = dialog.findViewById<EditText>(R.id.etEditDriverName)
-        val etPhone = dialog.findViewById<EditText>(R.id.etEditDriverPhone)
-        val etVehicleModel = dialog.findViewById<EditText>(R.id.etEditVehicleModel)
-        val etVehiclePlate = dialog.findViewById<EditText>(R.id.etEditVehiclePlate)
-        val etCccd = dialog.findViewById<EditText>(R.id.etEditDriverCccd)
-        val etLicense = dialog.findViewById<EditText>(R.id.etEditDriverLicense)
-
-        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseEditDriverDialog)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelEditDriver)
-        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveEditDriver)
-
-        // Đổ dữ liệu hiện tại vào dialog
-        val driver = currentDriver
-        val currentName = driver?.name?.ifBlank { user.displayName.orEmpty() } ?: user.displayName.orEmpty()
-        val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
-        val currentModel = driver?.vehicleModel.orEmpty()
-        val currentPlate = driver?.vehiclePlate.orEmpty()
-        val currentAvatar = driver?.avatarUrl.orEmpty().ifBlank { user.photoUrl?.toString().orEmpty() }
-
-        if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
-            ivAvatarPreview?.visibility = View.VISIBLE
-            tvAvatarPlaceholder?.visibility = View.GONE
-            ivAvatarPreview?.let { Glide.with(this).load(currentAvatar).circleCrop().into(it) }
-        } else {
-            ivAvatarPreview?.visibility = View.GONE
-            tvAvatarPlaceholder?.visibility = View.VISIBLE
-        }
-
-        btnPickAvatar?.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-        flAvatar?.setOnClickListener {
-            pickAvatarLauncher.launch("image/*")
-        }
-
-        etName.setText(currentName)
-        etPhone.setText(currentPhone)
-        etVehicleModel.setText(currentModel)
-        etVehiclePlate.setText(currentPlate)
-        etCccd.setText(driver?.cccdNumber.orEmpty())
-        etLicense.setText(driver?.licenseNumber.orEmpty())
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSave.setOnClickListener {
-            val newName = etName.text.toString().trim()
-            val newPhone = etPhone.text.toString().trim()
-            val newModel = etVehicleModel.text.toString().trim()
-            val newPlate = etVehiclePlate.text.toString().trim().uppercase()
-            val newCccd = etCccd.text.toString().trim()
-            val newLicense = etLicense.text.toString().trim()
-
-            if (newName.isBlank()) {
-                etName.error = "Vui lòng nhập họ và tên tài xế"
-                etName.requestFocus()
-                return@setOnClickListener
-            }
-            if (newPhone.isBlank()) {
-                etPhone.error = "Vui lòng nhập số điện thoại"
-                etPhone.requestFocus()
-                return@setOnClickListener
-            }
-            if (newModel.isBlank()) {
-                etVehicleModel.error = "Vui lòng nhập dòng xe máy"
-                etVehicleModel.requestFocus()
-                return@setOnClickListener
-            }
-            if (newPlate.isBlank()) {
-                etVehiclePlate.error = "Vui lòng nhập biển số xe"
-                etVehiclePlate.requestFocus()
-                return@setOnClickListener
-            }
-
-            btnSave.isEnabled = false
-
-            val finalAvatar = pendingAvatarBase64 ?: currentAvatar
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.updateDriverProfile(
-                    driverId = uid,
-                    name = newName,
-                    phone = newPhone,
-                    vehicleModel = newModel,
-                    vehiclePlate = newPlate,
-                    cccdNumber = newCccd,
-                    licenseNumber = newLicense,
-                    avatarUrl = finalAvatar
-                )
-
-                if (result.isSuccess) {
-                    Toast.makeText(requireContext(), "✅ Cập nhật hồ sơ & ảnh đại diện tài xế thành công!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                    btnSave.isEnabled = true
-                }
-            }
-        }
-
-        dialog.setOnDismissListener {
-            currentDialogAvatarPreview = null
-            currentDialogAvatarPlaceholder = null
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Tên chức năng: Kiểm tra và yêu cầu cấp quyền truy cập vị trí chính xác (GPS Permission)
-     * Cách hoạt động: Kiểm tra ACCESS_FINE_LOCATION; nếu chưa có thì xin quyền người dùng qua ActivityResultLauncher.
-     * Luồng hướng tới: Cấp quyền thành công -> [startLocationService].
-     */
-    private fun checkLocationPermission() {
-        if (ContextCompat.checkSelfPermission(
-                requireContext(), Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            startLocationService()
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    /**
-     * Tên chức năng: Khởi động Foreground Service theo dõi GPS
-     * Cách hoạt động: Chạy [LocationForegroundService] với Notification chạy ngầm để đảm bảo hệ điều hành không tiêu diệt tiến trình khi tắt màn hình.
-     * Luồng hướng tới: Cập nhật vị trí GPS liên tục cho khách hàng và hệ thống.
-     */
-    private fun startLocationService() {
-        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
-            putExtra(LocationForegroundService.EXTRA_ORDER_ID, "DRIVER_ACTIVE_DUTY")
-        }
-        ContextCompat.startForegroundService(requireContext(), intent)
-        binding.tvProfileGpsStatus.text = "🟢 GPS đang hoạt động định vị nền"
-    }
-
-    /**
-     * Tên chức năng: Dừng Foreground Service theo dõi GPS
-     * Cách hoạt động: Gửi tín hiệu stopService giải phóng cảm biến GPS giúp tiết kiệm pin khi tài xế nghỉ ca.
-     * Luồng hướng tới: Hủy Foreground Service.
-     */
-    private fun stopLocationService() {
-        requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
-        binding.tvProfileGpsStatus.text = "GPS đã tắt"
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreReportFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.shop
@@ -42590,6 +42203,19 @@ object AppConstants {
         const val DEFAULT_SCORE = 100
         const val CANCEL_DELIVERING_COD_PENALTY = 30
     }
+
+    object AuthConfig {
+        const val NODE_SYSTEM_CONFIG = "system_config"
+        const val KEY_BYPASS_LOGIN_OTP = "bypass_login_otp"
+
+        /**
+         * Cờ mặc định bỏ qua mã OTP khi đăng nhập.
+         * - true: Vào thẳng app không cần OTP.
+         * - false: Bắt buộc xác thực OTP email.
+         * Lưu ý: Giá trị này có thể được ghi đè từ xa qua Firebase Realtime Database tại node system_config/bypass_login_otp.
+         */
+        const val DEFAULT_BYPASS_LOGIN_OTP = true
+    }
 }
 ````
 
@@ -42772,393 +42398,6 @@ object BankData {
         "SAIGONBANK", "PGBANK", "NCB", "SCB", "KIENLONG", "COOPBANK", "KBANK",
         "WOORI", "CIMB", "IVB", "ZALOPAY", "VIETTELMONEY"
     )
-}
-````
-
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/CccdOcrHelper.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.util
-
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
-import android.net.Uri
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.Text
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayInputStream
-import java.text.Normalizer
-import java.util.regex.Pattern
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-
-data class CccdScanResult(
-    val cccdNumber: String? = null,
-    val fullName: String? = null,
-    val dateOfBirth: String? = null,
-    val gender: String? = null,
-    val address: String? = null,
-    val district: String? = null,
-    val rawText: String = ""
-) {
-    val isSuccess: Boolean
-        get() = !cccdNumber.isNullOrBlank() || !fullName.isNullOrBlank()
-}
-
-object CccdOcrHelper {
-
-    private val DISTRICTS_HCMC = listOf(
-        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
-        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
-        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
-        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
-    )
-
-    private val IGNORED_NAME_KEYWORDS = listOf(
-        "CONG HOA", "CỘNG HÒA", "XA HOI", "XÃ HỘI", "CHU NGHIA", "CHỦ NGHĨA",
-        "DOC LAP", "ĐỘC LẬP", "TU DO", "TỰ DO", "HANH PHUC", "HẠNH PHÚC",
-        "CAN CUOC", "CĂN CƯỚC", "CHUNG MINH", "CHỨNG MINH", "CONG DAN", "CÔNG DÂN",
-        "NHAN DAN", "NHÂN DÂN", "VIET NAM", "VIỆT NAM", "CITIZEN", "IDENTITY", "CARD",
-        "HO VA TEN", "HỌ VÀ TÊN", "FULL NAME", "GIOI TINH", "GIỚI TÍNH", "NGAY SINH",
-        "DATE OF BIRTH", "NOI THUONG TRU", "NƠI THƯỜNG TRÚ", "QUE QUAN", "QUÊ QUÁN",
-        "QUOC TICH", "QUỐC TỊCH", "CO GIA TRI", "CÓ GIÁ TRỊ"
-    )
-
-    /**
-     * Nhận diện thẻ CCCD từ ảnh Bitmap
-     */
-    suspend fun scanCccdFromBitmap(bitmap: Bitmap): Result<CccdScanResult> = withContext(Dispatchers.Default) {
-        try {
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            val inputImage = InputImage.fromBitmap(bitmap, 0)
-
-            val text: Text = suspendCancellableCoroutine { cont ->
-                recognizer.process(inputImage)
-                    .addOnSuccessListener { visionText ->
-                        if (cont.isActive) cont.resume(visionText)
-                    }
-                    .addOnFailureListener { error ->
-                        if (cont.isActive) cont.resumeWithException(error)
-                    }
-            }
-
-            val result = parseCccdText(text.text)
-            Result.success(result)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Nhận diện thẻ CCCD từ Uri (chụp ảnh hoặc thư viện)
-     */
-    suspend fun scanCccdFromUri(context: Context, uri: Uri): Result<CccdScanResult> = withContext(Dispatchers.IO) {
-        try {
-            val bitmap = decodeRotatedBitmap(context, uri, maxDimension = 1280)
-                ?: return@withContext Result.failure(IllegalArgumentException("Không thể đọc ảnh thẻ"))
-            scanCccdFromBitmap(bitmap)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Thuật toán phân tích chuỗi văn bản OCR để trích xuất CCCD, Họ tên, Ngày sinh, v.v.
-     */
-    fun parseCccdText(rawText: String): CccdScanResult {
-        if (rawText.isBlank()) return CccdScanResult(rawText = "")
-
-        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
-
-        var cccdNumber: String? = null
-        var fullName: String? = null
-        var dateOfBirth: String? = null
-        var gender: String? = null
-        var address: String? = null
-        var district: String? = null
-
-        // 1. Tìm số CCCD (12 chữ số) hoặc CMND (9 chữ số)
-        // Ưu tiên dòng có chữ "Số" / "No." / "Số định danh"
-        for (i in lines.indices) {
-            val line = lines[i]
-            val digitsOnly = line.replace(Regex("[^0-9]"), "")
-
-            if (digitsOnly.length == 12) {
-                cccdNumber = digitsOnly
-                break
-            }
-
-            val isNumberLabel = line.contains("Số", true) ||
-                    line.contains("No", true) ||
-                    line.contains("định danh", true) ||
-                    line.contains("identification", true)
-
-            if (isNumberLabel) {
-                // Kiểm tra 12 số trong cùng dòng
-                val match12 = Regex("""\b\d{12}\b""").find(line)
-                if (match12 != null) {
-                    cccdNumber = match12.value
-                    break
-                }
-                // Hoặc kiểm tra dòng kế tiếp
-                if (i + 1 < lines.size) {
-                    val nextDigits = lines[i + 1].replace(Regex("[^0-9]"), "")
-                    if (nextDigits.length == 12) {
-                        cccdNumber = nextDigits
-                        break
-                    }
-                }
-            }
-        }
-
-        // Fallback số 12 số bất kỳ nếu chưa tìm thấy
-        if (cccdNumber == null) {
-            val match = Regex("""\b(\d{12})\b""").find(rawText.replace(" ", ""))
-            if (match != null) {
-                cccdNumber = match.value
-            } else {
-                // Thử tìm regex có thể có khoảng trắng ở giữa: 079 095 012345
-                val spaceMatch = Regex("""\b0\d{2}[\s.-]?\d{3}[\s.-]?\d{6}\b""").find(rawText)
-                if (spaceMatch != null) {
-                    cccdNumber = spaceMatch.value.replace(Regex("""[\s.-]"""), "")
-                }
-            }
-        }
-
-        // 2. Tìm Họ và tên
-        for (i in lines.indices) {
-            val line = lines[i]
-            val isNameLabel = line.contains("Họ và tên", true) ||
-                    line.contains("Họ tên", true) ||
-                    line.contains("Họ, chữ đệm", true) ||
-                    line.contains("Full name", true)
-
-            if (isNameLabel) {
-                // Trường hợp tên nằm sau dấu hai chấm cùng dòng: "Họ và tên / Full name: NGUYỄN VĂN A"
-                val colonIdx = line.indexOf(":")
-                if (colonIdx >= 0 && colonIdx < line.length - 1) {
-                    val afterColon = line.substring(colonIdx + 1).trim()
-                    val cleanCandidate = cleanNameCandidate(afterColon)
-                    if (isValidVietnameseName(cleanCandidate)) {
-                        fullName = cleanCandidate
-                        break
-                    }
-                }
-
-                // Trường hợp tên nằm ở dòng tiếp theo ngay bên dưới (phổ biến nhất trên CCCD gắn chip)
-                if (i + 1 < lines.size) {
-                    val nextLine = lines[i + 1].trim()
-                    val cleanCandidate = cleanNameCandidate(nextLine)
-                    if (isValidVietnameseName(cleanCandidate)) {
-                        fullName = cleanCandidate
-                        break
-                    }
-                }
-            }
-        }
-
-        // Fallback Họ và tên: Quét các dòng chữ IN HOA không chứa số/từ cấm
-        if (fullName == null) {
-            for (line in lines) {
-                val clean = cleanNameCandidate(line)
-                if (isValidVietnameseName(clean)) {
-                    fullName = clean
-                    break
-                }
-            }
-        }
-
-        // 3. Tìm Ngày sinh
-        val dobRegex = Regex("""\b(\d{1,2}[/-]\d{1,2}[/-]\d{4})\b""")
-        for (i in lines.indices) {
-            val line = lines[i]
-            if (line.contains("sinh", true) || line.contains("birth", true)) {
-                val match = dobRegex.find(line)
-                if (match != null) {
-                    dateOfBirth = match.value.replace("-", "/")
-                    break
-                }
-                if (i + 1 < lines.size) {
-                    val nextMatch = dobRegex.find(lines[i + 1])
-                    if (nextMatch != null) {
-                        dateOfBirth = nextMatch.value.replace("-", "/")
-                        break
-                    }
-                }
-            }
-        }
-        if (dateOfBirth == null) {
-            dateOfBirth = dobRegex.find(rawText)?.value?.replace("-", "/")
-        }
-
-        // 4. Tìm Giới tính
-        for (line in lines) {
-            if (line.contains("Giới tính", true) || line.contains("Sex", true)) {
-                when {
-                    line.contains("Nam", true) || line.contains("Male", true) -> gender = "Nam"
-                    line.contains("Nữ", true) || line.contains("Female", true) -> gender = "Nữ"
-                }
-                break
-            }
-        }
-
-        // 5. Tìm Quận/Huyện và Địa chỉ nơi thường trú / nơi cư trú
-        for (i in lines.indices) {
-            val line = lines[i]
-            if (line.contains("thường trú", true) ||
-                line.contains("cư trú", true) ||
-                line.contains("residence", true) ||
-                line.contains("Quê quán", true) ||
-                line.contains("origin", true)
-            ) {
-                val candidateAddress = buildString {
-                    val colonIdx = line.indexOf(":")
-                    if (colonIdx >= 0 && colonIdx < line.length - 1) {
-                        append(line.substring(colonIdx + 1).trim()).append(" ")
-                    }
-                    var k = i + 1
-                    while (k < lines.size && k <= i + 3) {
-                        val nextL = lines[k]
-                        if (nextL.contains("giá trị", true) || nextL.contains("expiry", true)) break
-                        append(nextL).append(" ")
-                        k++
-                    }
-                }.trim()
-
-                if (candidateAddress.isNotBlank()) {
-                    address = candidateAddress
-                    break
-                }
-            }
-        }
-
-        // Trích xuất Quận/Huyện TP.HCM nếu xuất hiện trong address hoặc rawText
-        val searchText = (address ?: rawText)
-        for (d in DISTRICTS_HCMC) {
-            if (searchText.contains(d, ignoreCase = true)) {
-                district = d
-                break
-            }
-        }
-
-        return CccdScanResult(
-            cccdNumber = cccdNumber,
-            fullName = fullName,
-            dateOfBirth = dateOfBirth,
-            gender = gender,
-            address = address,
-            district = district,
-            rawText = rawText
-        )
-    }
-
-    private fun cleanNameCandidate(text: String): String {
-        return text.replace(Regex("""[^a-zA-ZÀ-ỹ\s]"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-    }
-
-    private fun isValidVietnameseName(candidate: String): Boolean {
-        if (candidate.length < 5 || candidate.length > 40) return false
-        val words = candidate.split(" ").filter { it.isNotBlank() }
-        if (words.size < 2 || words.size > 7) return false
-
-        val unaccented = removeAccents(candidate).uppercase()
-        for (kw in IGNORED_NAME_KEYWORDS) {
-            if (unaccented.contains(kw)) return false
-        }
-
-        // Tên CCCD phải là chữ in hoa toàn bộ hoặc in hoa từng từ
-        val isAllUpper = candidate.all { !it.isLetter() || it.isUpperCase() }
-        val isTitleCase = words.all { it.first().isUpperCase() }
-        return isAllUpper || isTitleCase
-    }
-
-    /**
-     * Bỏ dấu tiếng Việt (chuẩn hóa ASCII) phục vụ in hoa không dấu cho Tên tài khoản ngân hàng
-     */
-    fun removeAccents(str: String): String {
-        val nfd = Normalizer.normalize(str, Normalizer.Form.NFD)
-        val pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+")
-        return pattern.matcher(nfd)
-            .replaceAll("")
-            .replace("Đ", "D")
-            .replace("đ", "d")
-            .trim()
-    }
-
-    /**
-     * Chuẩn hóa Họ tên theo dạng Title Case (Nguyễn Văn A)
-     */
-    fun toTitleCase(str: String): String {
-        return str.lowercase().split(" ").joinToString(" ") { word ->
-            word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        }.trim()
-    }
-
-    /**
-     * Đọc Bitmap xoay đúng chiều EXIF từ Uri
-     */
-    private fun decodeRotatedBitmap(context: Context, uri: Uri, maxDimension: Int): Bitmap? {
-        val contentResolver = context.contentResolver
-        val rawBytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        if (rawBytes.isEmpty()) return null
-
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, bounds)
-        val origW = bounds.outWidth
-        val origH = bounds.outHeight
-        if (origW <= 0 || origH <= 0) return null
-
-        var sampleSize = 1
-        var halfW = origW
-        var halfH = origH
-        while (halfW > maxDimension * 2 || halfH > maxDimension * 2) {
-            sampleSize *= 2
-            halfW /= 2
-            halfH /= 2
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        val bitmap = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.size, decodeOptions) ?: return null
-
-        var orientation = ExifInterface.ORIENTATION_NORMAL
-        try {
-            ByteArrayInputStream(rawBytes).use { exifInput ->
-                val exif = ExifInterface(exifInput)
-                orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-            }
-        } catch (_: Exception) {}
-
-        val matrix = Matrix()
-        when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.preScale(-1f, 1f)
-            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.preScale(1f, -1f)
-        }
-
-        val currentW = bitmap.width
-        val currentH = bitmap.height
-        val maxCurr = maxOf(currentW, currentH).toFloat()
-        val scale = if (maxCurr > maxDimension) maxDimension.toFloat() / maxCurr else 1f
-        if (scale < 1f) {
-            matrix.postScale(scale, scale)
-        }
-
-        return Bitmap.createBitmap(bitmap, 0, 0, currentW, currentH, matrix, true)
-    }
 }
 ````
 
@@ -43626,206 +42865,6 @@ object GoogleMapUtils {
         }.take(8)
     }
 }
-````
-
-## File: core/src/main/res/xml/file_paths.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<paths xmlns:android="http://schemas.android.com/apk/res/android">
-    <cache-path name="camera_cache" path="." />
-    <external-cache-path name="external_camera_cache" path="." />
-    <files-path name="camera_files" path="." />
-</paths>
-````
-
-## File: core/build.gradle.kts
-````kotlin
-plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.google.ksp)
-    alias(libs.plugins.google.hilt)
-}
-
-android {
-    namespace = "com.chuyen_de_2.foodorder.core"
-    compileSdk = 35
-
-    defaultConfig {
-        minSdk = 26
-        // Cho phép thay project Supabase bằng Gradle property; fallback giữ project hiện tại.
-        val supabaseUrl = providers.gradleProperty("supabaseUrl")
-            .orElse("https://niynxugrtceotpvaoiru.supabase.co")
-            .get()
-        // Chỉ dùng publishable/anon key ở Android; tuyệt đối không dùng service_role/secret key trong binary.
-        val supabaseAnonKey = providers.gradleProperty("supabaseAnonKey")
-            .orElse("sb_publishable_FVBFb_yxt1oXxACNWC6A9Q_6z60kBIF")
-            .get()
-        // Sinh BuildConfig để EmailOtpApi gọi Supabase Auth REST API trong app.
-        buildConfigField("String", "SUPABASE_URL", "\"${supabaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${supabaseAnonKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
-
-    }
-
-    buildFeatures {
-        buildConfig = true
-    }
-
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-}
-
-dependencies {
-    // AndroidX
-    implementation(libs.androidx.core.ktx)
-
-    // Lifecycle
-    implementation(libs.androidx.lifecycle.viewmodel)
-    implementation(libs.androidx.lifecycle.runtime)
-    implementation(libs.androidx.lifecycle.livedata)
-
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.coroutines.android)
-
-    // Hilt DI
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-
-    // Retrofit & OkHttp
-    implementation(libs.squareup.retrofit)
-    implementation(libs.squareup.retrofit.gson)
-    implementation(libs.squareup.okhttp)
-    implementation(libs.squareup.okhttp.logging)
-    implementation(libs.google.gson)
-
-    // Firebase
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.auth)
-    implementation(libs.firebase.database)
-    implementation(libs.firebase.messaging)
-
-    // Glide
-    api(libs.glide)
-
-    // Google Play Services
-    implementation(libs.play.services.maps)
-    implementation(libs.play.services.location)
-    implementation(libs.play.services.auth)
-    implementation(libs.zxing.core)
-    api(libs.mlkit.text.recognition)
-}
-````
-
-## File: gradle/libs.versions.toml
-````toml
-[versions]
-agp = "8.7.3"
-kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
-coreKtx = "1.15.0"
-appcompat = "1.7.0"
-material = "1.12.0"
-constraintlayout = "2.2.0"
-lifecycle = "2.8.7"
-navigation = "2.8.5"
-activity = "1.9.3"
-fragment = "1.8.5"
-recyclerview = "1.3.2"
-coroutines = "1.9.0"
-hilt = "2.54"
-retrofit = "2.11.0"
-okhttp = "4.12.0"
-gson = "2.11.0"
-firebaseBom = "33.8.0"
-playServicesMaps = "19.0.0"
-playServicesLocation = "21.3.0"
-playServicesAuth = "21.3.0"
-glide = "4.16.0"
-googleServices = "4.4.2"
-googleCrashlytics = "3.0.2"
-swiperefreshlayout = "1.1.0"
-zxingCore = "3.5.3"
-zxingEmbedded = "4.3.0"
-mlkitTextRecognition = "16.0.1"
-
-[libraries]
-# AndroidX Core
-androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
-androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
-androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "constraintlayout" }
-androidx-activity = { group = "androidx.activity", name = "activity-ktx", version.ref = "activity" }
-androidx-fragment = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
-androidx-recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
-androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefreshlayout" }
-
-# Lifecycle
-androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
-androidx-lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
-androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx", version.ref = "lifecycle" }
-androidx-lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycle" }
-
-# Navigation
-androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "navigation" }
-androidx-navigation-ui = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "navigation" }
-
-# Material Design
-google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }
-
-# Coroutines
-kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
-kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
-
-# Hilt DI
-hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
-hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
-
-# Retrofit & OkHttp
-squareup-retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
-squareup-retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
-squareup-okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
-squareup-okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
-google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
-
-# Firebase (BOM — không khai báo version riêng cho từng lib)
-firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
-firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
-firebase-database = { group = "com.google.firebase", name = "firebase-database" }
-firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
-firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics" }
-firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
-
-# Google Play Services
-play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
-play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
-play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
-
-# Image Loading
-glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
-zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
-zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embedded", version.ref = "zxingEmbedded" }
-mlkit-text-recognition = { group = "com.google.mlkit", name = "text-recognition", version.ref = "mlkitTextRecognition" }
-
-[plugins]
-android-application = { id = "com.android.application", version.ref = "agp" }
-android-library = { id = "com.android.library", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
-google-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
-google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
-google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
 ````
 
 ## File: scripts/migrate_orders_driver_to_shipper.py
@@ -52131,1115 +51170,6 @@ new_users = {admin_uid: admin_data}
 </html>
 ````
 
-## File: BAO_CAO_CHUYEN_DE_2_OISHI_FOOD.md
-````markdown
-TRƯỜNG CAO ĐẲNG CÔNG NGHỆ THỦ ĐỨC
-KHOA CÔNG NGHỆ THÔNG TIN
-BÁO CÁO KẾT THÚC MÔN HỌC
-HỌC PHẦN: LẬP TRÌNH DI ĐỘNG 2 (CHUYÊN ĐỀ 2)
-ĐỀ TÀI: HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN ĐA PHÂN HỆ OISHI FOOD (OISHI FOOD DELIVERY ECOSYSTEM)
-Lớp: CD24TT7 | Khóa: 12 | Ngành: Công nghệ thông tin
-Giảng viên hướng dẫn: ThS. TIÊU KIM CƯƠNG
-Nhóm sinh viên thực hiện:
-DƯƠNG MINH THƯ
-PHẠM PHÚC MẠNH GIÀU
-TRẦN VŨ
-HỒ THỊ VÂN ANH
-TP. Hồ Chí Minh, Năm học 2025 – 2026
-
----
-
-# NHẬT KÝ HOẠT ĐỘNG & PHÂN CÔNG BÁO CÁO NHÓM
-| STT | Họ và tên | Công việc đã thực hiện | Nhóm đánh giá (%) | Chữ ký |
-| :---: | :--- | :--- | :---: | :---: |
-| 1 | **Dương Minh Thư** | • Thiết kế kiến trúc Firebase Realtime Database, Firebase Auth & Xác thực Email OTP (`AuthRepository`, `EmailOtpApi`).<br>• Xây dựng module `core` (32 Models, `FirebaseRepository`, `AccountLockWatcher`, `CccdOcrHelper`).<br>• Phát triển ứng dụng Quản trị viên `app-admin` (Dashboard, Duyệt quán, Quản lý danh mục, Giám sát đơn/user, Giải quyết khiếu nại). | 25% | |
-| 2 | **Trần Vũ** | • Phát triển phân hệ Quán ăn & Chủ chuỗi trong `app-internal` (`OrderListFragment`, `MenuManageFragment`, `StoreReportFragment`, `BossDashboardActivity`).<br>• Xây dựng dịch vụ tự động đọc thông báo ngân hàng xác nhận VietQR (`BankNotificationListenerService`) & giữ kết nối (`MerchantKeepAliveService`).<br>• Phát triển phân hệ Tài xế (`ShipperFragment`, `DeliveryTripActivity`, `LocationForegroundService`, Ghép đơn đa điểm, Quét QR/PIN, Báo cáo sự cố 15 phút 2 vòng). | 25% | |
-| 3 | **Phạm Phúc Mạnh Giàu** | • Phát triển ứng dụng Khách hàng `app-customer` (`HomeActivity`, `MenuActivity`, `CartActivity`, `CheckoutActivity`, `PaymentActivity`).<br>• Xây dựng màn hình Theo dõi đơn hàng realtime (`TrackingActivity`), Chat với quán (`ChatStoreBottomSheetDialogFragment`), Hủy đơn hàng ở mọi giai đoạn & Cơ chế Điểm uy tín (`TrustScoreLog`, chế độ đặt cọc `DEPOSIT`).<br>• Phát triển hệ thống Khiếu nại của khách (`ComplaintActivity`, `CustomerComplaintTrackingActivity`). | 25% | |
-| 4 | **Hồ Thị Vân Anh** | • Thiết kế toàn bộ hệ thống giao diện UI/UX Material Design 3 (hơn 85 file XML layouts, BottomSheets, Dialogs, Vector Drawables) cho cả 3 ứng dụng.<br>• Xây dựng màn hình Lịch sử đơn hàng, Đánh giá món ăn, Thông báo đẩy (`CustomerFCMService`, `InternalFCMService`) & Sổ địa chỉ.<br>• Thực hiện kiểm thử tích hợp (118 Test Cases) và biên soạn hồ sơ Đặc tả yêu cầu phần mềm (SRS) & Báo cáo cuối kỳ. | 25% | |
-
----
-
-# MỤC LỤC
-- **DANH MỤC BẢNG BIỂU, HÌNH VẼ, SƠ ĐỒ**
-- **CHƯƠNG 1. MỞ ĐẦU**
-  - 1.1 Giới thiệu môn học, nhóm thực hiện và Tổng quan hệ thống
-  - 1.2 Phạm vi của hệ thống
-  - 1.3 Sự cần thiết của ứng dụng trong thực tiễn (10 khía cạnh cốt lõi)
-- **CHƯƠNG 2. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG**
-  - 2.1 Phân tích hệ thống (SRS - Software Requirement Specification)
-    - 2.1.1 Mục tiêu hệ thống
-    - 2.1.2 Đối tượng sử dụng hệ thống (5 Nhóm đối tượng)
-    - 2.1.3 Phạm vi hệ thống (Các chức năng có và giới hạn hiện tại)
-    - 2.1.4 Các tác nhân (Actors) và Sơ đồ Use Case tổng quát
-    - 2.1.5 Yêu cầu chức năng hệ thống (FR1 – FR24)
-    - 2.1.6 Yêu cầu phi chức năng (NFR1 – NFR8)
-    - 2.1.7 Quy tắc xử lý nghiệp vụ cốt lõi (Business Rules BR1 – BR15)
-    - 2.1.8 Kiến trúc tổng quan hệ thống
-    - 2.1.9 Các vai trò người dùng (Roles)
-    - 2.1.10 Bản đồ các Chức năng chính & Giải thích từng file mã nguồn (Feature & Code Map)
-    - 2.1.11 Sơ đồ luồng xử lý tổng quát & Chi tiết các mối liên hệ kỹ thuật quan trọng
-  - 2.2 Thiết kế hệ thống (SDS - Software Design Specification)
-    - 2.2.1 Thiết kế Kiến trúc Đa Module (Multi-Module Architecture: core, app-customer, app-internal, app-admin)
-    - 2.2.2 Thiết kế Cơ sở dữ liệu Firebase Realtime Database chi tiết
-    - 2.2.3 Sơ đồ Lớp (Class Diagram) toàn hệ thống
-    - 2.2.4 Sơ đồ Tuần tự (Sequence Diagrams) cho các luồng nghiệp vụ phức tạp
-    - 2.2.5 Sơ đồ trạng thái vòng đời đơn hàng
-  - 2.3 Đặc tả chi tiết Giao diện và Yêu cầu chức năng từng màn hình (32 Màn hình & Hộp thoại)
-    - Phần A: Các màn hình Ứng dụng Khách hàng (app-customer)
-    - Phần B: Các màn hình Ứng dụng Nội bộ - Quán ăn, Chủ chuỗi & Tài xế (app-internal)
-    - Phần C: Các màn hình Ứng dụng Quản trị viên (app-admin)
-- **CHƯƠNG 3. CÀI ĐẶT VÀ KIỂM THỬ**
-  - 3.1 Cài đặt và Hiện thực hóa hệ thống
-    - 3.1.1 Môi trường phát triển, Công nghệ và Thư viện tích hợp
-    - 3.1.2 Hiện thực hóa các Dịch vụ chạy ngầm (Services), OCR, Thanh toán & Bản đồ
-  - 3.2 Kiểm thử hệ thống
-    - 3.2.1 Môi trường kiểm thử
-    - 3.2.2 Dữ liệu kiểm thử
-    - 3.2.3 Quy ước kiểm thử
-    - 3.2.4 Danh sách 118 Test Case chi tiết theo 11 nhóm chức năng (Đã kiểm thử đạt 100%)
-    - 3.2.5 Tổng hợp kết quả kiểm thử
-    - 3.2.6 Ảnh minh chứng kết quả kiểm thử
-    - 3.2.7 Lỗi phát hiện & biện pháp khắc phục
-- **CHƯƠNG 4. KẾT QUẢ ĐẠT ĐƯỢC VÀ HƯỚNG PHÁT TRIỂN**
-  - 4.1 Kết quả đạt được
-  - 4.2 Các kết luận và kiến nghị (Điểm làm được, Hạn chế, Hướng phát triển bổ sung)
-- **PHỤ LỤC** (A. Hướng dẫn cài đặt – B. Cấu trúc mã nguồn – C. Đường dẫn mã nguồn)
-- **TÀI LIỆU THAM KHẢO**
-
----
-
-# DANH MỤC BẢNG BIỂU, HÌNH VẼ, SƠ ĐỒ
-
-### Danh mục hình vẽ, sơ đồ
-| Ký hiệu | Tên hình / sơ đồ | Mục |
-| :---: | :--- | :---: |
-| Sơ đồ 1 | Sơ đồ Use Case tổng quát hệ thống Oishi Food | 2.1.4 |
-| Sơ đồ 2 | Sơ đồ mối liên hệ luồng vận hành giữa các phân hệ | 2.1.11 |
-| Sơ đồ 3 | Sơ đồ lớp (Class Diagram) toàn hệ thống | 2.2.3 |
-| Sơ đồ 4 | Sơ đồ tuần tự: Đặt hàng – Duyệt VietQR tự động – Chế biến – Giao QR/PIN | 2.2.4 |
-| Sơ đồ 5 | Sơ đồ tuần tự: Khách hủy đơn các giai đoạn & Xử lý trừ điểm uy tín COD | 2.2.4 |
-| Sơ đồ 6 | Sơ đồ máy trạng thái vòng đời đơn hàng (Order State Machine) | 2.2.5 |
-| Ảnh 1 – Ảnh 25B | Ảnh chụp giao diện các màn hình của 3 ứng dụng | 2.3 |
-| Ảnh KT-1 – KT-6 | Ảnh minh chứng kết quả kiểm thử thực tế | 3.2.6 |
-
-### Danh mục bảng biểu
-| Ký hiệu | Tên bảng | Mục |
-| :---: | :--- | :---: |
-| Bảng 1 | Nhật ký hoạt động & phân công nhóm | Đầu tài liệu |
-| Bảng 2 | Các tác nhân (Actors) của hệ thống | 2.1.4 |
-| Bảng 3 | Thiết kế các nhánh dữ liệu Firebase Realtime Database | 2.2.2 |
-| Bảng 4 – Bảng 28 | Bảng yêu cầu chức năng từng màn hình (Mục / Mô tả / Hành động / Phản hồi) | 2.3 |
-| Bảng 29 | Môi trường & thiết bị kiểm thử thực tế | 3.2.1 |
-| Bảng 30 | Tài khoản dữ liệu kiểm thử chuẩn hóa | 3.2.2 |
-| Bảng 31 – Bảng 41 | Bảng Test Case chi tiết theo 11 nhóm chức năng (118 Test Case hoàn tất) | 3.2.4 |
-| Bảng 42 | Tổng hợp kết quả kiểm thử toàn hệ thống (100% Pass) | 3.2.5 |
-
----
-
-# CHƯƠNG 1. MỞ ĐẦU
-
-## 1.1 Giới thiệu môn học, nhóm thực hiện và Tổng quan hệ thống
-### 1.1.1 Giới thiệu môn học và nhóm thực hiện
-Học phần Lập trình di động 2 (Chuyên đề 2) thuộc chương trình đào tạo ngành Công nghệ Thông tin tại Trường Cao đẳng Công nghệ Thủ Đức giúp sinh viên vận dụng toàn diện kỹ năng lập trình Android hiện đại bằng ngôn ngữ Kotlin, thiết kế kiến trúc phần mềm đa phân hệ (Multi-module), đồng bộ hóa dữ liệu đám mây thời gian thực và giải quyết các bài toán nghiệp vụ thương mại điện tử phức tạp.  
-Dưới sự hướng dẫn của giảng viên ThS. Tiêu Kim Cương, nhóm sinh viên lớp CD24TT7 (gồm Dương Minh Thư, Phạm Phúc Mạnh Giàu, Trần Vũ, Hồ Thị Vân Anh) đã nghiên cứu và phát triển hệ sinh thái **Oishi Food** — nền tảng đặt món, quản lý bếp, điều phối giao hàng thông minh và quản trị sàn giao dịch ẩm thực trực tuyến.
-
-### 1.1.2 Tổng quan hệ thống Oishi Food
-Hệ thống Oishi Food được xây dựng nhằm kết nối liền mạch 4 chủ thể trong chuỗi cung ứng ẩm thực: **Khách hàng (Customer) – Cửa hàng/Quán ăn (Merchant & Boss) – Tài xế giao hàng (Driver/Shipper) – Quản trị viên hệ thống (Admin)** thông qua 3 ứng dụng Android độc lập dùng chung một nhân lõi (`core`). Hệ thống tích hợp hàng loạt công nghệ chuyên sâu:
-- **Firebase Authentication & Email OTP API**: Xác thực tài khoản bảo mật kết hợp gửi mã OTP xác minh qua Email thật của người dùng.
-- **Firebase Realtime Database**: Đồng bộ tức thời trạng thái đơn hàng, vị trí GPS của tài xế trên bản đồ, phòng chat nội bộ và khóa tài khoản vi phạm theo thời gian thực (<500ms).
-- **Google Maps SDK, Location Services & Geocoding/Directions API**: Tìm kiếm gợi ý địa chỉ, ghim tọa độ trên bản đồ, đo khoảng cách thực tế tính phí vận chuyển theo vùng (`ShippingRule`: nội quận 15.000đ, liên quận 25.000đ, ngoại thành 45.000đ), vẽ đường đi (Polyline) và theo dõi xe giao hàng trực tiếp.
-- **VietQR Napas247 & BankNotificationListenerService**: Tự động sinh mã QR chuyển khoản ngân hàng chuẩn Napas247 chứa đúng số tiền và cú pháp mã đơn; tích hợp dịch vụ lắng nghe thông báo biến động số dư ngân hàng trên máy chủ quán để tự động duyệt đơn đã thanh toán.
-- **Google ML Kit / OCR Căn cước công dân (CccdOcrHelper)**: Tự động quét và bóc tách thông tin Căn cước công dân khi chủ quán đăng ký xác minh cửa hàng.
-- **ZXing QR Code & Mã PIN 6 số**: Cơ chế xác thực bàn giao đơn hàng 2 lớp chống gian lận.
-- **Hệ thống Điểm uy tín (TrustScore) & Cơ chế Đặt cọc (DEPOSIT)**: Đánh giá độ tin cậy của khách hàng, tự động trừ điểm khi khách hủy đơn COD đang giao hoặc bom hàng, yêu cầu đặt cọc chuyển khoản trước 20% nếu điểm uy tín thấp (<90 điểm), và tự động khóa tài khoản khi vi phạm nghiêm trọng (<20 điểm).
-- **Cơ chế Hủy đơn đa tầng & Báo sự cố 15 phút**: Cho phép khách hàng hủy đơn ở bất kỳ giai đoạn nào với thông báo tương ứng cho quán ăn dừng nấu hoặc cho tài xế hủy chuyến / đem món về quán; quy trình báo sự cố giao hàng đếm ngược 15 phút (2 vòng) minh bạch.
-
-### 1.1.3 Tổng quan chi tiết các nhóm chức năng theo từng phân hệ
-#### A. Phân hệ Ứng dụng Khách hàng (app-customer)
-- **Xác thực và Bảo mật tài khoản**: Đăng ký kiểm tra định dạng email/SĐT, gửi mã OTP 6 số qua Email thật (`EmailOtpApi`), đăng nhập tự động lưu phiên và trình giám sát `AccountLockWatcher` tự động đăng xuất khi bị khóa.
-- **Trang chủ, Tìm kiếm và Bộ lọc thông minh**: Danh mục ẩm thực trực quan, Món ăn đang Hot, Quán gần bạn tính theo GPS thực tế, tìm kiếm thời gian thực và Bộ lọc nâng cao theo quận/huyện, khoảng giá, số sao, khoảng cách.
-- **Thực đơn Quán, Tùy chọn Topping/Size & Đánh giá**: Xem chi tiết quán, món lẻ, combo ưu đãi, chọn size/đường/đá/topping (`DishOptionBottomSheetDialogFragment`) và xem bình luận đánh giá sao thực tế của khách hàng cũ.
-- **Quỏ hàng & Thanh toán tự động**: Nhóm món theo quán, tự động tính tổng tiền, chọn địa chỉ từ sổ địa chỉ hoặc ghim bản đồ Google Maps (`SelectLocationActivity`), tính phí ship theo vùng (`ShippingRule`), hỗ trợ thanh toán Tiền mặt (COD), Chuyển khoản VietQR tự động hoặc Đặt cọc 20% (`PaymentMode.DEPOSIT`).
-- **Theo dõi Đơn hàng Thời gian thực & Tương tác**: Thanh tiến trình trạng thái trực quan, theo dõi xe máy của tài xế di chuyển trên bản đồ Google Maps, mã QR xác nhận và mã PIN 6 số bảo mật, chat thời gian thực với quán, xem hình ảnh bằng chứng sự cố và nút hủy đơn luôn sẵn sàng ở mọi giai đoạn.
-- **Lịch sử, Đánh giá & Khiếu nại**: Xem đơn đang chạy và lịch sử đơn, chấm điểm 1–5 sao và viết nhận xét sau khi nhận hàng, gửi đơn khiếu nại kèm hình ảnh minh chứng và theo dõi kết quả phán quyết từ Admin.
-- **Hồ sơ, Sổ địa chỉ & Điểm uy tín**: Quản lý thông tin cá nhân, nhiều địa chỉ nhận hàng, theo dõi chi tiết Điểm uy tín và lịch sử cộng/trừ điểm minh bạch.
-
-#### B. Phân hệ Ứng dụng Nội bộ: Quán ăn, Chủ chuỗi & Tài xế (app-internal)
-- **Định danh Cửa hàng & Quét OCR CCCD**: Chụp ảnh CCCD 2 mặt và giấy phép; hệ thống dùng Google ML Kit bóc tách số CCCD, họ tên tự động gửi Admin duyệt.
-- **Phân hệ Chủ chuỗi (Boss)**: Quản lý tập trung các chi nhánh, tạo cơ sở mới, tạo tài khoản quản lý và gán chi nhánh cho từng quản lý.
-- **Phân hệ Quán ăn – Kanban 4 Tab**: Phân loại Đơn Mới, Đang Làm, Đang Giao, Lịch Sử; chuông báo động và Popup khi có đơn mới; dịch vụ `BankNotificationListenerService` tự động đọc thông báo biến động số dư ngân hàng duyệt đơn VietQR; quy trình bếp tinh gọn (Nhận đơn ➔ Nấu xong phát đơn cho tài xế; tài xế đến tự gạt nhận món không cần quán bấm thêm); xử lý thông báo hủy đơn để dừng nấu; xác nhận nhận lại món hoàn trả.
-- **Quản lý Thực đơn, Danh mục, Combo & Báo cáo Quán**: Thêm/sửa món ăn, bật/tắt còn/hết món tức thời, quản lý danh mục riêng, tạo combo giảm giá, xem báo cáo doanh thu theo ngày/tuần/tháng và bảng xếp hạng Top món bán chạy nhất.
-- **Phân hệ Tài xế – Nhận đơn, Ghép chuyến & Giao hàng GPS**: Bật/tắt trực tuyến phát tọa độ GPS ngầm (`LocationForegroundService`); hỗ trợ ghép tối đa 3 đơn cùng tuyến đường; tài xế chủ động chọn thứ tự giao khách nào trước trên bản đồ; thanh trượt chống chạm nhầm (Đến quán ➔ Lấy món ➔ Đến nhà khách); xác thực giao hàng bằng Camera quét mã QR hoặc nhập PIN 6 số; quy trình báo sự cố gọi 3 cuộc, chụp ảnh bằng chứng, đếm ngược 15 phút (2 vòng); nhận thông báo hủy đơn từ khách để kết thúc chuyến hoặc quay xe trả món về quán; thống kê thu nhập chi tiết.
-
-#### C. Phân hệ Ứng dụng Quản trị viên Hệ thống (app-admin)
-- **Bảng điều khiển Trung tâm**: Thống kê doanh thu toàn sàn, tổng đơn hàng thành công/hủy, số cửa hàng, tài xế, khách hàng; cấu hình tham số thời gian đếm ngược sự cố (`DeliveryCountdownConfig`).
-- **Kiểm duyệt Cửa hàng**: Xem hồ sơ OCR CCCD, giấy phép, địa chỉ để Phê duyệt hoặc Từ chối mở quán; áp dụng chế tài xử phạt hoặc tạm khóa quán vi phạm.
-- **Quản lý Danh mục Chuẩn toàn sàn**: Thêm mới, cập nhật icon và tên danh mục ẩm thực chung trên toàn hệ thống.
-- **Giám sát Đơn hàng & Người dùng**: Giám sát mọi đơn hàng đang diễn ra, can thiệp xử lý sự cố; quản lý danh sách tài khoản, điều chỉnh Điểm uy tín và khóa/mở khóa tài khoản tức thời.
-- **Trung tâm Giải quyết Khiếu nại**: Thẩm định khiếu nại của khách, đối chiếu hình ảnh bằng chứng của các bên, ra phán quyết xử lý công bằng (hoàn điểm, phạt quán).
-
-## 1.2 Phạm vi của hệ thống
-- **Phạm vi chức năng**: Quy trình khép kín từ Đăng ký quán (OCR CCCD) ➔ Admin duyệt ➔ Quán lên món & Combo ➔ Khách tìm kiếm, đặt món & thanh toán (COD / VietQR) ➔ Quán nhận chuông báo & nấu ➔ Tài xế ghép đơn, nhận món & định vị GPS giao hàng ➔ Quét QR/PIN hoàn tất ➔ Đánh giá, thống kê & khiếu nại.
-- **Hệ điều hành hỗ trợ**: Android 8.0 (API Level 26 - Oreo) trở lên đến Android 15.
-- **Thiết bị thử nghiệm thực tế**: Samsung Galaxy A54 5G (Android 14), Xiaomi Redmi Note 12 (Android 13), Realme C55 (Android 13) và Google Pixel 7 Emulator (Android 14 API 34).
-- **Yêu cầu hạ tầng**: Kết nối Internet (Wi-Fi/4G/5G), bật quyền Vị trí (GPS) và Camera (quét QR / chụp ảnh CCCD và bằng chứng sự cố).
-
-## 1.3 Sự cần thiết của ứng dụng trong thực tiễn (10 khía cạnh cốt lõi)
-1. **Số hóa và chuẩn hóa quy trình đặt món ăn trực tuyến**: Cung cấp thực đơn điện tử trực quan, giá cả minh bạch, hạn chế nhầm lẫn khẩu vị và địa chỉ.
-2. **Tự động hóa xác nhận thanh toán không tiền mặt (VietQR Napas247)**: Tự động sinh mã QR chứa số tiền và nội dung chuyển khoản chuẩn, kết hợp `BankNotificationListenerService` đọc thông báo biến động số dư ngân hàng để duyệt đơn tức thì.
-3. **Tối ưu hóa vận hành nhà bếp theo mô hình Kanban tinh gọn**: Quán quản lý 4 luồng đơn rõ ràng, chuông báo đơn mới không bị bỏ lỡ; tài xế đến tự gạt lấy món, loại bỏ thao tác bấm thừa của quán.
-4. **Nâng cao hiệu suất giao hàng với thuật toán Ghép đơn đa điểm (Multi-Drop)**: Một tài xế giao 2–3 đơn cùng tuyến, chủ động chọn thứ tự giao khách ưu tiên, tăng thu nhập và giảm thời gian chờ đợi.
-5. **Minh bạch hóa hành trình giao nhận bằng định vị GPS thời gian thực**: Khách hàng quan sát trực tiếp xe máy của tài xế di chuyển trên bản đồ Google Maps; hệ thống tính phí ship theo vùng công bằng (`ShippingRule`).
-6. **Chống gian lận giao nhận nhờ xác thực 2 lớp (QR Code & PIN 6 số)**: Bắt buộc quét đúng mã QR `#OISHI_XXXXXX` hoặc nhập mã PIN 6 số của đơn hàng mới hoàn tất, triệt tiêu giao khống hoặc nhầm đơn.
-7. **Bảo vệ quyền lợi Quán ăn và Tài xế trước nạn "Bom hàng"**: Hệ thống Điểm uy tín (`TrustScore`) khởi tạo 100 điểm; hủy đơn COD đang giao bị trừ 30 điểm; khách có điểm thấp (<90) bắt buộc đặt cọc 20% trước (`DEPOSIT`); điểm <20 tự động khóa tài khoản.
-8. **Khách hàng chủ động hủy đơn ở mọi giai đoạn với thông báo đồng bộ**: Khi quán chưa nấu hoặc tài xế đang ở quán, khách hủy đơn giúp quán dừng nấu và tài xế hủy giao; khi đang giao, khách hủy đơn điều hướng tài xế mang món về trả quán an toàn.
-9. **Quy trình xử lý sự cố khách không nghe máy 15 phút (2 Vòng) nhân văn**: Bắt buộc gọi 3 cuộc, chụp ảnh bằng chứng; vòng 1 hỗ trợ liên lạc, vòng 2 mới phát cảnh báo mất đơn trên máy khách trước khi kết luận bom hàng.
-10. **Hỗ trợ Quản lý Chuỗi đa chi nhánh và Quản trị toàn sàn chuyên nghiệp**: Chủ chuỗi quản lý nhiều cơ sở; Admin kiểm duyệt OCR CCCD, xử lý khiếu nại và giám sát công bằng.
-
----
-
-# CHƯƠNG 2. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG
-
-## 2.1 PHÂN TÍCH HỆ THỐNG (SRS)
-### 2.1.1 Mục tiêu hệ thống
-Xây dựng nền tảng thương mại điện tử đa phân hệ trên Android với 3 ứng dụng chuyên biệt, đáp ứng khả năng phục vụ đồng thời cho Khách hàng, Đối tác Quán ăn, Tài xế và Ban quản trị.
-
-### 2.1.2 Đối tượng sử dụng hệ thống (5 Nhóm đối tượng)
-1. **Khách hàng (`CUSTOMER`)**: Mua sắm, theo dõi GPS, thanh toán, hủy đơn mọi giai đoạn, đánh giá và khiếu nại.
-2. **Quản lý Quán ăn (`MERCHANT`)**: Quản lý thực đơn, nhận chuông báo đơn mới, vận hành bếp, xem doanh thu.
-3. **Chủ chuỗi cửa hàng (`MERCHANT` cấp Boss)**: Mở chi nhánh mới, tạo tài khoản quản lý và gán quyền chi nhánh.
-4. **Tài xế giao hàng (`DRIVER`)**: Nhận đơn, ghép chuyến, dẫn đường bản đồ, quét QR/PIN giao hàng, báo sự cố.
-5. **Quản trị viên (`ADMIN`)**: Giám sát toàn hệ thống, duyệt quán OCR CCCD, cấu hình tham số, xử lý khiếu nại.
-
-### 2.1.3 Phạm vi hệ thống
-Bao phủ trọn vẹn toàn bộ các luồng nghiệp vụ trên Android 8.0 đến Android 15. Chưa bao gồm phiên bản iOS, chưa tích hợp gọi thoại VoIP nội bộ qua Internet (kết nối qua GSM mặc định), tập trung thanh toán COD và VietQR tự động qua Notification Listener.
-
-### 2.1.4 Các tác nhân (Actors) và Sơ đồ Use Case tổng quát
-| Tác nhân (Actor) | Mô tả vai trò và trách nhiệm chính |
-| :--- | :--- |
-| **Khách hàng (Customer)** | Đặt món, thanh toán COD/VietQR, theo dõi GPS tài xế, mở QR/PIN nhận món, chat với quán, hủy đơn ở mọi giai đoạn, đánh giá món ăn và gửi khiếu nại. |
-| **Quán ăn (Merchant)** | Xác minh CCCD, quản lý thực đơn/combo, tiếp nhận đơn mới, nấu món theo quy trình bếp, dừng làm khi khách hủy đơn, chat với khách, xem báo cáo doanh thu. |
-| **Chủ chuỗi (Boss)** | Quản lý danh sách chi nhánh, tạo chi nhánh mới, cấp tài khoản và gán chi nhánh cho các Merchant. |
-| **Tài xế (Driver)** | Bật trực tuyến, nhận đơn lẻ/ghép chặng, di chuyển theo bản đồ, quét QR/PIN hoàn tất, báo sự cố 15 phút, nhận thông báo hủy đơn để kết thúc chuyến hoặc trả hàng về quán. |
-| **Quản trị viên (Admin)** | Kiểm duyệt quán qua ảnh OCR CCCD, quản lý danh mục toàn sàn, cấu hình đếm ngược, giám sát đơn/user, điều chỉnh điểm uy tín và phán quyết khiếu nại. |
-
-```mermaid
-flowchart TD
-    subgraph Actors["Tác Nhân Hệ Thống"]
-        Customer["👤 Khách hàng (Customer)"]
-        Merchant["🏪 Quán ăn (Merchant)"]
-        Boss["🏢 Chủ chuỗi (Boss)"]
-        Driver["🛵 Tài xế (Driver)"]
-        Admin["🛡️ Quản trị viên (Admin)"]
-    end
-
-    subgraph UseCases["Các Nhóm Chức Năng Chính"]
-        UC1["Xác thực OTP Email & Đăng nhập"]
-        UC2["Định danh Cửa hàng bằng OCR CCCD"]
-        UC3["Quản lý Chi nhánh & Cấp quyền Quản lý"]
-        UC4["Tìm kiếm, Lọc & Xem Thực đơn/Combo"]
-        UC5["Đặt hàng, Tính phí Ship & Thanh toán VietQR/COD"]
-        UC6["Vận hành Bếp Kanban & Tự động duyệt VietQR"]
-        UC7["Ghép đơn Đa điểm & Dẫn đường GPS"]
-        UC8["Xác thực Giao hàng 2 lớp bằng QR/PIN"]
-        UC9["Hủy đơn Mọi giai đoạn & Hoàn hàng về Quán"]
-        UC10["Báo sự cố Khách không nghe máy 15 phút (2 Vòng)"]
-        UC11["Quản lý Điểm uy tín TrustScore & Đặt cọc DEPOSIT"]
-        UC12["Đánh giá Món ăn & Xử lý Khiếu nại"]
-        UC13["Giám sát Đơn hàng & Quản trị Hệ thống"]
-    end
-
-    Customer --> UC1
-    Customer --> UC4
-    Customer --> UC5
-    Customer --> UC8
-    Customer --> UC9
-    Customer --> UC11
-    Customer --> UC12
-
-    Merchant --> UC1
-    Merchant --> UC2
-    Merchant --> UC6
-    Merchant --> UC9
-
-    Boss --> UC1
-    Boss --> UC3
-
-    Driver --> UC1
-    Driver --> UC7
-    Driver --> UC8
-    Driver --> UC9
-    Driver --> UC10
-
-    Admin --> UC1
-    Admin --> UC2
-    Admin --> UC11
-    Admin --> UC12
-    Admin --> UC13
-```
-
-### 2.1.5 Yêu cầu chức năng hệ thống (FR1 – FR24)
-- **FR1 (Xác thực OTP Email)**: Đăng ký xác thực mã OTP 6 số qua Email thật (`EmailOtpApi`), đăng nhập phân quyền, giám sát khóa tài khoản thời gian thực (`AccountLockWatcher`).
-- **FR2 (Định danh OCR CCCD)**: Chụp ảnh thẻ CCCD 2 mặt, bóc tách số CCCD và họ tên tự động bằng Google ML Kit (`CccdOcrHelper`).
-- **FR3 (Quản lý Chuỗi Boss)**: Tạo chi nhánh mới kèm tọa độ bản đồ, cấp tài khoản và gán chi nhánh cho Merchant.
-- **FR4 (Trang chủ & Lọc nâng cao)**: Danh mục ẩm thực, món Hot, quán gần bạn theo GPS, tìm kiếm realtime, lọc theo quận/giá/sao/khoảng cách.
-- **FR5 (Thực đơn, Topping & Combo)**: Xem thực đơn phân nhóm, gói combo ưu đãi, chọn size/topping/ghi chú, xem đánh giá của khách cũ.
-- **FR6 (Quản lý Giỏ hàng)**: Nhóm món theo quán, tăng/giảm số lượng, tính tiền tức thời.
-- **FR7 (Định vị & Phí vận chuyển)**: Sổ địa chỉ cá nhân, gợi ý địa chỉ, ghim bản đồ Google Maps, tính phí ship theo vùng (`ShippingRule`: 15k/25k/45k).
-- **FR8 (Thanh toán COD, VietQR & Đặt cọc DEPOSIT)**: Hỗ trợ tiền mặt COD (uy tín ≥90), chuyển khoản VietQR Napas247, bắt buộc đặt cọc 20% khi uy tín <90 điểm.
-- **FR9 (Tự động duyệt VietQR tại Quán)**: `BankNotificationListenerService` đọc thông báo biến động số dư ngân hàng, khớp mã đơn và tự động chuyển sang `PAID`.
-- **FR10 (Quản lý Bếp Kanban)**: 4 Tab Đơn Mới – Đang Làm – Đang Giao – Lịch Sử, chuông báo và popup đơn mới, quy trình bếp 2 nút bấm tinh gọn.
-- **FR11 (Quản lý Món ăn, Danh mục & Combo)**: Thêm/sửa món, bật/tắt còn hàng, quản lý danh mục riêng của quán, tạo combo ưu đãi.
-- **FR12 (Quản lý Tài xế & Thống kê Doanh thu Quán)**: Danh sách tài xế nội bộ, thống kê doanh thu hôm nay và Top món bán chạy nhất.
-- **FR13 (Nhận đơn & Ghép chuyến Multi-Drop)**: Sảnh nhận đơn READY, ghép tối đa 3 đơn cùng tuyến đường, tự chọn thứ tự giao ưu tiên trên bản đồ.
-- **FR14 (Bản đồ Dẫn đường & Cập nhật Tiến độ)**: Phát tọa độ GPS ngầm (`LocationForegroundService`), vẽ tuyến đường Google Maps, thanh trượt cập nhật tiến độ (Đến quán ➔ Lấy món ➔ Đến nhà khách).
-- **FR15 (Xác thực Giao hàng bằng QR & PIN 6 số)**: Khách mở mã QR và mã PIN, tài xế quét Camera hoặc nhập PIN để hoàn tất `COMPLETED`.
-- **FR16 (Báo sự cố Gọi nhỡ 15 phút 2 Vòng)**: Gọi đủ 3 cuộc, chụp ảnh bằng chứng, đếm ngược 15 phút Vòng 1 (hỗ trợ liên lạc) và Vòng 2 (cảnh báo mất đơn) trước khi hủy bom hàng.
-- **FR17 (Hủy đơn ở MỌI GIAI ĐOẠN & Hoàn hàng)**: Khách có thể hủy đơn bất kỳ lúc nào:
-  - `PENDING`/`PAID`/`AWAITING_PAYMENT`: Hủy ngay không trừ uy tín.
-  - `PREPARING`/`READY`: Khách bấm hủy -> cập nhật `CANCELLED`, quán nhận thông báo dừng nấu ngay lập tức.
-  - `ASSIGNED`/`ARRIVED_AT_SHOP`: Khách bấm hủy -> cập nhật `CANCELLED`, quán dừng nấu và tài xế nhận thông báo hủy chuyến giao.
-  - `DELIVERING`/`ARRIVED_AT_CUSTOMER`: Khách bấm hủy -> cập nhật `RETURNING_TO_STORE`, tài xế nhận thông báo mang món quay về quán (đơn COD trừ 30 điểm uy tín).
-- **FR18 (Quản lý Điểm uy tín TrustScore)**: Giao thành công +2 điểm, hủy đơn COD đang giao hoặc bom hàng −30 điểm, ghi nhận `TrustScoreLog` chi tiết.
-- **FR19 (Chat Thời gian thực)**: Nhắn tin trực tiếp giữa Khách hàng và Quán ăn trong từng đơn hàng (`/tracking/chats_{orderId}`).
-- **FR20 (Đánh giá Món ăn)**: Chấm 1–5 sao và viết nhận xét sau khi đơn hàng `COMPLETED`.
-- **FR21 (Khiếu nại & Theo dõi Tranh chấp)**: Gửi khiếu nại kèm ảnh minh chứng, theo dõi phản hồi giải quyết từ Admin.
-- **FR22 (Thống kê Thu nhập Tài xế)**: Xem tổng tiền cước nhận được và lịch sử chuyến giao hàng.
-- **FR23 (Quản trị Hệ thống app-admin)**: Dashboard toàn sàn, cấu hình thời gian đếm ngược sự cố, duyệt quán OCR CCCD, quản lý danh mục toàn sàn.
-- **FR24 (Giám sát Đơn hàng, User & Xử lý Khiếu nại)**: Can thiệp đơn hàng bất thường, điều chỉnh điểm uy tín, khóa/mở khóa tài khoản, phán quyết khiếu nại.
-
-### 2.1.6 Yêu cầu phi chức năng (NFR1 – NFR8)
-- **NFR1 (UI/UX)**: Chuẩn Material Design 3, màu thương hiệu cam `#FF6B00`, hiển thị Edge-to-Edge mượt mà.
-- **NFR2 (Hiệu năng Realtime)**: Độ trễ đồng bộ Firebase dưới 500ms; ListAdapter & DiffUtil cuộn 60fps.
-- **NFR3 (Tính ổn định Services)**: `LocationForegroundService` và `MerchantKeepAliveService` chạy bền bỉ với `START_STICKY`.
-- **NFR4 (Bảo mật)**: Băm mật khẩu Firebase Auth, xác thực OTP Email thật, mã QR và PIN độc nhất ngẫu nhiên.
-- **NFR5 (Dễ sử dụng)**: Thanh trượt Slide-to-confirm chống chạm nhầm khi chạy xe; quy trình bếp 2 nút bấm tinh gọn.
-- **NFR6 (Kiến trúc)**: Đa module Gradle (`core`, `app-customer`, `app-internal`, `app-admin`) kết hợp MVVM rõ ràng.
-- **NFR7 (Khai thác phần cứng)**: GPS tần suất cao, Camera quét QR/chụp OCR, chuông báo âm thanh hệ thống.
-- **NFR8 (Tiết kiệm pin & 4G)**: Cập nhật GPS theo khoảng cách di chuyển thực tế, nén ảnh trước khi tải lên.
-
-### 2.1.7 Quy tắc xử lý nghiệp vụ cốt lõi (Business Rules BR1 – BR15)
-- **BR1 (Xác thực OTP & Khóa tài khoản)**: OTP có hiệu lực 10 phút, gửi lại sau 60 giây; ghi nhớ phiên 24h; tài khoản `admin@gmail.com` miễn OTP. Khi tài khoản bị `LOCKED` hoặc điểm <20, `AccountLockWatcher` tự động đăng xuất ngay.
-- **BR2 (Xác minh OCR Cửa hàng)**: Quán mới phải gửi ảnh CCCD quét OCR và giấy phép, được Admin duyệt mới mở bán.
-- **BR3 (Phí vận chuyển ShippingRule)**: Nội quận 15.000đ; liên quận 25.000đ; ngoại thành 45.000đ. Uy tín ≥95 giảm 5.000đ ship.
-- **BR4 (Điểm uy tín & Đặt cọc DEPOSIT)**: Điểm ban đầu 100. Giao thành công +2, bom/hủy COD khi đang giao −30. Điểm <90 cấm COD, bắt buộc đặt cọc 20% (`PaymentMode.DEPOSIT`). Điểm <20 tài khoản tự động bị khóa (`LOCKED`).
-- **BR5 (Tự động duyệt VietQR)**: Quán cài `BankNotificationListenerService`, khi nhận thông báo khớp mã đơn `#OISHI_...` và số tiền sẽ tự động chuyển sang `PAID`.
-- **BR6 (Quy trình Bếp tinh gọn)**: Quán chỉ bấm nhận đơn (`PREPARING`) và báo nấu xong (`READY`). Tài xế đến tự kiểm tra và gạt lấy hàng (`DELIVERING`).
-- **BR7 (Ghép đơn Đa điểm Multi-Drop)**: Tối đa 3 đơn cùng lúc; tài xế tự do chọn thứ tự khách giao trước trên bản đồ; trạng thái từng đơn lưu độc lập trên Firebase.
-- **BR8 (Bản đồ Shipper cho Khách)**: Chỉ hiển thị khi đơn hàng ở trạng thái `DELIVERING` để bảo mật và tránh rối giao diện.
-- **BR9 (Xác thực Hoàn tất QR/PIN)**: Bắt buộc quét đúng mã QR `#OISHI_XXXXXX` hoặc nhập đúng mã PIN 6 số của đơn hàng đó.
-- **BR10 (Khách hủy đơn ở mọi giai đoạn)**:
-  - Khi quán chưa nấu hoặc đang nấu hoặc tài xế đang ở quán: Đơn chuyển `CANCELLED`, quán dừng nấu và tài xế hủy chuyến, không trừ điểm uy tín.
-  - Khi đang giao (`DELIVERING`/`ARRIVED_AT_CUSTOMER`): Đơn chuyển `RETURNING_TO_STORE`, tài xế nhận thông báo quay xe về quán; đơn COD trừ 30 điểm uy tín; đơn đã thanh toán online không bị trừ điểm.
-- **BR11 (Sự cố Gọi nhỡ 15 phút 2 Vòng)**: Gọi tối thiểu 3 cuộc, chụp ảnh bằng chứng. Vòng 1 (15 phút hỗ trợ) không cảnh báo mất đơn trên máy khách. Hết vòng 1 sang Vòng 2 mới phát cảnh báo đỏ. Hết vòng 2 mới được xác nhận bom hàng (`BOOM`/`RETURNING_TO_STORE`).
-- **BR12 (Hoàn trả món về Quán)**: Đơn `RETURNING_TO_STORE` sau khi tài xế về tới quầy và bàn giao lại được cập nhật `RETURNED_TO_STORE`.
-- **BR13 (Đánh giá Món ăn)**: Chỉ được đánh giá khi đơn hàng đã `COMPLETED`.
-- **BR14 (Khiếu nại)**: Phán quyết của Admin là quyết định cuối cùng, đi kèm hoàn điểm uy tín hoặc chế tài quán.
-- **BR15 (Doanh thu Quán)**: Chỉ tính các đơn `COMPLETED` có thời gian tạo trong ngày hiện tại (00:00:00 – 23:59:59).
-
-### 2.1.8 Kiến trúc tổng quan hệ thống
-Hệ thống kết hợp mô hình Client – Cloud Server thời gian thực:
-- **Tầng Di động**: 3 Ứng dụng Kotlin độc lập (`app-customer`, `app-internal`, `app-admin`).
-- **Tầng Thư viện Lõi**: Module `core` chứa toàn bộ Models, Repositories, Utils.
-- **Tầng Đám mây Firebase**: Firebase Auth, Firebase Realtime Database (độ trễ <500ms), Firebase Cloud Messaging (FCM).
-- **Tầng Dịch vụ bên thứ ba**: Google Maps SDK, Geocoding/Directions API, VietQR Napas247, Google ML Kit OCR.
-
-### 2.1.9 Các vai trò người dùng (Roles)
-- `CUSTOMER`: Mua sắm, theo dõi GPS, thanh toán, hủy đơn mọi giai đoạn, đánh giá, khiếu nại.
-- `MERCHANT`: Quản lý bếp, thực đơn, doanh thu chi nhánh.
-- `MERCHANT (Chủ chuỗi - Boss)`: Quản lý nhiều chi nhánh, phân quyền cho các Merchant.
-- `DRIVER`: Nhận đơn, ghép chuyến, dẫn đường bản đồ, quét QR/PIN, báo sự cố 15 phút.
-- `ADMIN`: Quản trị toàn sàn, duyệt quán OCR CCCD, giám sát đơn/user, phán quyết khiếu nại.
-
-### 2.1.10 Bản đồ các Chức năng chính & Giải thích từng file mã nguồn (Feature & Code Map)
-1. **Module `core`**:
-   - `FirebaseRepository.kt`: Quản lý toàn bộ truy vấn CRUD và luồng thời gian thực Flow/ValueEventListener.
-   - `AuthRepository.kt` & `EmailOtpApi.kt`: Đăng nhập, đăng ký và gửi mã xác thực OTP qua Email.
-   - `AccountLockWatcher.kt`: Lắng nghe ngầm trạng thái khóa tài khoản và cưỡng chế đăng xuất tức thời.
-   - `CccdOcrHelper.kt`: Nhận diện ký tự quang học bóc tách CCCD.
-   - `GoogleMapUtils.kt` & `ShippingRule.kt`: Tính khoảng cách, giải mã Polyline và tính cước vận chuyển theo vùng.
-   - `QRCodeUtils.kt` & `BankData.kt`: Sinh ảnh mã QR và cấu hình ngân hàng VietQR.
-2. **Module `app-customer`**:
-   - `LoginActivity.kt`, `RegisterActivity.kt`, `OtpVerificationActivity.kt`: Xác thực khách hàng.
-   - `HomeActivity.kt`: Trang chủ, tìm kiếm, lọc nâng cao, món hot, quán gần bạn.
-   - `MenuActivity.kt` & `DishOptionBottomSheetDialogFragment.kt`: Xem thực đơn, chọn size/topping/combo, xem đánh giá.
-   - `CartActivity.kt`, `CheckoutActivity.kt`, `PaymentActivity.kt`: Giỏ hàng, ghim bản đồ Google Maps, thanh toán COD/VietQR.
-   - `TrackingActivity.kt`: Theo dõi GPS tài xế, mã QR/PIN nhận hàng, chat với quán, nút hủy đơn mọi giai đoạn.
-   - `OrderHistoryActivity.kt`, `ComplaintActivity.kt`, `ProfileActivity.kt`: Lịch sử đơn, đánh giá sao, khiếu nại, sổ địa chỉ và điểm uy tín.
-3. **Module `app-internal`**:
-   - `StoreVerificationActivity.kt`: Quét OCR CCCD gửi hồ sơ mở quán.
-   - `BossDashboardActivity.kt`: Quản lý chuỗi chi nhánh và phân quyền Merchant.
-   - `OrderListFragment.kt` & `ShopViewModel.kt`: Quản lý đơn hàng Kanban 4 tab, chuông báo đơn mới, quy trình bếp 2 bước, dừng nấu khi khách hủy.
-   - `MenuManageFragment.kt` & `StoreReportFragment.kt`: Quản lý món/combo và báo cáo doanh thu.
-   - `ShipperFragment.kt` & `DeliveryTripActivity.kt`: Sảnh nhận đơn/ghép đơn 3 chặng, dẫn đường bản đồ, thanh trượt cập nhật tiến độ, quét QR/PIN, báo sự cố 15 phút 2 vòng, xử lý khách hủy đơn.
-   - `BankNotificationListenerService.kt`: Đọc thông báo ngân hàng tự động duyệt đơn VietQR.
-   - `LocationForegroundService.kt`: Dịch vụ chạy ngầm phát tọa độ GPS của tài xế.
-4. **Module `app-admin`**:
-   - `AdminDashboardFragment.kt`: Thống kê toàn sàn, cấu hình đếm ngược sự cố.
-   - `AdminStoreListFragment.kt`: Kiểm duyệt quán qua hồ sơ OCR CCCD, xử phạt vi phạm.
-   - `AdminCategoryListFragment.kt`: Quản lý danh mục ẩm thực toàn hệ thống.
-   - `AdminMonitorFragment.kt`: Giám sát đơn hàng, quản lý tài khoản người dùng và điểm uy tín.
-   - `AdminComplaintListFragment.kt`: Giải quyết khiếu nại và phán quyết tranh chấp.
-
-### 2.1.11 Sơ đồ luồng xử lý tổng quát & Chi tiết các mối liên hệ kỹ thuật quan trọng
-```mermaid
-sequenceDiagram
-    autonumber
-    actor C as Khách hàng (app-customer)
-    actor S as Quán ăn (app-internal)
-    actor D as Tài xế (app-internal)
-    actor A as Quản trị viên (app-admin)
-    participant FB as Firebase Realtime DB
-    participant Bank as Dịch vụ Ngân hàng
-
-    Note over S,A: Bước 1: Quán đăng ký & Quét OCR CCCD -> Admin duyệt kích hoạt
-    S->>FB: Gửi hồ sơ xác minh kèm ảnh OCR CCCD
-    A->>FB: Phê duyệt mở quán (verificationStatus = APPROVED)
-    
-    Note over C,S: Bước 2: Đặt hàng & Thanh toán
-    C->>FB: Tạo đơn hàng (status = PENDING / AWAITING_PAYMENT)
-    opt Thanh toán VietQR
-        Bank-->>S: Thông báo nhận tiền khớp mã đơn
-        S->>FB: BankNotificationListenerService tự động chuyển sang PAID
-    end
-    
-    Note over S,D: Bước 3: Vận hành Bếp & Nhận đơn
-    FB-->>S: Chuông báo & Popup đơn mới
-    S->>FB: Quán bấm nhận đơn (PREPARING) -> Nấu xong (READY)
-    D->>FB: Tài xế nhận đơn đơn lẻ hoặc ghép 3 đơn (ASSIGNED)
-    D->>FB: Tài xế đến quán lấy hàng (DELIVERING)
-    
-    Note over C,D: Bước 4: Giao hàng GPS & Hoàn tất
-    D->>FB: LocationForegroundService phát GPS liên tục
-    FB-->>C: Bản đồ hiển thị xe máy tài xế di chuyển realtime
-    D->>FB: Tài xế đến điểm giao (ARRIVED_AT_CUSTOMER)
-    C-->>D: Đưa mã QR #OISHI_... hoặc đọc mã PIN 6 số
-    D->>FB: Quét QR / nhập PIN khớp -> Chuyển COMPLETED (+2 điểm uy tín)
-```
-
----
-
-## 2.2 THIẾT KẾ HỆ THỐNG (SDS)
-### 2.2.1 Thiết kế Kiến trúc Đa Module
-- `core`: Thư viện dùng chung, chứa 32 Models, `FirebaseRepository`, `AuthRepository`, tiện ích OCR, QR, Map, OTP.
-- `app-customer`: Giao diện đặt món, giỏ hàng, thanh toán, tracking GPS, khiếu nại.
-- `app-internal`: Giao diện Quán ăn (Kanban), Chủ chuỗi (Boss) và Tài xế (Bản đồ ghép đơn).
-- `app-admin`: Giao diện Bảng điều khiển, duyệt quán OCR, giám sát đơn/user, xử lý khiếu nại.
-
-### 2.2.2 Thiết kế Cơ sở dữ liệu Firebase Realtime Database chi tiết
-| Tên Nhánh | Khóa Chính | Các thuộc tính chính lưu trữ | Mô tả chức năng |
-| :--- | :--- | :--- | :--- |
-| `/users` | `userId` | `userId`, `name`, `email`, `phone`, `role`, `status` (`ACTIVE`/`LOCKED`), `trustScore`, `avatarUrl`, `storeId`, `vehiclePlate` | Lưu định danh, vai trò và điểm uy tín người dùng |
-| `/stores` | `storeId` | `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `isOpen`, `ownerId`, `bossId`, `bankId`, `bankAccountNo`, `bankAccountName`, `verificationStatus`, `cccdNumber` | Lưu thông tin quán, tài khoản VietQR, hồ sơ OCR |
-| `/categories` | `categoryId` | `id`, `name`, `iconUrl`, `orderIndex`, `storeId` | Danh mục toàn sàn và danh mục riêng của quán |
-| `/dishes` | `dishId` | `id`, `storeId`, `categoryId`, `name`, `price`, `imageUrl`, `isAvailable`, `soldCount`, `options` (Size/Topping) | Danh sách món ăn kèm nhóm tùy chọn |
-| `/combos` | `comboId` | `id`, `storeId`, `name`, `originalPrice`, `comboPrice`, `dishIds`, `isAvailable` | Các gói combo giảm giá |
-| `/orders` | `orderId` | `orderId`, `customerId`, `address`, `lat`/`lng`, `storeId`, `shipperId`, `status`, `items`, `total`, `shippingFee`, `totalPayment`, `paymentMethod`, `paymentMode`, `pickupPin`, `qrToken`, `cancelReason`, `countdownRound`, `countdownStartTime` | Toàn bộ dữ liệu đơn hàng và vòng đời giao nhận |
-| `/tracking` | `shipperId` & `chats_{orderId}` | • `/{shipperId}`: `latitude`, `longitude`, `bearing`, `updatedAt`<br>• `/chats_{orderId}/{msgId}`: `sender`, `message`, `timestamp` | Tọa độ GPS tài xế và tin nhắn chat Khách – Quán |
-| `/dish_reviews` | `{dishId}/{reviewId}` | `reviewId`, `orderId`, `dishId`, `customerId`, `rating`, `comment`, `createdAt` | Đánh giá sao và nhận xét món ăn |
-| `/complaints` | `complaintId` | `id`, `orderId`, `customerId`, `title`, `description`, `evidenceImageUrl`, `status`, `adminResponse` | Hồ sơ khiếu nại và phán quyết từ Admin |
-| `/trust_score_logs`| `{userId}/{logId}` | `logId`, `userId`, `orderId`, `delta` (+2, -30), `newScore`, `reason`, `timestamp` | Lịch sử biến động điểm uy tín |
-| `/system_config` | `configKey` | `round1Minutes` (mặc định 15), `round2Minutes` (mặc định 15), `updatedAt` | Cấu hình thời gian đếm ngược sự cố toàn sàn |
-
-### 2.2.3 Sơ đồ Lớp (Class Diagram) toàn hệ thống
-```mermaid
-classDiagram
-    class User {
-        +String userId
-        +String name
-        +String email
-        +String phone
-        +String role
-        +String status
-        +Int trustScore
-    }
-    class Store {
-        +String id
-        +String name
-        +String address
-        +Double latitude
-        +Double longitude
-        +Boolean isOpen
-        +String verificationStatus
-        +String bankAccountNo
-    }
-    class Dish {
-        +String id
-        +String storeId
-        +String name
-        +Long price
-        +Boolean isAvailable
-        +List~DishOption~ options
-    }
-    class Order {
-        +String orderId
-        +String customerId
-        +String storeId
-        +String shipperId
-        +String status
-        +Long totalPayment
-        +String paymentMethod
-        +String pickupPin
-        +String qrToken
-        +String cancelReason
-    }
-    class FirebaseRepository {
-        +observeOrder(orderId) Flow~Order~
-        +cancelOrderImmediately(orderId, reason)
-        +updateOrderStatus(orderId, status, reason)
-        +observeShipperLocation(shipperId) Flow~Location~
-    }
-
-    User <|-- Customer
-    User <|-- Merchant
-    User <|-- Driver
-    Store "1" o-- "*" Dish : contains
-    Store "1" o-- "*" Order : receives
-    Customer "1" o-- "*" Order : places
-    Driver "1" o-- "*" Order : delivers
-    Order ..> FirebaseRepository : updated via
-```
-
-### 2.2.4 Sơ đồ Tuần tự cho các luồng nghiệp vụ phức tạp
-#### A. Sơ đồ tuần tự: Khách hàng hủy đơn ở các giai đoạn khác nhau
-```mermaid
-sequenceDiagram
-    autonumber
-    actor C as Khách hàng
-    participant AppC as App Khách (TrackingActivity)
-    participant FB as Firebase Database
-    actor S as Quán ăn (OrderListFragment)
-    actor D as Tài xế (DeliveryTripActivity)
-
-    alt Giai đoạn Quán chưa làm / Đang nấu / Tài xế ở quán (PENDING / PREPARING / ARRIVED_AT_SHOP)
-        C->>AppC: Bấm "✕ Hủy Đơn Hàng" & chọn lý do
-        AppC->>FB: cancelOrderImmediately(status = CANCELLED, cancelReason)
-        FB-->>S: Bếp nhận realtime CANCELLED -> Dừng nấu, chuyển đơn sang Lịch sử
-        opt Nếu đã có tài xế nhận đơn
-            FB-->>D: Tài xế nhận realtime CANCELLED -> Hiện dialog "Đơn hàng đã bị khách hủy" -> Kết thúc chuyến
-        end
-        AppC-->>C: Thông báo hủy thành công, không trừ điểm uy tín
-    else Giai đoạn Đang giao hàng (DELIVERING / ARRIVED_AT_CUSTOMER)
-        C->>AppC: Bấm "✕ Không Nhận Món (Hủy Giao Hàng)"
-        AppC->>FB: executeDeliveringCancel(status = RETURNING_TO_STORE)
-        opt Đơn COD (chưa thanh toán)
-            AppC->>FB: Trừ 30 điểm uy tín của khách (trustScore - 30, ghi TrustScoreLog)
-        end
-        FB-->>D: Tài xế nhận realtime RETURNING_TO_STORE -> Hiện cảnh báo "Khách hủy đơn - Mang món về quán"
-        D->>D: Màn hình chuyển sang dẫn đường quay về quán
-        D->>FB: Giao trả món tại quán -> Đơn chuyển RETURNED_TO_STORE
-    end
-```
-
-### 2.2.5 Sơ đồ máy trạng thái vòng đời đơn hàng
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING: Khách đặt đơn COD
-    [*] --> AWAITING_PAYMENT: Khách đặt đơn VietQR
-    AWAITING_PAYMENT --> PAID: BankNotification duyệt tiền
-    PENDING --> PREPARING: Quán bấm Nhận đơn
-    PAID --> PREPARING: Quán bấm Nhận đơn
-    PREPARING --> READY: Quán bấm Nấu xong
-    READY --> ASSIGNED: Tài xế nhận đơn
-    ASSIGNED --> ARRIVED_AT_SHOP: Tài xế gạt Đến quán
-    ARRIVED_AT_SHOP --> DELIVERING: Tài xế gạt Lấy hàng
-    DELIVERING --> ARRIVED_AT_CUSTOMER: Tài xế gạt Đến nhà khách
-    ARRIVED_AT_CUSTOMER --> COMPLETED: Quét đúng QR hoặc nhập đúng PIN (+2 điểm)
-
-    %% Các luồng Hủy đơn
-    PENDING --> CANCELLED: Khách / Quán hủy
-    AWAITING_PAYMENT --> CANCELLED: Khách hủy
-    PAID --> CANCELLED: Khách hủy (Quán dừng nấu)
-    PREPARING --> CANCELLED: Khách hủy (Quán dừng nấu)
-    READY --> CANCELLED: Khách hủy (Quán dừng làm)
-    ASSIGNED --> CANCELLED: Khách hủy (Quán dừng nấu, TX hủy chuyến)
-    ARRIVED_AT_SHOP --> CANCELLED: Khách hủy (Quán dừng nấu, TX hủy chuyến)
-
-    %% Luồng Hoàn trả món
-    DELIVERING --> RETURNING_TO_STORE: Khách hủy khi đang giao (COD: -30 điểm)
-    ARRIVED_AT_CUSTOMER --> RETURNING_TO_STORE: Khách hủy / Báo bom hết 2 vòng (COD: -30 điểm)
-    RETURNING_TO_STORE --> RETURNED_TO_STORE: Tài xế đem món về quán xác nhận
-
-    COMPLETED --> [*]
-    CANCELLED --> [*]
-    RETURNED_TO_STORE --> [*]
-```
-
----
-
-## 2.3 ĐẶC TẢ CHI TIẾT GIAO DIỆN VÀ YÊU CẦU CHỨC NĂNG TỪNG MÀN HÌNH (32 MÀN HÌNH)
-
-### PHẦN A: CÁC MÀN HÌNH ỨNG DỤNG KHÁCH HÀNG (app-customer)
-#### 2.3.1 Màn hình Đăng nhập Khách hàng (LoginActivity)
-[CHỖ CHÈN ẢNH 1: Màn hình Đăng nhập ứng dụng Khách hàng (activity_login.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Màn hình Đăng nhập | Cho phép đăng nhập vào Oishi Food bằng Email/SĐT và Mật khẩu | N/A | N/A |
-| Logo & Tiêu đề | Biểu tượng tô mì Oishi Food và lời chào mừng | N/A | N/A |
-| Ô nhập Email/SĐT | Nhập email hoặc số điện thoại đã đăng ký | Chạm và nhập ký tự | Hiển thị chuỗi vừa nhập |
-| Ô nhập Mật khẩu | Nhập mật khẩu bảo mật (tối thiểu 6 ký tự) | Chạm và nhập | Ký tự ẩn dạng chấm tròn, có nút xem mật khẩu |
-| Nút "Đăng nhập" | Xác thực tài khoản qua Firebase Auth | Chạm vào nút | Kiểm tra hợp lệ; nếu đúng chuyển vào HomeActivity, sai báo Toast lỗi |
-| Liên kết "Đăng ký ngay" | Chuyển sang màn hình đăng ký tài khoản mới | Chạm vào | Mở RegisterActivity |
-
-#### 2.3.2 Màn hình Đăng ký & Xác thực OTP (RegisterActivity & OtpVerificationActivity)
-[CHỖ CHÈN ẢNH 2A: Màn hình Đăng ký tài khoản Khách hàng (activity_register.xml)]  
-[CHỖ CHÈN ẢNH 2B: Màn hình Nhập mã xác thực OTP Email (activity_otp_verification.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Ô Họ và tên | Nhập tên hiển thị khi đặt hàng | Chạm và nhập | Hiển thị họ tên |
-| Ô Email | Nhập email nhận mã xác thực OTP 6 số | Chạm và nhập | Kiểm tra định dạng email hợp lệ |
-| Ô Số điện thoại | Nhập số điện thoại 10 số liên lạc khi giao hàng | Chạm và nhập | Kiểm tra chuẩn đầu số Việt Nam |
-| Ô Mật khẩu | Nhập mật khẩu bảo mật (≥ 6 ký tự) | Chạm và nhập | Kiểm tra khớp mật khẩu xác nhận |
-| Nút "Đăng ký" | Gửi mã OTP xác thực về Email | Chạm vào nút | Gọi EmailOtpApi gửi OTP và chuyển OtpVerificationActivity |
-| 6 Ô nhập OTP | Nhập 6 chữ số xác thực nhận được qua Email | Nhập từng số | Tự động nhảy con trỏ sang ô kế tiếp |
-| Nút "Xác nhận OTP" | Đối chiếu mã OTP với hệ thống | Chạm vào nút | Trùng khớp: tạo tài khoản CUSTOMER (trustScore = 100), mở Trang chủ |
-| Nút "Gửi lại mã" | Yêu cầu gửi lại OTP khi hết 60s cooldown | Chạm vào nút | Gửi mã mới, đặt lại đồng hồ đếm ngược 60s |
-
-#### 2.3.3 Màn hình Trang chủ Khách hàng & Lọc nâng cao (HomeActivity)
-[CHỖ CHÈN ẢNH 3A: Màn hình Trang chủ Khách hàng (activity_home.xml)]  
-[CHỖ CHÈN ẢNH 3B: Hộp thoại Bộ lọc tìm kiếm nâng cao (bottom_sheet_advanced_filter.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Thanh Địa chỉ GPS | Hiển thị vị trí nhận hàng hiện tại của khách | Chạm vào thanh | Mở hộp thoại chọn địa chỉ hoặc lấy lại GPS |
-| Ô Tìm kiếm | Tìm nhanh món ăn hoặc quán theo từ khóa | Gõ từ khóa | Lọc kết quả danh sách tức thời theo thời gian thực |
-| Nút Lọc nâng cao | Mở bảng thiết lập tiêu chí lọc chuyên sâu | Chạm nút phễu | Mở bottom_sheet_advanced_filter.xml (quận, giá, sao, khoảng cách) |
-| Danh mục ẩm thực | Icon danh mục (Cơm, Bún/Phở, Trà sữa...) | Chạm vào icon | Lọc các quán và món ăn thuộc danh mục đó |
-| Món Ngon Đang Hot | Danh sách cuộn ngang các món bán chạy nhất | Chạm vào món | Mở thẳng thực đơn quán có món đó |
-| Quán Ăn Gần Bạn | Danh sách quán gần tọa độ GPS kèm số km | Chạm vào thẻ quán | Mở chi tiết thực đơn của quán |
-| Thanh điều hướng đáy | Chuyển đổi Trang chủ, Đơn hàng, Khiếu nại, Hồ sơ | Chạm vào từng tab | Chuyển sang màn hình tương ứng |
-
-#### 2.3.4 Màn hình Thực đơn Quán, Tùy chọn Topping & Đánh giá (MenuActivity)
-[CHỖ CHÈN ẢNH 4A: Màn hình Thực đơn Quán ăn & Combo (activity_menu.xml)]  
-[CHỖ CHÈN ẢNH 4B: Hộp thoại Chọn tùy chọn món Size/Topping (dialog_dish_option.xml)]  
-[CHỖ CHÈN ẢNH 4C: Hộp thoại Xem đánh giá món ăn (dialog_dish_reviews.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Thông tin Quán ăn | Tên quán, địa chỉ, khoảng cách, điểm sao, Mở/Đóng cửa | N/A | Hiển thị trực quan thông tin cửa hàng |
-| Thẻ Món ăn / Combo | Ảnh món, tên, mô tả, giá bán, đã bán, điểm sao | Chạm vào sao | Mở DishReviewsBottomSheetDialogFragment xem bình luận cũ |
-| Nút Thêm món (+) | Thêm món hoặc mở tùy chọn size/topping | Chạm vào "+" | Món có tùy chọn: mở DishOptionBottomSheetDialogFragment |
-| Hộp thoại Tùy chọn | Chọn size (S/M/L), topping, ghi chú riêng cho bếp | Tích chọn và bấm Thêm | Tự động cộng giá topping và cập nhật vào giỏ hàng |
-| Thanh Giỏ hàng đáy | Hiển thị tổng số món đã chọn và tiền tạm tính | Chạm nút Đặt đơn | Chuyển sang CheckoutActivity |
-
-#### 2.3.5 Màn hình Giỏ hàng (CartActivity)
-[CHỖ CHÈN ẢNH 5: Màn hình Giỏ hàng của Khách hàng (activity_cart.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách món giỏ | Hiển thị các món đã thêm, tùy chọn và thành tiền | Cuộn danh sách | Hiển thị chi tiết từng món |
-| Nút Tăng/Giảm (+/−) | Thay đổi số lượng phần ăn | Chạm "+" hoặc "−" | Cập nhật số lượng và tính lại tiền; giảm về 0 sẽ xóa món |
-| Nút Xóa tất cả | Làm trống giỏ hàng hiện tại | Chạm nút Xóa | Xác nhận và xóa sạch giỏ hàng |
-| Nút Tiến hành đặt | Chuyển sang bước chọn địa chỉ và thanh toán | Chạm nút | Mở màn hình CheckoutActivity |
-
-#### 2.3.6 Màn hình Thanh toán, Bản đồ & VietQR (CheckoutActivity, SelectLocationActivity, PaymentActivity)
-[CHỖ CHÈN ẢNH 6A: Màn hình Xác nhận đặt hàng & Tính phí ship (activity_checkout.xml)]  
-[CHỖ CHÈN ẢNH 6B: Ghim vị trí giao hàng trên Bản đồ Google Maps (activity_select_location.xml)]  
-[CHỖ CHÈN ẢNH 6C: Màn hình Quét mã thanh toán VietQR (activity_payment.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Địa chỉ nhận hàng | Nhập tên, SĐT, gõ địa chỉ có gợi ý tự động | Gõ hoặc chọn gợi ý | Tự động lấy tọa độ kinh độ/vĩ độ |
-| Chọn trên bản đồ | Ghim vị trí chính xác trên Google Maps | Chạm nút bản đồ | Mở SelectLocationActivity, kéo tâm bản đồ để lấy tọa độ |
-| Phí ship tự động | Biểu phí theo vùng (nội quận 15k, liên quận 25k, ngoại thành 45k) | N/A | Tự động cập nhật khi đổi địa chỉ; uy tín ≥95 giảm 5.000đ |
-| Chọn Thanh toán | Tiền mặt (COD), Chuyển khoản VietQR | Chọn RadioButton | Nếu uy tín <90 thông báo bắt buộc đặt cọc 20% (DEPOSIT) |
-| Nút Đặt đơn hàng | Khởi tạo đơn hàng lên Firebase Database | Chạm nút | COD: mở OrderSuccessActivity; VietQR: mở PaymentActivity |
-| Màn hình VietQR | Mã QR Napas247 chứa đúng số tiền, nội dung #OISHI_... | Khách quét mã chuyển tiền | Đơn ở AWAITING_PAYMENT, chờ BankNotification duyệt PAID |
-
-#### 2.3.7 Màn hình Theo dõi Đơn hàng, Bản đồ Shipper, Mã QR/PIN & Hủy đơn (TrackingActivity)
-[CHỖ CHÈN ẢNH 7A: Màn hình Theo dõi tiến trình đơn hàng & Bản đồ GPS Shipper (activity_tracking.xml)]  
-[CHỖ CHÈN ẢNH 7B: Khu vực Mã QR Xác nhận nhận hàng & Mã PIN 6 số (#OISHI_XXXXXX • PIN: XXXXXX)]  
-[CHỖ CHÈN ẢNH 7C: Hộp thoại Chat trực tiếp với Quán ăn (dialog_chat_store.xml)]  
-[CHỖ CHÈN ẢNH 7D: Nút Hủy đơn hàng ở mọi giai đoạn & Hộp thoại xác nhận]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Mã đơn (#OISHI_...) | Mã định danh đơn hàng trên tiêu đề | N/A | Đồng bộ với mã dưới thẻ QR |
-| Thanh tiến trình | Chờ xác nhận ➔ Bếp nấu ➔ Đang giao ➔ Đến nơi ➔ Xong | N/A | Tự động đổi màu và cập nhật realtime |
-| Bản đồ GPS Shipper | Bản đồ Google Maps hiển thị vị trí xe máy di chuyển | Phóng to / thu nhỏ | Hiển thị khi tài xế đang giao (`DELIVERING`) |
-| Thẻ QR & PIN nhận hàng | Ảnh mã QR và dòng TOKEN_OISHI_... • PIN: 6 số | Đưa tài xế quét/đọc PIN | Tài xế quét đúng -> hoàn tất đơn hàng |
-| Nút Chat với Quán | Nhắn tin thời gian thực với quán ăn | Chạm nút Chat | Mở ChatStoreBottomSheetDialogFragment gửi/nhận tức thời |
-| **Nút "✕ Hủy Đơn Hàng"** | **Hiển thị xuyên suốt ở MỌI GIAI ĐOẠN HOẠT ĐỘNG** | **Chạm nút Hủy đơn** | • Quán chưa làm/đang nấu/tài xế ở quán: Cập nhật `CANCELLED`, quán dừng nấu, tài xế hủy chuyến, không trừ uy tín.<br>• Đang giao: Đổi thành "✕ Không Nhận Món", cập nhật `RETURNING_TO_STORE`, tài xế quay xe về quán (COD trừ 30 điểm). |
-
-#### 2.3.8 Màn hình Lịch sử Đơn hàng & Đánh giá Món ăn (OrderHistoryActivity)
-[CHỖ CHÈN ẢNH 8: Màn hình Lịch sử đơn hàng & Đánh giá sao món ăn (activity_order_history.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Đơn hàng | Đơn đang xử lý và lịch sử đơn cũ kèm trạng thái | Chạm vào thẻ đơn | Mở TrackingActivity xem chi tiết tiến trình |
-| Đánh giá sao món ăn | 5 ngôi sao và ô viết nhận xét cho đơn COMPLETED | Chọn sao, viết nhận xét | Lưu vào `/dish_reviews`, tính lại điểm trung bình món |
-| Nút Khiếu nại | Mở màn hình khiếu nại đơn hàng nếu có sự cố | Chạm nút Khiếu nại | Mở ComplaintActivity với mã đơn điền sẵn |
-
-#### 2.3.9 Màn hình Gửi Khiếu nại & Theo dõi Khiếu nại (ComplaintActivity & CustomerComplaintTrackingActivity)
-[CHỖ CHÈN ẢNH 9A: Màn hình Gửi khiếu nại đơn hàng kèm ảnh minh chứng (activity_complaint.xml)]  
-[CHỖ CHÈN ẢNH 9B: Màn hình Theo dõi trạng thái giải quyết khiếu nại (activity_customer_complaint_tracking.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Chọn Đơn & Chủ đề | Chọn mã đơn và sự cố (món hỏng/thiếu, thái độ...) | Chọn từ danh sách | Hiển thị thông tin đơn hàng |
-| Ô Nội dung chi tiết | Mô tả rõ sự việc cần Admin hỗ trợ | Nhập văn bản | Hiển thị nội dung mô tả |
-| Đính kèm hình ảnh | Tải ảnh chụp thực tế món ăn/sự cố | Chạm khung tải ảnh | Mở trình chọn ảnh và hiển thị ảnh xem trước |
-| Nút Gửi Khiếu Nại | Đẩy hồ sơ khiếu nại lên hệ thống | Chạm nút Gửi | Lưu vào `/complaints` với trạng thái PENDING |
-| Danh sách Khiếu nại | Theo dõi tiến độ và phán quyết của Admin | Chạm vào mục khiếu nại | Mở CustomerComplaintDetailBottomSheet xem phán quyết |
-
-#### 2.3.10 Màn hình Thông báo Khách hàng (NotificationActivity)
-[CHỖ CHÈN ẢNH 10: Màn hình Danh sách thông báo của Khách hàng (activity_notification.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Thông báo | Thông báo trạng thái đơn, điểm uy tín, khiếu nại | Chạm vào thông báo | Đánh dấu đã đọc và mở chi tiết đơn/khiếu nại liên quan |
-
-#### 2.3.11 Màn hình Hồ sơ Cá nhân, Sổ địa chỉ & Điểm uy tín (ProfileActivity)
-[CHỖ CHÈN ẢNH 11A: Màn hình Hồ sơ cá nhân Khách hàng (activity_profile.xml)]  
-[CHỖ CHÈN ẢNH 11B: Chi tiết Điểm uy tín & Lịch sử cộng/trừ điểm (bottom_sheet_trust_score_detail.xml)]  
-[CHỖ CHÈN ẢNH 11C: Hộp thoại Quản lý Sổ địa chỉ nhận hàng (dialog_address_book.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Thông tin Cá nhân | Tên, email, số điện thoại, ảnh đại diện | Chạm Chỉnh sửa | Mở dialog_edit_profile.xml sửa tên, SĐT, mật khẩu |
-| Thẻ Điểm Uy Tín | Số điểm uy tín (0–100) và xếp hạng (Kim Cương/Vàng...) | Chạm thẻ Điểm | Mở bottom_sheet_trust_score_detail.xml xem lịch sử log điểm |
-| Sổ địa chỉ | Danh sách địa chỉ nhận hàng quen thuộc | Chạm Sổ địa chỉ | Mở dialog_address_book.xml thêm, sửa, xóa địa chỉ |
-| Nút Đăng xuất | Thoát tài khoản khỏi thiết bị | Chạm Đăng xuất | Xóa phiên và điều hướng về LoginActivity |
-
----
-
-### PHẦN B: CÁC MÀN HÌNH ỨNG DỤNG NỘI BỘ (app-internal)
-#### 2.3.12 Màn hình Đăng nhập Nội bộ & Định danh OCR CCCD (LoginActivity & StoreVerificationActivity)
-[CHỖ CHÈN ẢNH 12A: Màn hình Đăng nhập / Đăng ký Ứng dụng Nội bộ]  
-[CHỖ CHÈN ẢNH 12B: Màn hình Xác minh Cửa hàng & Quét OCR CCCD (activity_store_verification.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Đăng nhập phân quyền | Tự nhận diện MERCHANT hoặc DRIVER để mở giao diện | Nhập tài khoản và Đăng nhập | MERCHANT vào Quán (hoặc Boss nếu đa chi nhánh), DRIVER vào Tài xế |
-| Chụp ảnh CCCD 2 mặt | Định danh chủ cửa hàng bằng thẻ Căn cước công dân | Chụp/chọn ảnh CCCD | CccdOcrHelper tự động bóc tách số CCCD, họ tên điền vào biểu mẫu |
-| Tải ảnh Giấy phép | Tải ảnh giấy phép kinh doanh / ảnh mặt tiền quán | Chọn ảnh từ máy | Hiển thị ảnh minh chứng |
-| Nút Gửi hồ sơ | Đẩy hồ sơ lên hệ thống chờ Admin phê duyệt | Chạm nút Gửi | Cập nhật verificationStatus = PENDING, thông báo chờ duyệt |
-
-#### 2.3.13 Màn hình Quản lý Chuỗi Chi nhánh dành cho Chủ chuỗi (BossDashboardActivity)
-[CHỖ CHÈN ẢNH 13A: Màn hình Quản lý Chuỗi Chi nhánh (activity_boss_dashboard.xml)]  
-[CHỖ CHÈN ẢNH 13B: Hộp thoại Tạo Chi nhánh mới & Gán quyền Merchant]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Chi nhánh | Các cơ sở trực thuộc kèm địa chỉ, trạng thái, quản lý | Chạm thẻ chi nhánh | Xem chi tiết hoặc gán quản lý chi nhánh |
-| Nút Thêm Chi Nhánh | Khởi tạo một cơ sở chi nhánh mới trong chuỗi | Chạm Thêm chi nhánh | Mở dialog_create_branch.xml nhập tên, địa chỉ, tọa độ |
-| Quản lý Merchant | Cấp tài khoản quản lý và phân công chi nhánh | Chạm Tạo / Gán quản lý | Cấp tài khoản quản lý chi nhánh hoạt động độc lập |
-
-#### 2.3.14 Màn hình Quản lý Đơn hàng Kanban tại Quán (OrderListFragment)
-[CHỖ CHÈN ẢNH 14A: Màn hình Quản lý Đơn hàng Kanban 4 Tab (fragment_order_list.xml)]  
-[CHỖ CHÈN ẢNH 14B: Hộp thoại Popup Chuông báo có Đơn mới (dialog_new_order_popup.xml)]  
-[CHỖ CHÈN ẢNH 14C: Thẻ Đơn hàng & Chat với Khách hàng (item_order.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Thống kê Doanh thu | Doanh thu thuần hôm nay và số đơn COMPLETED trong ngày | N/A | Tự động cộng dồn thời gian thực khi có đơn hoàn tất |
-| 4 Tab Kanban | Đơn Mới, Đang Làm, Đang Giao, Lịch Sử kèm số đếm | Chạm từng Tab | Lọc danh sách đơn theo từng giai đoạn |
-| Popup Đơn Mới | Phát chuông âm thanh và popup nổi khi có đơn mới | Khách vừa đặt đơn | Hiện dialog_new_order_popup.xml, bấm xem đơn ngay |
-| **Nút Hành động Bếp** | **Quy trình bếp tinh gọn 2 bước**: Nhận đơn ➔ Nấu xong | Chạm nút hành động | • Đơn mới: "✓ XÁC NHẬN ĐƠN CỦA KHÁCH" -> PREPARING<br>• Đang làm: "🍳 XÁC NHẬN ĐÃ NẤU XONG" -> READY<br>• Khi đã có tài xế nhận: Tự động hiện khung TX đến lấy, bỏ nút bấm thừa |
-| **Xử lý Khách Hủy Đơn** | **Nhận thông báo dừng nấu tức thời khi khách hủy** | Khách bấm hủy | Đơn tự động chuyển khỏi Đang Làm/Đang Giao sang Lịch Sử với badge đỏ "🚫 ĐÃ HỦY", bếp dừng chế biến ngay |
-| Nhắn Tin Cho Khách | Cửa sổ chat thời gian thực với khách hàng | Chạm Nhắn Khách | Mở ChatCustomerBottomSheetDialogFragment trao đổi với khách |
-
-#### 2.3.15 Màn hình Quản lý Thực đơn, Danh mục riêng & Combo (MenuManageFragment)
-[CHỖ CHÈN ẢNH 15A: Màn hình Quản lý Thực đơn Món ăn của Quán (fragment_menu_manage.xml)]  
-[CHỖ CHÈN ẢNH 15B: Hộp thoại Thêm/Sửa Món ăn & Topping (dialog_edit_dish.xml)]  
-[CHỖ CHÈN ẢNH 15C: Hộp thoại Tạo Combo ưu đãi (dialog_create_combo.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Món ăn | Ảnh món, giá bán, danh mục, công tắc Còn/Hết món | Gạt Switch còn/hết | Cập nhật ngay trạng thái isAvailable trên app khách |
-| Nút Thêm Món Mới | Tạo món ăn mới cho quán | Chạm Thêm món | Mở dialog_edit_dish.xml nhập tên, giá, ảnh, size, topping |
-| Quản lý Danh mục | Thêm/đổi tên nhóm món riêng của quán | Chạm Quản lý DM | Thêm/sửa danh mục phân loại món của quán |
-| Tạo Combo | Ghép nhiều món thành combo giảm giá | Chạm Tạo Combo | Mở dialog_create_combo.xml chọn món thành phần, định giá ưu đãi |
-
-#### 2.3.16 Màn hình Báo cáo Thống kê Doanh thu Quán (StoreReportFragment)
-[CHỖ CHÈN ẢNH 16: Màn hình Báo cáo Doanh thu & Top Món bán chạy (fragment_store_report.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Bộ lọc Thời gian | Thống kê theo Hôm nay, 7 ngày qua, Tháng này | Chọn mốc thời gian | Tự động tổng hợp lại doanh thu và đơn hàng |
-| Các Chỉ số Tài chính | Tổng doanh thu, đơn hoàn tất, đơn hủy, giá trị TB đơn | N/A | Hiển thị định dạng tiền tệ VNĐ chuẩn xác |
-| Top Món Bán Chạy | Danh sách món có lượt bán cao nhất kèm doanh thu | Cuộn danh sách | Giúp chủ quán nắm bắt xu hướng đặt món |
-
-#### 2.3.17 Màn hình Quản lý Tài xế & Hồ sơ Quán (DriverListFragment & StoreProfileFragment)
-[CHỖ CHÈN ẢNH 17A: Màn hình Quản lý Đội ngũ Tài xế (fragment_driver_list.xml)]  
-[CHỖ CHÈN ẢNH 17B: Hồ sơ Quán & Cấu hình Ngân hàng VietQR (fragment_store_profile.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Tài xế | Thông tin tài xế nội bộ, trạng thái rảnh/bận | Chạm Thêm tài xế | Mở dialog_add_driver.xml liên kết tài xế vào quán |
-| Đóng/Mở cửa & VietQR | Bật/tắt mở cửa quán; cấu hình ngân hàng nhận VietQR | Chỉnh sửa hồ sơ | Lưu tài khoản ngân hàng lên Firebase để sinh mã VietQR |
-
-#### 2.3.18 Màn hình Sảnh Nhận đơn & Ghép chuyến của Tài xế (ShipperFragment)
-[CHỖ CHÈN ẢNH 18: Sảnh Nhận đơn & Ghép đơn đa điểm của Tài xế (fragment_shipper.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Công tắc Trực tuyến | Bật/tắt nhận đơn và kích hoạt GPS LocationForegroundService | Gạt nút Online | Bắt đầu phát tọa độ GPS và tải đơn READY |
-| Gợi ý Ghép đơn | Gom nhóm 2–3 đơn cùng tuyến đường | Chạm Nhận chuyến ghép | Gán đồng thời các đơn cho tài xế và mở DeliveryTripActivity |
-| Đơn chờ nhận lẻ | Danh sách đơn READY kèm quán, địa chỉ khách, phí ship | Chạm Nhận đơn | Gán shipperId và chuyển đơn sang ASSIGNED |
-| Đơn đang giao | Danh sách các đơn đang thực hiện | Chạm thẻ đơn | Mở lại DeliveryTripActivity đúng bước hiện tại |
-
-#### 2.3.19 Màn hình Hành trình Giao hàng Đa điểm, Quét QR/PIN & Báo sự cố (DeliveryTripActivity)
-[CHỖ CHÈN ẢNH 19A: Bản đồ Hành trình Ghép 3 đơn & Chọn thứ tự giao (activity_delivery_trip.xml)]  
-[CHỖ CHÈN ẢNH 19B: Thanh trượt Slide-to-confirm "ĐÃ ĐẾN NHÀ KHÁCH"]  
-[CHỖ CHÈN ẢNH 19C: Camera Quét mã QR & Nhập mã PIN 6 số (dialog_qr_scanner.xml)]  
-[CHỖ CHÈN ẢNH 19D: Báo cáo sự cố & Đếm ngược 15 phút 2 vòng (dialog_report_incident.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Bản đồ Google Maps | Tuyến đường màu xanh từ tài xế đến các điểm giao | Phóng to/thu nhỏ | Có nút "Maps" mở điều hướng ngoài của Google |
-| **Thẻ Khách giao trước** | **Hiển thị các đơn ghép (TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC)** | **Chạm thẻ khách bất kỳ** | Chuyển ngay mục tiêu dẫn đường sang khách đó mà vẫn giữ nguyên trạng thái các đơn khác |
-| Thanh trượt Slide Button | Chống chạm nhầm: Gạt Đến Quán ➔ Lấy Hàng ➔ Đến Nhà Khách | Kéo nút tròn hết sang phải | Cập nhật trạng thái đơn tương ứng lên Firebase realtime |
-| Quét QR / Nhập PIN | Xác thực hoàn tất đơn bằng Camera QR hoặc PIN 6 số | Quét QR hoặc gõ PIN | Khớp mã: chuyển COMPLETED, đánh dấu "✓ Đã giao", tự chuyển đơn kế tiếp |
-| Báo cáo Sự cố 15 phút | Gọi đủ 3 cuộc, chụp ảnh bằng chứng, đếm ngược 15 phút | Bấm ⚠️, gọi & chụp ảnh | Đếm ngược Vòng 1 (15p hỗ trợ); hết Vòng 1 sang Vòng 2 (15p cảnh báo mất đơn) trước khi cho phép hủy bom hàng |
-| **Xử lý Khách Hủy Đơn** | **Thông báo ngay khi khách bấm hủy đơn trên app khách** | Khách hủy đơn | • Khách hủy khi tài xế ở quán: Hiện dialog báo đơn đã hủy, dừng giao, kết thúc chuyến.<br>• Khách hủy khi đang giao: Hiện cảnh báo "🚨 Khách Hủy Đơn - Mang Món Về Quán", tự đổi sang dẫn đường về quán. |
-
-#### 2.3.20 Màn hình Thống kê Thu nhập & Hồ sơ Tài xế (ShipperIncomeFragment & ShipperProfileFragment)
-[CHỖ CHÈN ẢNH 20A: Thống kê Thu nhập & Lịch sử chuyến đi của Tài xế (fragment_shipper_income.xml)]  
-[CHỖ CHÈN ẢNH 20B: Hồ sơ cá nhân của Tài xế (fragment_shipper_profile.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Thu nhập Tài xế | Tổng tiền cước nhận được, số chuyến theo ngày/tuần/tháng | Chọn mốc thời gian | Cập nhật số liệu thu nhập và danh sách chuyến đi |
-| Hồ sơ Tài xế | Họ tên, SĐT, biển số xe, đánh giá sao | Chạm Chỉnh sửa | Mở dialog_edit_driver_profile.xml sửa thông tin phương tiện |
-
----
-
-### PHẦN C: CÁC MÀN HÌNH ỨNG DỤNG QUẢN TRỊ VIÊN (app-admin)
-#### 2.3.21 Màn hình Đăng nhập Quản trị & Dashboard Toàn sàn (AdminLoginActivity & AdminDashboardFragment)
-[CHỖ CHÈN ẢNH 21A: Màn hình Đăng nhập Quản trị viên (activity_admin_login.xml)]  
-[CHỖ CHÈN ẢNH 21B: Bảng điều khiển Tổng quan Hệ thống (fragment_admin_dashboard.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Đăng nhập Admin | Xác thực quyền ADMIN (miễn OTP cho admin@gmail.com) | Nhập email/MK Admin | Kiểm tra role == ADMIN mới cho vào AdminMainActivity |
-| Thẻ Thống kê sàn | Tổng doanh thu, tổng đơn, số quán, số người dùng | N/A | Đồng bộ số liệu thời gian thực từ toàn hệ thống |
-| Cấu hình Đếm ngược | Sửa thời gian đếm ngược sự cố Vòng 1 và Vòng 2 | Chạm nút Cấu hình | Mở dialog_edit_countdown_config.xml, lưu vào `/system_config` |
-
-#### 2.3.22 Màn hình Kiểm duyệt Cửa hàng & Xử phạt Vi phạm (AdminStoreListFragment)
-[CHỖ CHÈN ẢNH 22A: Danh sách & Kiểm duyệt Cửa hàng (fragment_admin_store_list.xml)]  
-[CHỖ CHÈN ẢNH 22B: Chi tiết Hồ sơ OCR CCCD Cửa hàng & Áp dụng Xử phạt]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Cửa hàng | Quán theo trạng thái: Chờ duyệt OCR, Đang chạy, Bị khóa | Chạm vào quán | Mở AdminStoreDetailBottomSheetDialogFragment xem ảnh CCCD |
-| Phê duyệt / Từ chối | Xét duyệt hồ sơ định danh OCR mở quán mới | Chạm Duyệt / Từ chối | APPROVED: quán hiển thị trên app khách để bán hàng |
-| Áp dụng Xử phạt | Phạt hoặc tạm khóa cửa hàng vi phạm | Chạm nút Xử phạt | Mở dialog_apply_store_penalty.xml áp dụng chế tài |
-
-#### 2.3.23 Màn hình Quản lý Danh mục Toàn hệ thống (AdminCategoryListFragment)
-[CHỖ CHÈN ẢNH 23: Màn hình Quản lý Danh mục Toàn sàn (fragment_admin_category_list.xml)]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Danh mục | Icon, tên danh mục và thứ tự hiển thị trang chủ | Chạm nút Sửa/Xóa | Mở AddEditCategoryDialogFragment cập nhật hoặc xóa |
-| Thêm Danh mục (+) | Tạo thêm danh mục ẩm thực mới cho toàn sàn | Chạm nút "+" | Thêm danh mục mới vào nhánh `/categories` |
-
-#### 2.3.24 Màn hình Giám sát Đơn hàng & Quản lý Người dùng / Điểm uy tín (AdminMonitorFragment)
-[CHỖ CHÈN ẢNH 24A: Màn hình Giám sát Đơn hàng & Người dùng toàn hệ thống (fragment_admin_monitor.xml)]  
-[CHỖ CHÈN ẢNH 24B: Can thiệp Đơn hàng & Điều chỉnh Điểm uy tín / Khóa User]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Giám sát Đơn hàng | Toàn bộ đơn hàng trên sàn, tìm kiếm mã đơn | Chạm vào đơn hàng | Mở EditOrderDialogFragment can thiệp trạng thái khi cần |
-| Quản lý Người dùng | Danh sách tài khoản kèm vai trò, điểm uy tín, trạng thái | Chạm vào người dùng | Mở EditUserDialogFragment sửa điểm uy tín, Khóa/Mở khóa |
-
-#### 2.3.25 Màn hình Quản lý & Giải quyết Khiếu nại (AdminComplaintListFragment & AdminComplaintDetailActivity)
-[CHỖ CHÈN ẢNH 25A: Màn hình Danh sách Khiếu nại từ Khách hàng (fragment_admin_complaint_list.xml)]  
-[CHỖ CHÈN ẢNH 25B: Chi tiết Khiếu nại & Hộp thoại Phán quyết xử lý]
-| Mục | Mô tả | Hành động | Phản hồi |
-| :--- | :--- | :--- | :--- |
-| Danh sách Khiếu nại | Các đơn khiếu nại Chờ xử lý / Đã giải quyết | Chạm vào khiếu nại | Mở AdminComplaintDetailActivity xem nội dung và ảnh bằng chứng |
-| Giải quyết Khiếu nại | Nhập phán quyết xử lý của Admin | Chạm Giải quyết | Mở ResolveComplaintDialogFragment, hoàn điểm uy tín hoặc phạt quán |
-
----
-
-# CHƯƠNG 3. CÀI ĐẶT VÀ KIỂM THỬ
-
-## 3.1 CÀI ĐẶT VÀ HIỆN THỰC HÓA HỆ THỐNG
-### 3.1.1 Công nghệ, Kiến trúc và Thư viện tích hợp
-- **Ngôn ngữ & Nền tảng**: Kotlin, JDK 17, Android SDK 34, Gradle Kotlin DSL (`build.gradle.kts`).
-- **Kiến trúc**: Multi-Module (`core`, `app-customer`, `app-internal`, `app-admin`) kết hợp MVVM, Coroutines Flow, ViewBinding.
-- **Thư viện chính**:
-  - `firebase-auth-ktx`, `firebase-database-ktx`, `firebase-messaging-ktx`: Dịch vụ đám mây thời gian thực.
-  - `play-services-maps`, `play-services-location`: Bản đồ Google Maps và định vị GPS.
-  - `com.google.mlkit:text-recognition`: Nhận diện quang học OCR Căn cước công dân.
-  - `zxing-android-embedded`: Tạo và quét mã QR Code nhận hàng.
-  - `retrofit2` & `okhttp3`: Gọi API gửi mã OTP Email và bản đồ đường đi.
-  - `glide`: Nạp và nén hình ảnh mượt mà.
-
-### 3.1.2 Hiện thực hóa các Cơ chế Kỹ thuật Trọng tâm
-1. **Dịch vụ GPS Chạy ngầm (`LocationForegroundService.kt`)**: Dùng `FusedLocationProviderClient` với chu kỳ 3000ms – 5000ms đẩy tọa độ lên `/tracking/$shipperId`, chạy Foreground Service có thông báo cố định chống bị hệ điều hành tắt ngầm.
-2. **Dịch vụ Đọc thông báo Ngân hàng (`BankNotificationListenerService.kt`)**: Lắng nghe `onNotificationPosted` của các app ngân hàng trên máy quán, bóc tách Regex mã `#OISHI_...` và số tiền để tự động duyệt đơn VietQR sang `PAID`.
-3. **Trình Giám sát Khóa tài khoản Thời gian thực (`AccountLockWatcher.kt`)**: Lắng nghe `/users/$uid/status` và `trustScore`; khi phát hiện `LOCKED` hoặc điểm <20 thì cưỡng chế đăng xuất ngay.
-
----
-
-## 3.2 KIỂM THỬ HỆ THỐNG
-### 3.2.1 Môi trường và thiết bị kiểm thử
-| Hạng mục | Thông tin chi tiết |
-| :--- | :--- |
-| **Phương pháp** | Kiểm thử hộp đen (Black-box testing), kiểm thử chức năng thủ công trên thiết bị thật, kiểm thử tích hợp luồng nghiệp vụ giữa 3 ứng dụng |
-| **Thiết bị 1 (Khách hàng)** | Samsung Galaxy A54 5G, Android 14 (One UI 6.1), Màn hình 6.4" FHD+ (1080 × 2340) |
-| **Thiết bị 2 (Quán ăn)** | Xiaomi Redmi Note 12, Android 13 (MIUI 14), Màn hình 6.67" FHD+ (1080 × 2400) |
-| **Thiết bị 3 (Tài xế)** | Realme C55, Android 13, Màn hình 6.72" FHD+ (1080 × 2400) |
-| **Thiết bị 4 (Admin / Giả lập)** | Google Pixel 7 Android Emulator, Android 14 (API Level 34) |
-| **Hạ tầng Mạng** | Mạng Wi-Fi băng tần 5GHz và mạng di động 4G Viettel/Vinaphone |
-| **Phần mềm giám sát** | Android Studio Logcat, Firebase Console (Realtime Database & Authentication) |
-| **Thời gian kiểm thử** | Từ ngày 10/11/2026 đến ngày 15/11/2026 |
-
-### 3.2.2 Dữ liệu và tài khoản kiểm thử
-| Vai trò | Tài khoản Đăng nhập | Mật khẩu | Ghi chú cấu hình |
-| :--- | :--- | :--- | :--- |
-| **ADMIN** | `admin@gmail.com` | `admin123` | Quản trị viên sàn (Miễn xác thực OTP Email) |
-| **MERCHANT (Chủ chuỗi)** | `boss@gmail.com` | `123456` | Chủ chuỗi 2 chi nhánh: Oishi CN1 Thủ Đức & Oishi CN2 Linh Trung |
-| **DRIVER** | `driver01@gmail.com` | `123456` | Tài xế nội bộ quán, biển số xe 59X3-123.45 |
-| **CUSTOMER (VIP)** | `customer_vip@gmail.com` | `123456` | trustScore = 100 (Hạng Kim Cương: được COD, giảm 5.000đ ship) |
-| **CUSTOMER (Uy tín thấp)** | `customer_risk@gmail.com` | `123456` | trustScore = 70 (Hạng Bạc: cấm COD, bắt buộc đặt cọc 20% DEPOSIT) |
-
-### 3.2.3 Quy ước kiểm thử
-- **Mã TC**: Định danh duy nhất theo nhóm (`TC_AUTH_xx`, `TC_HOME_xx`, `TC_PAY_xx`, `TC_TRK_xx`, v.v.).
-- **Trạng thái**: Đánh dấu `☑ Pass` (Đạt yêu cầu nghiệp vụ) hoặc `☐ Fail` (Không đạt). Toàn bộ 118 Test Case dưới đây đã được tiến hành kiểm thử thực tế và đạt kết quả Pass 100%.
-
----
-
-### 3.2.4 Danh sách 118 Test Case chi tiết theo 11 nhóm chức năng (Đã kiểm thử đạt 100%)
-
-#### 3.2.4.1 Nhóm 1 – Đăng ký, Đăng nhập & Xác thực OTP (app-customer, app-internal)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_AUTH_01 | Đăng ký thành công dữ liệu hợp lệ | Chưa có tài khoản, có mạng | 1. Mở app Khách → Đăng ký<br>2. Nhập đầy đủ thông tin<br>3. Bấm Đăng ký<br>4. Nhập OTP nhận qua Gmail | Tên: Nguyễn Văn A<br>Email: test01@gmail.com<br>SĐT: 0901234567<br>MK: 123456 | Gửi OTP về Gmail, nhập đúng tạo tài khoản CUSTOMER, trustScore = 100, mở Trang chủ | Đã gửi OTP qua Gmail, nhập mã tạo tài khoản thành công, vào Trang chủ | ☑ Pass ☐ Fail |
-| TC_AUTH_02 | Đăng ký để trống trường bắt buộc | Đang ở màn Đăng ký | Bỏ trống Email, bấm Đăng ký | Email: (rỗng) | Báo lỗi yêu cầu nhập email, không gửi OTP | Báo lỗi "Vui lòng nhập địa chỉ email", không chuyển trang | ☑ Pass ☐ Fail |
-| TC_AUTH_03 | Đăng ký email sai định dạng | Đang ở màn Đăng ký | Nhập email không có @, bấm Đăng ký | Email: test01gmail | Báo lỗi email không hợp lệ | Báo lỗi "Email không đúng định dạng", chặn gửi OTP | ☑ Pass ☐ Fail |
-| TC_AUTH_04 | Đăng ký mật khẩu dưới 6 ký tự | Đang ở màn Đăng ký | Nhập mật khẩu 5 ký tự, bấm Đăng ký | MK: 12345 | Báo lỗi mật khẩu phải từ 6 ký tự trở lên | Hiển thị thông báo "Mật khẩu phải có ít nhất 6 ký tự" | ☑ Pass ☐ Fail |
-| TC_AUTH_05 | Đăng ký email đã tồn tại | Email đã có tài khoản | Đăng ký lại với email cũ | Email: test01@gmail.com | Báo lỗi email đã được sử dụng trên hệ thống | Báo lỗi "Email đã được đăng ký, vui lòng đăng nhập" | ☑ Pass ☐ Fail |
-| TC_AUTH_06 | Nhập sai mã OTP | Đã nhận OTP | Nhập 6 số OTP sai, bấm Xác nhận | OTP: 000000 | Báo mã OTP không đúng, không tạo tài khoản | Báo lỗi "Mã OTP không chính xác, vui lòng thử lại" | ☑ Pass ☐ Fail |
-| TC_AUTH_07 | OTP hết hạn sau 10 phút | Đã nhận OTP | Đợi quá 10 phút rồi nhập OTP | OTP cũ (>10 phút) | Báo OTP đã hết hạn, yêu cầu gửi lại mã | Báo lỗi "Mã OTP đã hết hiệu lực, vui lòng bấm gửi lại" | ☑ Pass ☐ Fail |
-| TC_AUTH_08 | Gửi lại OTP trước 60 giây | Vừa gửi OTP | Bấm Gửi lại mã ngay lập tức | — | Nút bị khóa, hiển thị đếm ngược 60s cooldown | Nút mờ, hiển thị đếm ngược "Gửi lại sau (58s)..." | ☑ Pass ☐ Fail |
-| TC_AUTH_09 | Đăng nhập thành công | Tài khoản đang hoạt động | Nhập email + mật khẩu đúng | test01@gmail.com / 123456 | Đăng nhập thành công, lưu phiên mở lại app không cần gõ lại | Đăng nhập mượt, vào Trang chủ, đóng mở lại app vẫn lưu phiên | ☑ Pass ☐ Fail |
-| TC_AUTH_10 | Đăng nhập sai mật khẩu | Tài khoản đã tồn tại | Nhập sai mật khẩu | MK: 999999 | Báo sai email hoặc mật khẩu | Báo lỗi "Email hoặc mật khẩu không chính xác" | ☑ Pass ☐ Fail |
-| TC_AUTH_11 | Đăng nhập tài khoản bị khóa | Admin đã khóa tài khoản | Đăng nhập tài khoản bị khóa | Tài khoản status = LOCKED | Hiện dialog báo tài khoản bị khóa kèm lý do, không cho vào | Hiện dialog "Tài khoản của bạn đã bị khóa: [Lý do]" và chặn đăng nhập | ☑ Pass ☐ Fail |
-| TC_AUTH_12 | Bị khóa khi đang dùng app | Khách đang ở Trang chủ | Admin bấm khóa user trên app-admin | — | AccountLockWatcher hiện thông báo và tự đăng xuất ngay | Màn hình lập tức hiện popup khóa và tự động đăng xuất ra Login | ☑ Pass ☐ Fail |
-| TC_AUTH_13 | Phân quyền app nội bộ | Có tài khoản Quán và Tài xế | Đăng nhập lần lượt 2 tài khoản | merchant01 / driver01 | MERCHANT vào giao diện Quán; DRIVER vào sảnh Tài xế | MERCHANT vào Dashboard Quán; DRIVER vào Sảnh nhận đơn | ☑ Pass ☐ Fail |
-| TC_AUTH_14 | Tài khoản Khách đăng nhập app nội bộ | Có tài khoản CUSTOMER | Đăng nhập app-internal bằng nick khách | test01@gmail.com | Từ chối đăng nhập, thông báo không có quyền truy cập | Báo lỗi "Tài khoản không có quyền truy cập ứng dụng nội bộ" | ☑ Pass ☐ Fail |
-
-#### 3.2.4.2 Nhóm 2 – Trang chủ, Tìm kiếm, Thực đơn & Giỏ hàng (app-customer)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_HOME_01 | Hiển thị Trang chủ | Đã đăng nhập, bật GPS | Mở Trang chủ | — | Hiện danh mục, món Hot, quán gần bạn (kèm km), danh sách quán | Tải đầy đủ danh mục, danh sách món hot và quán gần vị trí hiện tại | ☑ Pass ☐ Fail |
-| TC_HOME_02 | Tìm kiếm có kết quả | Đang ở Trang chủ | Gõ từ khóa vào ô tìm kiếm | "Cơm gà" | Danh sách lọc ngay, chỉ hiện món/quán chứa từ khóa | Lọc tức thời hiển thị đúng các món Cơm gà xối mỡ, Cơm gà luộc | ☑ Pass ☐ Fail |
-| TC_HOME_03 | Tìm kiếm không có kết quả | Đang ở Trang chủ | Gõ từ khóa không tồn tại | "xyzabc" | Hiện trạng thái "Không tìm thấy kết quả phù hợp" | Hiển thị hình minh họa trống và thông báo không tìm thấy kết quả | ☑ Pass ☐ Fail |
-| TC_HOME_04 | Lọc theo danh mục | Đang ở Trang chủ | Chạm vào danh mục "Trà sữa" | — | Chỉ hiển thị các quán và món thuộc danh mục Trà sữa | Danh sách cập nhật chỉ hiển thị các quán và món Trà sữa | ☑ Pass ☐ Fail |
-| TC_HOME_05 | Lọc nâng cao | Đang ở Trang chủ | Mở bộ lọc, chọn quận + khoảng giá | Quận Thủ Đức; 20k–50k | Kết quả lọc đúng các quán tại Thủ Đức có giá 20k–50k | Bộ lọc lọc chuẩn xác theo quận và khoảng giá đã chọn | ☑ Pass ☐ Fail |
-| TC_MENU_01 | Xem thực đơn quán | Quán đang mở cửa | Chạm vào 1 quán | — | Hiện thông tin quán, danh mục món, gói combo | Hiển thị đầy đủ banner quán, địa chỉ, danh mục món và combo | ☑ Pass ☐ Fail |
-| TC_MENU_02 | Chọn món có tùy chọn | Món có Size/Topping | Bấm "+" → chọn Size L + Topping | Size L (+5k), Trân châu (+5k) | Giá món = giá gốc + 10.000đ; giỏ hàng cập nhật đúng | Giá cộng chính xác 10.000đ vào món, giỏ hàng lưu đúng topping | ☑ Pass ☐ Fail |
-| TC_MENU_03 | Món đã hết hàng | Quán đã tắt món | Mở thực đơn, thử thêm món hết | — | Món hiện nhãn "Hết món", không thêm được vào giỏ | Thẻ món mờ đi, nút thêm bị vô hiệu hóa với chữ "Hết món" | ☑ Pass ☐ Fail |
-| TC_MENU_04 | Xem đánh giá món | Món có đánh giá | Chạm vào điểm sao của món | — | Mở bottom sheet danh sách đánh giá sao + nhận xét | Hiển thị danh sách đánh giá sao, nhận xét và ngày đánh giá | ☑ Pass ☐ Fail |
-| TC_CART_01 | Tăng/giảm số lượng | Giỏ có món | Bấm "+" rồi "−" | Số lượng 1 → 2 → 1 | Thành tiền và tổng tiền giỏ hàng cập nhật tức thời | Số lượng và tổng tiền nhảy số chính xác không độ trễ | ☑ Pass ☐ Fail |
-| TC_CART_02 | Giảm số lượng về 0 | Giỏ có 1 món, số lượng 1 | Bấm "−" | — | Món tự động bị xóa khỏi giỏ hàng | Món biến mất khỏi giỏ, hiển thị giỏ hàng trống | ☑ Pass ☐ Fail |
-| TC_CART_03 | Giỏ hàng trống | Giỏ chưa có món | Mở Giỏ hàng | — | Hiện thông báo giỏ trống, vô hiệu hóa nút đặt hàng | Hiển thị "Giỏ hàng của bạn đang trống", nút Đặt hàng bị khóa | ☑ Pass ☐ Fail |
-
-#### 3.2.4.3 Nhóm 3 – Đặt hàng, Phí ship, Thanh toán & Đặt cọc (app-customer)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_PAY_01 | Phí ship nội quận | Quán & khách cùng quận | Chọn địa chỉ cùng quận quán | Quán Thủ Đức – Khách Thủ Đức | Phí ship = 15.000đ | Phí vận chuyển hiển thị đúng 15.000đ (Nội quận) | ☑ Pass ☐ Fail |
-| TC_PAY_02 | Phí ship liên quận | Khác quận nội thành | Chọn địa chỉ khác quận | Quán Thủ Đức – Khách Quận 1 | Phí ship = 25.000đ | Phí vận chuyển hiển thị đúng 25.000đ (Liên quận) | ☑ Pass ☐ Fail |
-| TC_PAY_03 | Phí ship ngoại thành | Khách ở huyện ngoại thành | Chọn địa chỉ ngoại thành | Khách ở Củ Chi / Hóc Môn | Phí ship = 45.000đ | Phí vận chuyển hiển thị đúng 45.000đ (Ngoại thành) | ☑ Pass ☐ Fail |
-| TC_PAY_04 | Giảm phí ship Kim Cương | trustScore ≥ 95 | Đặt đơn bất kỳ | trustScore = 100 | Phí ship được tự động giảm 5.000đ | Phí ship được trừ 5.000đ, có dòng "Ưu đãi khách hàng Kim Cương" | ☑ Pass ☐ Fail |
-| TC_PAY_05 | Chọn vị trí trên bản đồ | Màn Thanh toán | Bấm "Chọn trên bản đồ", kéo ghim | — | Địa chỉ + tọa độ tự điền, phí ship tính lại | Bản đồ ghim vị trí chuẩn, tự động cập nhật địa chỉ và phí ship | ☑ Pass ☐ Fail |
-| TC_PAY_06 | SĐT người nhận sai | Màn Thanh toán | Nhập SĐT dưới 10 số, Đặt hàng | SĐT: 09012 | Báo lỗi số điện thoại không hợp lệ, chặn đặt | Báo lỗi "Số điện thoại không hợp lệ (cần 10 chữ số)" | ☑ Pass ☐ Fail |
-| TC_PAY_07 | Đặt COD khi đủ uy tín | trustScore ≥ 90 | Chọn COD → Đặt hàng | trustScore = 100 | Tạo đơn PENDING, chuyển OrderSuccessActivity | Tạo đơn thành công, trạng thái PENDING, chuyển màn thành công | ☑ Pass ☐ Fail |
-| TC_PAY_08 | Chặn COD khi uy tín < 90 | trustScore < 90 | Chọn COD → Đặt hàng | trustScore = 70 | Không cho COD; báo bắt buộc đặt cọc 20% | Thông báo "Điểm uy tín dưới 90, quý khách vui lòng đặt cọc 20%" | ☑ Pass ☐ Fail |
-| TC_PAY_09 | Tính tiền cọc 20% | trustScore < 90 | Đặt đơn tổng 123.000đ ở chế độ cọc | Tổng = 123.000đ | Tiền cọc = 24.000đ (20% làm tròn xuống 1k), còn lại thu khi giao | Tính đúng tiền cọc 24.000đ, tiền thu khi giao 99.000đ | ☑ Pass ☐ Fail |
-| TC_PAY_10 | Thanh toán VietQR | Quán có cấu hình ngân hàng | Chọn VietQR → Đặt hàng | — | Hiện mã VietQR đúng số tiền, nội dung #OISHI_...; đơn AWAITING_PAYMENT | Sinh mã QR Napas247 chuẩn, hiển thị số tiền và mã đơn chính xác | ☑ Pass ☐ Fail |
-| TC_PAY_11 | Tự động duyệt VietQR | Máy quán bật đọc thông báo | Khách chuyển khoản đúng số tiền | Khớp số tiền & mã đơn | BankNotificationListenerService bắt thông báo → đơn chuyển PAID | Dịch vụ đọc thông báo bắt được biến động số dư, đơn tự sang PAID | ☑ Pass ☐ Fail |
-| TC_PAY_12 | Chuyển khoản sai tiền | Đơn AWAITING_PAYMENT | Chuyển thiếu tiền | Thiếu 10.000đ | Đơn không tự chuyển PAID, quán phải duyệt tay | Đơn giữ nguyên AWAITING_PAYMENT, không duyệt tự động | ☑ Pass ☐ Fail |
-| TC_PAY_13 | Bấm xác nhận đã chuyển | Màn hình VietQR | Khách bấm "Tôi đã chuyển khoản" | — | Cập nhật customerConfirmed = true, chuyển sang theo dõi đơn | Đơn cập nhật xác nhận của khách, chuyển sang TrackingActivity | ☑ Pass ☐ Fail |
-
-#### 3.2.4.4 Nhóm 4 – Theo dõi đơn, Chat, Mã QR/PIN & Hủy đơn mọi giai đoạn (app-customer)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_TRK_01 | Cập nhật tiến độ realtime | Có đơn đang xử lý | Quán bấm xác nhận đơn | — | App khách đổi trạng thái sang "Bếp đang nấu" trong < 1s | Trạng thái trên app khách đổi sang "Bếp đang nấu" sau 300ms | ☑ Pass ☐ Fail |
-| TC_TRK_02 | Bản đồ vị trí tài xế | Đơn đang DELIVERING | Mở màn theo dõi đơn | — | Bản đồ hiện xe máy tài xế, vị trí di chuyển realtime | Xe máy di chuyển mượt mà trên Google Maps theo GPS của tài xế | ☑ Pass ☐ Fail |
-| TC_TRK_03 | Hiển thị mã QR & PIN | Đơn đã có tài xế | Mở màn theo dõi đơn | — | Hiện mã QR và dòng #OISHI_XXXXXX • PIN: 6 số chuẩn | Hiển thị mã QR rõ nét kèm mã PIN 6 số đối soát | ☑ Pass ☐ Fail |
-| TC_TRK_04 | Chat với quán | Đơn đang xử lý | Gửi tin nhắn cho quán | "Cho em ít cay" | Tin nhắn hiện bên quán ngay, nút chat quán đổi màu cam | Tin nhắn hiển thị tức thì bên app quán, nút chat hiện số chưa đọc | ☑ Pass ☐ Fail |
-| **TC_TRK_05** | **Hủy đơn khi quán chưa nấu** | **Đơn PENDING / PAID** | **Bấm "✕ Hủy Đơn Hàng"** | **Lý do: Đặt nhầm** | **Đơn chuyển CANCELLED, không trừ điểm uy tín** | **Đơn chuyển CANCELLED ngay lập tức, trustScore giữ nguyên 100** | **☑ Pass ☐ Fail** |
-| **TC_TRK_06** | **Hủy đơn khi quán đang nấu** | **Đơn PREPARING / READY** | **Bấm "✕ Hủy Đơn Hàng"** | **Lý do: Quán làm lâu** | **Đơn chuyển CANCELLED, quán nhận thông báo dừng nấu** | **Đơn sang CANCELLED, app quán tự chuyển đơn vào lịch sử đã hủy** | **☑ Pass ☐ Fail** |
-| **TC_TRK_07** | **Hủy đơn khi tài xế ở quán** | **Đơn ASSIGNED / ARRIVED_AT_SHOP** | **Bấm "✕ Hủy Đơn Hàng"** | **Lý do: Đổi ý** | **Đơn chuyển CANCELLED, quán dừng làm, tài xế hủy chuyến** | **Đơn sang CANCELLED, tài xế nhận dialog thông báo hủy chuyến giao** | **☑ Pass ☐ Fail** |
-| **TC_TRK_08** | **Hủy đơn COD khi đang giao** | **Đơn COD DELIVERING** | **Bấm "✕ Không Nhận Món"** | **trustScore = 100** | **Đơn → RETURNING_TO_STORE, tài xế quay về quán, trừ 30 điểm** | **Đơn sang RETURNING_TO_STORE, tài xế nhận báo quay xe, điểm = 70** | **☑ Pass ☐ Fail** |
-| TC_TRK_09 | Hủy đơn Online khi đang giao | Đơn VietQR đã PAID đang giao | Bấm Hủy đơn → Xác nhận | — | Đơn → RETURNING_TO_STORE; điểm uy tín không bị trừ | Đơn sang RETURNING_TO_STORE, điểm uy tín giữ nguyên | ☑ Pass ☐ Fail |
-| TC_TRK_10 | Khóa tài khoản khi điểm < 20 | trustScore = 40 | Hủy 1 đơn COD đang giao | 40 − 30 = 10 | trustScore = 10 → tài khoản tự động LOCKED, bị đăng xuất | Điểm tụt xuống 10, tài khoản bị LOCKED, AccountLockWatcher đẩy ra Login | ☑ Pass ☐ Fail |
-| TC_TRK_11 | Cảnh báo mất đơn đúng vòng | Tài xế báo sự cố vòng 1 | Quan sát màn khách | — | Vòng 1 không hiện cảnh báo đỏ; chỉ hiện khi sang vòng 2 | Vòng 1 không báo đỏ; khi sang vòng 2 mới hiện cảnh báo đỏ đếm ngược | ☑ Pass ☐ Fail |
-
-#### 3.2.4.5 Nhóm 5 – Lịch sử, Đánh giá, Khiếu nại & Hồ sơ (app-customer)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_HIS_01 | Xem lịch sử đơn | Có đơn cũ | Mở tab Đơn hàng | — | Hiện danh sách đơn kèm trạng thái, tổng tiền, ngày đặt | Danh sách hiển thị đầy đủ các đơn cũ kèm trạng thái chính xác | ☑ Pass ☐ Fail |
-| TC_HIS_02 | Đánh giá món ăn | Đơn COMPLETED | Chọn 5 sao, viết nhận xét, Gửi | "Rất ngon, giao nhanh" | Đánh giá lưu lại, hiện trong danh sách đánh giá của món | Lưu đánh giá thành công, điểm trung bình món ăn tăng lên | ☑ Pass ☐ Fail |
-| TC_HIS_03 | Chặn đánh giá đơn chưa xong | Đơn đang giao | Mở chi tiết đơn | — | Không hiện khu vực đánh giá sao | Khu vực đánh giá ẩn hoàn toàn cho đến khi đơn hoàn tất | ☑ Pass ☐ Fail |
-| TC_CMP_01 | Gửi khiếu nại hợp lệ | Có đơn đã giao | Chọn đơn, sự cố, đính ảnh, Gửi | Mô tả: "Thiếu 1 phần cơm" | Khiếu nại lưu trạng thái PENDING, hiện trong danh sách | Khiếu nại được tạo thành công với trạng thái PENDING | ☑ Pass ☐ Fail |
-| TC_CMP_02 | Mô tả khiếu nại quá ngắn | Màn Khiếu nại | Nhập mô tả dưới 5 ký tự | "Tệ" | Báo lỗi yêu cầu mô tả chi tiết hơn | Báo lỗi "Nội dung khiếu nại phải có ít nhất 5 ký tự" | ☑ Pass ☐ Fail |
-| TC_CMP_03 | Nhận kết quả khiếu nại | Admin đã giải quyết | Mở danh sách khiếu nại | — | Chuyển sang "Đã giải quyết", hiện phản hồi của Admin | Hiển thị trạng thái RESOLVED kèm văn bản phán quyết của Admin | ☑ Pass ☐ Fail |
-| TC_PRO_01 | Xem điểm uy tín | Đã đăng nhập | Mở Hồ sơ → Chạm thẻ Điểm | — | Hiện số điểm, hạng thẻ và toàn bộ lịch sử cộng/trừ điểm | Hiển thị chính xác số điểm uy tín và bảng nhật ký TrustScoreLog | ☑ Pass ☐ Fail |
-| TC_PRO_02 | Thêm địa chỉ vào sổ | Đã đăng nhập | Mở Sổ địa chỉ → Thêm mới | "53 Võ Văn Ngân, Thủ Đức" | Địa chỉ mới xuất hiện và chọn được khi thanh toán | Địa chỉ được lưu và hiển thị trong danh sách gợi ý thanh toán | ☑ Pass ☐ Fail |
-| TC_PRO_03 | Cập nhật hồ sơ | Đã đăng nhập | Sửa họ tên, bấm Lưu | Tên mới: "Nguyễn Văn B" | Tên mới hiển thị ở Hồ sơ và trên các đơn hàng mới | Cập nhật tên thành công, hiển thị đồng bộ trên toàn ứng dụng | ☑ Pass ☐ Fail |
-
-#### 3.2.4.6 Nhóm 6 – Xác minh Cửa hàng & Quản lý Chuỗi (app-internal)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_VER_01 | Quét OCR CCCD | Tài khoản MERCHANT mới | Chụp mặt trước CCCD rõ nét | Ảnh CCCD thật | CccdOcrHelper tự điền đúng số CCCD 12 số và họ tên | Tự bóc tách và điền chính xác số CCCD và họ tên vào biểu mẫu | ☑ Pass ☐ Fail |
-| TC_VER_02 | Ảnh CCCD mờ | Màn xác minh | Chọn ảnh mờ/không phải CCCD | Ảnh phong cảnh | Báo không nhận diện được, yêu cầu chụp lại | Báo lỗi "Không nhận diện được thông tin CCCD, vui lòng chụp lại" | ☑ Pass ☐ Fail |
-| TC_VER_03 | Gửi hồ sơ xác minh | Đã đủ thông tin | Bấm Gửi hồ sơ | — | Hồ sơ lưu PENDING; quán chưa hiển thị trên app khách | Hồ sơ gửi thành công, quán ở trạng thái chờ duyệt | ☑ Pass ☐ Fail |
-| TC_BOSS_01 | Tạo chi nhánh mới | MERCHANT chủ chuỗi | Thêm chi nhánh → nhập thông tin | "Oishi CN2 – Linh Trung" | Chi nhánh mới xuất hiện trong danh sách chuỗi | Tạo chi nhánh mới thành công, hiển thị trong danh sách | ☑ Pass ☐ Fail |
-| TC_BOSS_02 | Tạo quản lý chi nhánh | Có chi nhánh | Tạo tài khoản quản lý, gán cơ sở | MK: 123456 | Tạo thành công tài khoản quản lý chi nhánh | Tạo tài khoản Merchant phụ trách chi nhánh thành công | ☑ Pass ☐ Fail |
-| TC_BOSS_03 | Chọn chi nhánh làm việc | Có ≥ 2 chi nhánh | Chọn 1 chi nhánh để làm việc | — | Mở đúng màn hình quản lý đơn của chi nhánh đã chọn | Vào đúng giao diện quản lý đơn của chi nhánh vừa bấm chọn | ☑ Pass ☐ Fail |
-
-#### 3.2.4.7 Nhóm 7 – Quản lý Đơn hàng tại Quán (app-internal – Merchant)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_SHOP_01 | Chuông & popup đơn mới | Quán đang mở app | Khách đặt đơn mới | — | Phát chuông + hiện popup + Toast đơn mới; tab Đơn Mới tăng số | Chuông kêu to, popup nhảy lên ngay khi khách bấm đặt | ☑ Pass ☐ Fail |
-| TC_SHOP_02 | Bếp nhận đơn | Đơn PENDING | Bấm "✓ Xác nhận đơn của khách" | — | Đơn chuyển PREPARING, sang tab Đang Làm | Đơn chuyển sang tab Đang Làm với trạng thái PREPARING | ☑ Pass ☐ Fail |
-| TC_SHOP_03 | Báo nấu xong | Đơn PREPARING | Bấm "🍳 Xác nhận đã nấu xong" | — | Đơn chuyển READY, xuất hiện sảnh nhận đơn của tài xế | Đơn chuyển READY, phát tín hiệu cho các tài xế quanh quán | ☑ Pass ☐ Fail |
-| TC_SHOP_04 | Thẻ đơn khi có tài xế | Đơn READY có tài xế nhận | Quan sát thẻ đơn của quán | — | Hiện "Tài xế đã nhận đơn, đang đến quầy" + nút Gọi TX; ẩn nút thừa | Thẻ đơn hiện thông tin tài xế và số điện thoại, không có nút thừa | ☑ Pass ☐ Fail |
-| **TC_SHOP_05** | **Khách hủy khi đang làm** | **Đơn PREPARING / READY** | **Khách bấm hủy đơn** | — | **Đơn tự biến mất khỏi Đang Làm, sang Lịch Sử với badge đỏ "🚫 ĐÃ HỦY"** | **Đơn tự chuyển sang tab Lịch Sử, có badge đỏ báo dừng làm món** | **☑ Pass ☐ Fail** |
-| TC_SHOP_06 | Đồng ý yêu cầu hủy cũ | Khách gửi request xin hủy | Bấm "Đồng ý hủy" | — | Đơn chuyển CANCELLED, khách nhận thông báo | Đơn chuyển CANCELLED, khách nhận thông báo quán đồng ý hủy | ☑ Pass ☐ Fail |
-| TC_SHOP_07 | Từ chối yêu cầu hủy cũ | Khách gửi request xin hủy | Bấm "Từ chối hủy" | — | Đơn tiếp tục PREPARING, khung yêu cầu hủy biến mất | Đơn giữ nguyên PREPARING, thông báo từ chối gửi về khách | ☑ Pass ☐ Fail |
-| TC_SHOP_08 | Nhận lại món hoàn trả | Đơn RETURNING_TO_STORE | Tài xế về quán, bấm Nhận lại | — | Đơn chuyển RETURNED_TO_STORE, kết thúc chuyến | Cập nhật RETURNED_TO_STORE, chuyến giao kết thúc hoàn toàn | ☑ Pass ☐ Fail |
-| TC_SHOP_09 | Doanh thu hôm nay | Có 2 đơn hoàn tất trong ngày | Xem thanh thống kê đầu màn hình | Đơn 50k + 75k | Doanh thu = 125.000đ; "2 đơn"; đơn hôm qua không cộng dồn | Thống kê nhảy đúng 125.000đ và 2 đơn hoàn tất trong ngày | ☑ Pass ☐ Fail |
-
-#### 3.2.4.8 Nhóm 8 – Thực đơn, Combo, Báo cáo & Hồ sơ Quán (app-internal – Merchant)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_MNU_01 | Thêm món mới | Màn Quản lý thực đơn | Nhập tên, giá, ảnh → Lưu | "Cơm sườn" – 35.000đ | Món mới hiện trong thực đơn quán và trên app khách | Món hiển thị ngay lập tức trên app khách với giá 35.000đ | ☑ Pass ☐ Fail |
-| TC_MNU_02 | Tên món quá ngắn | Đang thêm món | Nhập tên 1 ký tự, bấm Lưu | "A" | Báo lỗi tên món phải từ 2 ký tự | Báo lỗi "Tên món ăn phải có ít nhất 2 ký tự" | ☑ Pass ☐ Fail |
-| TC_MNU_03 | Tắt món (hết hàng) | Có món đang bán | Gạt công tắc tắt món | — | App khách hiện nhãn "Hết món" ngay lập tức | Trên máy khách món lập tức chuyển trạng thái Hết món | ☑ Pass ☐ Fail |
-| TC_MNU_04 | Tạo Combo ưu đãi | Quán có ≥ 2 món | Tạo combo, chọn món, đặt giá | Combo 2 món – 60.000đ | Combo xuất hiện trên thực đơn app khách | Combo hiển thị ở đầu thực đơn với giá ưu đãi 60.000đ | ☑ Pass ☐ Fail |
-| TC_MNU_05 | Quản lý danh mục quán | Màn Quản lý thực đơn | Thêm danh mục mới | "Món Tráng Miệng" | Danh mục mới cập nhật trên thực đơn | Danh mục mới xuất hiện trên thanh cuộn thực đơn | ☑ Pass ☐ Fail |
-| TC_RPT_01 | Báo cáo doanh thu | Quán có đơn hoàn tất | Mở Báo cáo, chọn 7 ngày qua | 7 ngày qua | Hiện tổng doanh thu, số đơn, top món bán chạy chuẩn xác | Biểu đồ và số liệu doanh thu hiển thị đúng 100% dữ liệu đơn | ☑ Pass ☐ Fail |
-| TC_STP_01 | Đóng/mở cửa quán | Quán đang mở | Gạt tắt trạng thái mở cửa | — | App khách hiện quán "Đóng cửa", chặn đặt đơn | App khách đổi nhãn Đóng cửa, vô hiệu hóa nút đặt hàng | ☑ Pass ☐ Fail |
-| TC_STP_02 | Cấu hình tài khoản VietQR | Màn Hồ sơ quán | Nhập ngân hàng, số TK, tên chủ | MB Bank – 0123456789 | Mã VietQR khách quét chứa đúng tài khoản mới | Mã VietQR tạo ra chứa chính xác số tài khoản MB Bank vừa lưu | ☑ Pass ☐ Fail |
-
-#### 3.2.4.9 Nhóm 9 – Nhận đơn, Ghép chuyến & Giao hàng GPS (app-internal – Driver)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_DRV_01 | Bật trực tuyến | Đã cấp quyền vị trí | Gạt nút Online | — | Hiện danh sách đơn chờ; thông báo GPS chạy ngầm | Bật Online thành công, thanh thông báo hiện Location Service | ☑ Pass ☐ Fail |
-| TC_DRV_02 | Nhận đơn đơn lẻ | Có đơn READY | Bấm Nhận đơn | — | Đơn chuyển ASSIGNED; quán thấy tên tài xế trên thẻ | Đơn gán cho tài xế, mở màn hình hành trình giao hàng | ☑ Pass ☐ Fail |
-| TC_DRV_03 | Ghép 2–3 đơn | Có nhiều đơn cùng tuyến | Bấm Nhận chuyến ghép | Chuyến ghép 3 đơn | Tiêu đề "Chặng 1/3", nhãn "Ghép 3 đơn", 3 thẻ khách | Mở hành trình ghép 3 đơn với đầy đủ thông tin các chặng | ☑ Pass ☐ Fail |
-| **TC_DRV_04** | **Tự chọn khách giao trước** | **Trong chuyến ghép 3 đơn** | **Chạm thẻ khách số 2** | — | **Bản đồ & bảng điều khiển chuyển sang khách 2, đơn khác giữ nguyên** | **Bản đồ vẽ đường sang khách 2, trạng thái đơn 1 và 3 không bị ảnh hưởng** | **☑ Pass ☐ Fail** |
-| TC_DRV_05 | Gạt trượt chưa đủ 65% | Ở thanh trượt xác nhận | Kéo nút tròn 40% rồi thả tay | — | Nút trượt tự bật về vị trí đầu, trạng thái không đổi | Nút trượt nảy về đầu, không kích hoạt chuyển trạng thái | ☑ Pass ☐ Fail |
-| TC_DRV_06 | Gạt xác nhận lấy hàng | Đã đến quán lấy đồ | Gạt hết thanh lấy hàng | — | Đơn sang DELIVERING; app khách bắt đầu hiện bản đồ xe | Đơn chuyển DELIVERING, app khách bắt đầu thấy xe máy di chuyển | ☑ Pass ☐ Fail |
-| TC_DRV_07 | Gạt đã đến nhà khách | Đơn DELIVERING | Gạt "Đã đến nhà khách" | — | Lưu ngay ARRIVED_AT_CUSTOMER, hiện bước quét QR/PIN | Đơn lưu trạng thái đến nơi, mở khung quét mã QR / nhập PIN | ☑ Pass ☐ Fail |
-| TC_DRV_08 | Giữ trạng thái khi đổi đơn | Đơn 1 đã đến nhà khách | Chuyển sang đơn 2 rồi quay lại 1 | — | Đơn 1 vẫn ở "Đã đến nhà khách", không bị lùi bước | Đơn 1 giữ nguyên bước quét QR/PIN, không bị quay lại bước gạt | ☑ Pass ☐ Fail |
-| TC_DRV_09 | Quét QR đúng | Đơn ARRIVED_AT_CUSTOMER | Quét mã QR trên máy khách | QR đúng đơn | Đơn COMPLETED; thẻ hiện "✓ Đã giao"; tự chuyển đơn kế | Đơn hoàn tất ngay lập tức, tự động chuyển sang dẫn đường đơn tiếp theo | ☑ Pass ☐ Fail |
-| TC_DRV_10 | Nhập PIN sai | Đơn ARRIVED_AT_CUSTOMER | Nhập mã PIN sai | PIN: 111111 | Báo mã PIN không đúng, đơn không hoàn tất | Báo lỗi "Mã PIN không chính xác, vui lòng kiểm tra lại" | ☑ Pass ☐ Fail |
-| TC_DRV_11 | Quét QR của đơn khác | Chuyến ghép nhiều đơn | Quét QR của khách khác | QR đơn khác | Báo lỗi mã không khớp đơn đang giao | Báo lỗi "Mã QR không trùng khớp với đơn hàng hiện tại" | ☑ Pass ☐ Fail |
-| TC_DRV_12 | Giao xong ẩn thanh trượt cũ | Vừa giao xong 1 đơn | Quan sát màn hình | — | Không còn hiện thanh trượt cũ của đơn vừa giao | Giao diện làm mới sạch sẽ, sẵn sàng cho đơn tiếp theo | ☑ Pass ☐ Fail |
-| **TC_DRV_13** | **Khách hủy khi tài xế ở quán** | **Đơn ASSIGNED / ARRIVED_AT_SHOP** | **Khách bấm hủy đơn** | — | **Hiện popup "Đơn hàng đã bị khách hủy", chuyến đi kết thúc** | **Tài xế nhận popup thông báo hủy đơn và activity tự đóng an toàn** | **☑ Pass ☐ Fail** |
-| **TC_DRV_14** | **Khách hủy khi đang giao** | **Đơn DELIVERING** | **Khách bấm hủy đơn** | — | **Hiện popup "🚨 Khách Hủy Đơn - Mang Món Về Quán", chuyển dẫn đường về quán** | **Hiện dialog cảnh báo và bản đồ tự chuyển sang chỉ đường về quán** | **☑ Pass ☐ Fail** |
-| TC_DRV_15 | Báo sự cố chưa gọi đủ 3 lần | Đơn ARRIVED_AT_CUSTOMER | Mới gọi 1 lần bấm đếm ngược | — | Báo lỗi bắt buộc phải gọi tối thiểu 3 cuộc gọi | Chặn đếm ngược, báo "Vui lòng gọi cho khách tối thiểu 3 cuộc" | ☑ Pass ☐ Fail |
-| TC_DRV_16 | Báo sự cố hợp lệ 15 phút | Đã gọi 3 cuộc + chụp ảnh | Bấm Bắt đầu đếm ngược | — | Bắt đầu đếm ngược Vòng 1 – 15:00; khách xem được ảnh | Đồng hồ đếm ngược 15:00 chạy, ảnh bằng chứng đẩy lên Firebase | ☑ Pass ☐ Fail |
-| TC_DRV_17 | Hết 2 vòng đếm ngược | Đã qua vòng 1 và vòng 2 | Bấm xác nhận khách không nhận | — | Đơn → RETURNING_TO_STORE, đơn COD khách trừ 30 điểm | Đơn chuyển trả hàng, hệ thống trừ 30 điểm uy tín của khách | ☑ Pass ☐ Fail |
-
-#### 3.2.4.10 Nhóm 10 – Quản trị viên (app-admin)
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_ADM_01 | Đăng nhập Admin | Có tài khoản ADMIN | Đăng nhập admin@gmail.com | admin123 | Vào Dashboard (miễn OTP); tài khoản khác bị từ chối | Đăng nhập thành công vào thẳng Dashboard điều hành sàn | ☑ Pass ☐ Fail |
-| TC_ADM_02 | Thống kê Dashboard | Hệ thống có dữ liệu | Mở Dashboard | — | Hiện tổng doanh thu, số đơn, số quán, số user đúng | Số liệu thống kê đồng bộ chuẩn xác với dữ liệu Firebase | ☑ Pass ☐ Fail |
-| TC_ADM_03 | Cấu hình đếm ngược | Màn Dashboard | Sửa vòng 1 = 10p, vòng 2 = 10p | 10 / 10 | Lưu vào `/system_config`, lần báo sự cố sau đếm 10:00 | Cấu hình lưu thành công, tài xế báo sự cố đếm ngược 10 phút | ☑ Pass ☐ Fail |
-| TC_ADM_04 | Duyệt cửa hàng | Có hồ sơ chờ duyệt | Xem ảnh OCR CCCD → Phê duyệt | — | Quán chuyển APPROVED, hiển thị trên app khách | Quán được phê duyệt, ngay lập tức xuất hiện trên app khách | ☑ Pass ☐ Fail |
-| TC_ADM_05 | Từ chối cửa hàng | Có hồ sơ chờ duyệt | Bấm Từ chối, nhập lý do | "Ảnh CCCD mờ" | Chủ quán nhận lý do từ chối, quán không được mở | Hồ sơ bị từ chối, gửi lý do phản hồi về cho chủ quán | ☑ Pass ☐ Fail |
-| TC_ADM_06 | Phạt / khóa quán | Quán đang chạy | Áp dụng mức phạt Khóa | — | Quán bị khóa, tài khoản chủ quán chuyển LOCKED | Quán ẩn khỏi app khách, chủ quán đăng nhập bị chặn | ☑ Pass ☐ Fail |
-| TC_ADM_07 | Quản lý danh mục sàn | Màn Danh mục | Thêm danh mục "Đồ Ăn Vặt" | — | Danh mục mới xuất hiện trên Trang chủ khách | Danh mục mới hiển thị ngay trên thanh danh mục app khách | ☑ Pass ☐ Fail |
-| TC_ADM_08 | Sửa điểm uy tín | Giám sát người dùng | Sửa điểm khách từ 50 → 90 | trustScore = 90 | Khách được mở lại quyền đặt hàng COD | Điểm uy tín cập nhật 90, khách đặt hàng chọn được COD | ☑ Pass ☐ Fail |
-| TC_ADM_09 | Khóa / mở khóa tài khoản | Giám sát người dùng | Bấm Khóa 1 tài khoản rồi Mở lại | — | Khi khóa: bị đăng xuất ngay; khi mở: đăng nhập lại được | AccountLockWatcher cưỡng chế đăng xuất ngay; mở khóa đăng nhập lại bình thường | ☑ Pass ☐ Fail |
-| TC_ADM_10 | Can thiệp trạng thái đơn | Có đơn bị kẹt | Đổi DELIVERING → COMPLETED | — | Trạng thái cập nhật đồng bộ trên cả 3 ứng dụng | Cả 3 máy (khách, quán, ship) cập nhật trạng thái mới tức thì | ☑ Pass ☐ Fail |
-| TC_ADM_11 | Giải quyết khiếu nại | Khiếu nại PENDING | Nhập phán quyết → Chấp nhận | "Hoàn 30 điểm uy tín" | Khiếu nại RESOLVED, khách nhận thông báo & phục hồi điểm | Khách được cộng lại 30 điểm uy tín, khiếu nại chuyển RESOLVED | ☑ Pass ☐ Fail |
-| TC_ADM_12 | Xử lý khiếu nại sai | Khách vu khống | Chọn Bác bỏ & Khóa tài khoản | — | Khiếu nại bị REJECTED, tài khoản khách vi phạm bị khóa | Bác bỏ khiếu nại, tài khoản khách bị khóa vì lạm dụng hệ thống | ☑ Pass ☐ Fail |
-
-#### 3.2.4.11 Nhóm 11 – Kiểm thử phi chức năng
-| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
-| TC_NF_01 | Độ trễ đồng bộ | Khách & Quán cùng mạng | Quán bấm xác nhận, bấm giờ | — | App khách nhận thay đổi trong < 1 giây | Thời gian nhận phản hồi đo được là 320ms (< 500ms) | ☑ Pass ☐ Fail |
-| TC_NF_02 | Mất mạng rồi có lại | Đang theo dõi đơn | Tắt Wi-Fi/4G 30s rồi bật lại | — | App không crash; tự kết nối và đồng bộ lại | App không bị crash, khi có mạng tự động nạp lại dữ liệu mới nhất | ☑ Pass ☐ Fail |
-| TC_NF_03 | GPS chạy ngầm | Tài xế đang giao | Khóa màn hình máy tài xế 3 phút | — | Vị trí trên app khách vẫn cập nhật liên tục | Tọa độ GPS vẫn nạp đều đặn nhờ LocationForegroundService | ☑ Pass ☐ Fail |
-| TC_NF_04 | Từ chối quyền vị trí | Cài mới ứng dụng | Từ chối cấp quyền GPS | — | App không crash, hiện hướng dẫn cấp quyền | App hiện dialog hướng dẫn bật quyền, không bị dừng đột ngột | ☑ Pass ☐ Fail |
-| TC_NF_05 | Từ chối quyền Camera | Tài xế ở bước xác thực | Từ chối cấp quyền Camera | — | Không quét được QR nhưng vẫn hoàn tất bằng PIN | Camera bị tắt, tài xế chuyển sang tab nhập PIN giao hàng thành công | ☑ Pass ☐ Fail |
-| TC_NF_06 | Xoay màn hình / màn nhỏ | Màn hình Thanh toán | Xoay ngang máy hoặc máy 720p | 720 × 1280 | Bố cục không vỡ, dữ liệu nhập không bị mất | Giao diện tự cuộn linh hoạt, dữ liệu nhập giữ nguyên 100% | ☑ Pass ☐ Fail |
-| TC_NF_07 | Tương thích phiên bản | Android 8.0 & Android 14 | Chạy luồng đặt – giao 1 đơn | — | Vận hành trơn tru trên cả 2 phiên bản hệ điều hành | Luồng đặt và giao hoàn tất tốt trên cả Android 8 và Android 14 | ☑ Pass ☐ Fail |
-
----
-
-### 3.2.5 Tổng hợp kết quả kiểm thử
-| STT | Nhóm chức năng kiểm thử | Số lượng TC | Số TC Pass | Số TC Fail | Tỷ lệ đạt (%) |
-| :---: | :--- | :---: | :---: | :---: | :---: |
-| 1 | Đăng ký, Đăng nhập & Xác thực OTP | 14 | 14 | 0 | 100.0% |
-| 2 | Trang chủ, Tìm kiếm, Thực đơn & Giỏ hàng | 12 | 12 | 0 | 100.0% |
-| 3 | Đặt hàng, Phí ship, Thanh toán & Đặt cọc | 13 | 13 | 0 | 100.0% |
-| 4 | Theo dõi đơn, Chat, QR/PIN & Hủy đơn mọi giai đoạn | 11 | 11 | 0 | 100.0% |
-| 5 | Lịch sử, Đánh giá, Khiếu nại & Hồ sơ | 9 | 9 | 0 | 100.0% |
-| 6 | Xác minh Cửa hàng & Quản lý Chuỗi | 6 | 6 | 0 | 100.0% |
-| 7 | Quản lý Đơn hàng tại Quán (Kanban) | 9 | 9 | 0 | 100.0% |
-| 8 | Thực đơn, Combo, Báo cáo & Hồ sơ Quán | 8 | 8 | 0 | 100.0% |
-| 9 | Nhận đơn, Ghép chuyến & Giao hàng GPS | 17 | 17 | 0 | 100.0% |
-| 10 | Quản trị viên Hệ thống (app-admin) | 12 | 12 | 0 | 100.0% |
-| 11 | Kiểm thử phi chức năng | 7 | 7 | 0 | 100.0% |
-| **CỘNG** | **TOÀN HỆ THỐNG OISHI FOOD** | **118** | **118** | **0** | **100.0%** |
-
-### 3.2.6 Ảnh minh chứng kết quả kiểm thử
-[CHỖ CHÈN ẢNH KT-1: Báo lỗi khi đăng ký sai định dạng dữ liệu (TC_AUTH_02 – TC_AUTH_04)]  
-[CHỖ CHÈN ẢNH KT-2: Hộp thoại khóa tài khoản cưỡng chế thời gian thực của AccountLockWatcher (TC_AUTH_12)]  
-[CHỖ CHÈN ẢNH KT-3: Màn hình thanh toán bắt buộc đặt cọc 20% khi điểm uy tín < 90 (TC_PAY_08, TC_PAY_09)]  
-[CHỖ CHÈN ẢNH KT-4: Nhật ký TrustScoreLog ghi nhận trừ 30 điểm sau khi hủy đơn COD đang giao (TC_TRK_08)]  
-[CHỖ CHÈN ẢNH KT-5: Firebase Console – Đơn hàng cập nhật RETURNING_TO_STORE realtime (TC_TRK_08)]  
-[CHỖ CHÈN ẢNH KT-6: Hộp thoại cảnh báo mã PIN không chính xác khi tài xế đối soát (TC_DRV_10)]
-
-### 3.2.7 Các lỗi phát hiện và đã khắc phục triệt để trong quá trình kiểm thử
-| STT | Lỗi phát hiện ban đầu | Nguyên nhân kỹ thuật | Giải pháp khắc phục triệt để |
-| :---: | :--- | :--- | :--- |
-| 1 | Nút hủy đơn bị ẩn ở giai đoạn tài xế đến quán (`ARRIVED_AT_SHOP`, `ASSIGNED`) | Mã nguồn cũ gán điều kiện ẩn `btnCancelOrder` ở các trạng thái này | Cập nhật logic: Nút hủy đơn luôn hiển thị ở mọi giai đoạn hoạt động; thông báo quán dừng nấu và tài xế hủy chuyến giao |
-| 2 | Khách bị cảnh báo mất đơn khi Vòng đếm ngược 1 chưa kết thúc | Logic hiển thị cảnh báo đỏ trên app khách chưa kiểm tra `countdownRound >= 2` | Điều chỉnh chỉ kích hoạt cảnh báo mất đơn đỏ khi tài xế đã xác nhận bước sang Vòng 2 |
-| 3 | Khách không nghe máy tự động nhảy sang Vòng 2 khi hết Vòng 1 | Bộ đếm tự động kích hoạt vòng 2 không có sự xác nhận của tài xế | Bổ sung hộp thoại yêu cầu tài xế xác nhận gọi lại trước khi bắt đầu Vòng 2 |
-| 4 | Đơn đã gạt "Đã đến nhà khách" bị lùi bước khi chuyển qua lại giữa các đơn ghép | Trạng thái bước chỉ lưu tạm trong biến RAM giao diện | Cập nhật lưu trực tiếp `ARRIVED_AT_CUSTOMER` lên Firebase và khôi phục từ trạng thái thực |
-| 5 | Giao xong 1 đơn trong chuyến ghép vẫn hiển thị thanh trượt cũ | Giao diện không làm mới bảng điều khiển sau khi hoàn tất | Bổ sung hàm làm mới giao diện và tự động chuyển tiêu điểm sang đơn tiếp theo |
-| 6 | Quán phải bấm thêm nút "Xác nhận giao món cho tài xế" rườm rà | Quy trình bếp bị thừa 1 bước xác nhận | Loại bỏ nút bấm, tài xế đến quầy tự kiểm tra và gạt lấy hàng (`DELIVERING`) |
-| 7 | Cảnh báo đỏ xuất hiện trên màn hình quán gây rối mắt | Banner cảnh báo sự cố giao hàng hiển thị nhầm bên quán | Ẩn banner và viền đỏ cảnh báo trên giao diện quán, chỉ giữ lại ở máy tài xế và khách |
-| 8 | Lỗi định dạng mã đơn lặp `TOKEN_OISHI_OISHI_...` | Ghép chuỗi tiền tố 2 lần | Chuẩn hóa hàm sinh mã duy nhất dạng `#OISHI_XXXXXX` |
-
----
-
-# CHƯƠNG 4. KẾT QUẢ ĐẠT ĐƯỢC VÀ HƯỚNG PHÁT TRIỂN
-
-## 4.1 KẾT QUẢ ĐẠT ĐƯỢC
-Sau quá trình phân tích, thiết kế và lập trình nghiêm túc, nhóm sinh viên đã hoàn thành trọn vẹn hệ sinh thái **Oishi Food** với quy mô hoàn chỉnh gồm:
-- **4 Modules Gradle** (`core`, `app-customer`, `app-internal`, `app-admin`).
-- Hơn **95 lớp Kotlin** (Activities, Fragments, ViewModels, Adapters, Services, Repositories).
-- Hơn **85 file giao diện XML** bố cục Material Design 3.
-- Toàn bộ **118 Test Case** phân theo 11 nhóm chức năng cốt lõi đều đạt kết quả kiểm thử thực tế **100% Pass**.
-
-## 4.2 CÁC KẾT LUẬN VÀ KIẾN NGHỊ
-### 4.2.1 Những điểm đã làm được
-1. **Kiến trúc đa phân hệ chuẩn mực**: Tách biệt 3 ứng dụng phục vụ đúng từng đối tượng nhưng dùng chung module lõi `core`, phân quyền RBAC 4 vai trò rõ ràng và hỗ trợ mô hình chuỗi nhiều chi nhánh.
-2. **Xác thực bảo mật & Định danh eKYC**: Kết hợp Firebase Auth với mã OTP gửi qua Email thật (`EmailOtpApi`) và ứng dụng Google ML Kit OCR nhận diện CCCD tự động khi duyệt quán.
-3. **Thanh toán tự động & Tối ưu hóa vận hành bếp**: Tự động sinh mã VietQR Napas247, dịch vụ `BankNotificationListenerService` đọc biến động số dư ngân hàng duyệt đơn tức thời; bảng Kanban 4 tab và quy trình bếp 2 bước tinh gọn.
-4. **Điều phối giao hàng GPS & Ghép chuyến đa điểm xuất sắc**: Ghép tối đa 3 đơn cùng tuyến, tài xế tự do chọn thứ tự giao ưu tiên trên bản đồ Google Maps, dịch vụ định vị chạy ngầm (`LocationForegroundService`), xác thực hoàn tất 2 lớp bằng QR Code và mã PIN 6 số.
-5. **Cơ chế Hủy đơn đa tầng & Điểm uy tín văn minh**: Khách hàng có quyền hủy đơn ở bất kỳ giai đoạn nào với thông báo tương ứng cho quán dừng nấu hoặc tài xế trả hàng; tự động trừ 30 điểm uy tín khi bom hàng COD; bắt buộc đặt cọc 20% khi điểm thấp; quy trình báo sự cố 15 phút 2 vòng bảo vệ tài xế; xử lý khiếu nại minh bạch.
-
-### 4.2.2 Những điểm hạn chế
-- Hệ thống hiện mới triển khai trên nền tảng Android, chưa phát triển phiên bản iOS hoặc giao diện Web.
-- Dịch vụ tự động duyệt VietQR dựa trên quyền Notification Listener của Android trên thiết bị của quán, chưa đấu nối trực tiếp cổng Webhook doanh nghiệp của ngân hàng.
-- Cuộc gọi giữa Khách – Quán – Tài xế hiện kết nối qua trình gọi điện thoại GSM của thiết bị, chưa tích hợp gọi thoại VoIP qua Internet (WebRTC).
-
-### 4.2.3 Hướng phát triển trong tương lai
-- Tích hợp Trí tuệ nhân tạo (AI Chatbot): Tư vấn chọn món ăn theo sở thích, ngân sách và thời tiết.
-- Tối ưu hóa lộ trình giao hàng bằng thuật toán TSP (Traveling Salesperson Problem) kết hợp dữ liệu giao thông thời gian thực.
-- Tích hợp gọi thoại VoIP nội bộ qua WebRTC / Agora SDK miễn phí cước viễn thông cho người dùng.
-- Mở rộng đa nền tảng (Cross-Platform) sang iOS và Web Dashboard cho Quản trị viên.
-
----
-
-# PHỤ LỤC
-- **Phụ lục A. Hướng dẫn cài đặt và chạy chương trình**: Cài Android Studio, JDK 17, mở dự án `Chuyen-De-2`, đặt file `google-services.json` vào các module ứng dụng, khai báo Google Maps API Key trong `local.properties` và chạy ứng dụng tương ứng.
-- **Phụ lục B. Cấu trúc thư mục mã nguồn**:
-  - `core/`: Models, FirebaseRepository, AuthRepository, OCR, QR, Map, ShippingRule, OTP.
-  - `app-customer/`: Ứng dụng Khách hàng đặt món và theo dõi GPS.
-  - `app-internal/`: Ứng dụng Quán ăn (Kanban), Chủ chuỗi (Boss) và Tài xế (Ghép chuyến).
-  - `app-admin/`: Ứng dụng Quản trị viên điều hành toàn sàn.
-- **Phụ lục C. Đường dẫn mã nguồn**:
-  - Repository GitHub: `https://github.com/tranvu2006-ui/chuyen-de-2-android`
-  - Nhánh hoạt động: `giau-15/11` và `vu-15/11`.
-
----
-
-# TÀI LIỆU THAM KHẢO
-1. **Android Developers Official Documentation**: `https://developer.android.com` — Tài liệu về Multi-Module, Activity, Fragment, Foreground Service & NotificationListenerService.
-2. **Kotlin Programming Language Documentation**: `https://kotlinlang.org/docs/home.html` — Tài liệu chính thức về Kotlin, Coroutines & Flow.
-3. **Firebase Documentation for Android**: `https://firebase.google.com/docs/android/setup` — Tích hợp Firebase Auth, Realtime Database & FCM.
-4. **Google Maps Platform Documentation**: `https://developers.google.com/maps` — Tích hợp Maps SDK, Location Services & Polyline.
-5. **Google ML Kit Text Recognition**: `https://developers.google.com/ml-kit/vision/text-recognition` — Nhận diện văn bản tiếng Việt bóc tách CCCD.
-6. **Material Design 3 Guidelines**: `https://m3.material.io` — Tiêu chuẩn thiết kế giao diện Material 3.
-7. **VietQR Payment Standard**: `https://www.vietqr.io` — Cấu trúc mã QR thanh toán Napas247.
-8. **ThS. Tiêu Kim Cương**: *Giáo trình Lập trình di động 2* — Tài liệu giảng dạy và hướng dẫn đồ án môn học, Trường Cao đẳng Công nghệ Thủ Đức.
-
----------- Kết thúc tài liệu báo cáo ----------
-````
-
 ## File: database.rules.json
 ````json
 {
@@ -59019,6 +56949,324 @@ class MenuActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         viewModel.flushCart()
+    }
+}
+````
+
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/MenuViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.menu
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Cart
+import com.chuyen_de_2.foodorder.core.data.model.CartItem
+import com.chuyen_de_2.foodorder.core.data.model.CartPayload
+import com.chuyen_de_2.foodorder.core.data.model.Dish
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.util.Constants
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * ViewModel cho màn hình Menu — load dữ liệu từ Firebase, thêm vào giỏ hàng.
+ * Hỗ trợ giao diện b5.html: Nửa trên (selectedDish), Nửa dưới (filteredDishes), Bottom Bar (cartTotal).
+ */
+@OptIn(FlowPreview::class)
+@HiltViewModel
+class MenuViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
+
+    private val allDishes = mutableListOf<Dish>()
+
+    private val _dishes = MutableLiveData<List<Dish>>()
+    val dishes: LiveData<List<Dish>> = _dishes
+
+    val menuItems: LiveData<List<Dish>> get() = _dishes
+
+    // Món đang được chọn hiển thị ở nửa trên (Top Detail Section - b5.html)
+    private val _selectedDish = MutableLiveData<Dish?>()
+    val selectedDish: LiveData<Dish?> = _selectedDish
+
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    // Trạng thái giỏ hàng local — phản hồi UI ngay lập tức
+    private val _cartItems = MutableLiveData<MutableMap<String, CartItem>>(mutableMapOf())
+    val cartItems: LiveData<MutableMap<String, CartItem>> = _cartItems
+
+    private val _cartCount = MutableLiveData(0)
+    val cartCount: LiveData<Int> = _cartCount
+
+    private val _cartTotalPrice = MutableLiveData(0L)
+    val cartTotalPrice: LiveData<Long> = _cartTotalPrice
+
+    private val _categories = MutableLiveData<List<String>>(emptyList())
+    val categories: LiveData<List<String>> = _categories
+
+    val currentCategoryName: String
+        get() = currentCategory
+
+    private var currentShopId: String = ""
+    private var currentShopName: String = ""
+    private var currentCategory: String = "ALL"
+
+    private val cartUpdates = MutableSharedFlow<CartPayload>(
+        replay = 0,
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+
+    init {
+        viewModelScope.launch {
+            cartUpdates
+                .debounce(Constants.DEBOUNCE_TIMEOUT_MS)
+                .distinctUntilChanged()
+                .collectLatest { payload ->
+                    firebaseRepository.syncCartToFirebase(payload)
+                }
+        }
+    }
+
+    private var currentShopDistrict: String = ""
+    private var currentShopAddress: String = ""
+
+    fun setShopInfo(shopId: String, shopName: String, initialDishId: String? = null, initialDish: Dish? = null) {
+        currentShopId = shopId
+        currentShopName = shopName
+
+        // Optimistic UI: Nếu có món truyền từ trang chủ, lập tức chọn và cộng giỏ hàng tức thì (0ms)
+        if (initialDish != null) {
+            _selectedDish.value = initialDish
+            addToCart(initialDish)
+        }
+
+        loadMenu(shopId, initialDishId)
+        observeShopCart(shopId)
+        loadShopDetails(shopId)
+    }
+
+    private val _store = MutableLiveData<Store?>()
+    val store: LiveData<Store?> = _store
+
+    private fun loadShopDetails(shopId: String) {
+        viewModelScope.launch {
+            try {
+                firebaseRepository.observeStore(shopId).collectLatest { store ->
+                    if (store != null) {
+                        currentShopDistrict = store.district
+                        currentShopAddress = store.address
+                        _store.postValue(store)
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun observeShopCart(shopId: String) {
+        val userId = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            firebaseRepository.observeCart(userId, shopId).collectLatest { cart ->
+                val currentLocal = _cartItems.value ?: emptyMap()
+                if (cart != null && cart.items.isNotEmpty()) {
+                    val merged = cart.items.toMutableMap()
+                    // Giữ lại các món local nếu người dùng đã cộng dồn (tránh bị Firebase snapshot cũ ghi đè)
+                    for ((k, v) in currentLocal) {
+                        val remote = merged[k]
+                        if (remote == null || remote.quantity < v.quantity) {
+                            merged[k] = v
+                        }
+                    }
+                    _cartItems.value = merged
+                    updateCartTotals()
+                } else if (currentLocal.isNotEmpty()) {
+                    // Nếu Firebase trả về null nhưng local đã thêm món, giữ nguyên giỏ hàng hiện tại
+                    updateCartTotals()
+                }
+            }
+        }
+    }
+
+    private fun loadMenu(shopId: String, initialDishId: String? = null) {
+        _isLoading.value = true
+        viewModelScope.launch {
+            // Quan sát thực đơn thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeStoreDishes(shopId).collectLatest { firebaseDishes ->
+                val visibleDishes = firebaseDishes.filter { !it.isHidden && it.isAvailable }
+                if (visibleDishes.isNotEmpty()) {
+                    allDishes.clear()
+                    allDishes.addAll(visibleDishes)
+
+                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                    _categories.value = uniqueCats
+
+                    applyFilter()
+
+                    // Chọn món theo initialDishId hoặc mặc định món đầu tiên
+                    if (!initialDishId.isNullOrEmpty()) {
+                        val targetDish = visibleDishes.find { it.id == initialDishId }
+                        if (targetDish != null) {
+                            _selectedDish.value = targetDish
+                            // Chỉ cộng nếu chưa được cộng lúc khởi tạo setShopInfo
+                            if (getItemQuantity(targetDish.id) == 0) {
+                                addToCart(targetDish)
+                            }
+                        }
+                    } else if (_selectedDish.value == null && visibleDishes.isNotEmpty()) {
+                        val firstDish = visibleDishes.first()
+                        _selectedDish.value = firstDish
+                    }
+                    _isLoading.value = false
+                } else {
+                    allDishes.clear()
+                    _categories.value = emptyList()
+                    applyFilter()
+                    _selectedDish.value = null
+                    _isLoading.value = false
+                }
+            }
+        }
+    }
+
+    fun selectDish(dish: Dish) {
+        _selectedDish.value = dish
+    }
+
+    fun filterByCategory(categoryName: String) {
+        currentCategory = categoryName
+        applyFilter()
+    }
+
+    private fun applyFilter() {
+        if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
+            _dishes.value = allDishes
+        } else {
+            _dishes.value = allDishes.filter { dish ->
+                dish.category.equals(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
+                dish.category.contains(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.contains(currentCategory, ignoreCase = true)
+            }
+        }
+    }
+
+    fun addToCart(dish: Dish) {
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
+        val existing = currentMap[dish.id]
+
+        if (existing != null) {
+            currentMap[dish.id] = existing.copy(quantity = existing.quantity + 1)
+        } else {
+            currentMap[dish.id] = CartItem(
+                itemId = dish.id,
+                name = dish.name,
+                price = dish.price,
+                quantity = 1,
+                imageUrl = dish.imageUrl
+            )
+        }
+
+        _cartItems.value = currentMap
+        updateCartTotals()
+        emitCartUpdate()
+    }
+
+    fun addCustomCartItem(cartItem: CartItem) {
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
+        val existing = currentMap[cartItem.itemId]
+
+        if (existing != null) {
+            currentMap[cartItem.itemId] = existing.copy(quantity = existing.quantity + cartItem.quantity)
+        } else {
+            currentMap[cartItem.itemId] = cartItem
+        }
+
+        _cartItems.value = currentMap
+        updateCartTotals()
+        emitCartUpdate()
+    }
+
+    fun removeFromCart(itemId: String): Boolean {
+        val currentMap = (_cartItems.value ?: emptyMap()).toMutableMap()
+        val targetKey = if (currentMap.containsKey(itemId)) {
+            itemId
+        } else {
+            currentMap.keys.find { it.startsWith("${itemId}_") }
+        } ?: return false
+
+        val existing = currentMap[targetKey] ?: return false
+
+        if (existing.quantity > 1) {
+            currentMap[targetKey] = existing.copy(quantity = existing.quantity - 1)
+        } else {
+            currentMap.remove(targetKey)
+        }
+
+        _cartItems.value = currentMap
+        updateCartTotals()
+        emitCartUpdate()
+        return true
+    }
+
+    fun getItemQuantity(itemId: String): Int {
+        val items = _cartItems.value ?: return 0
+        return items.filter { it.key == itemId || it.key.startsWith("${itemId}_") }
+            .values.sumOf { it.quantity }
+    }
+
+    private fun updateCartTotals() {
+        val items = _cartItems.value?.values ?: emptyList()
+        _cartCount.value = items.sumOf { it.quantity }
+        _cartTotalPrice.value = items.sumOf { it.price * it.quantity }
+    }
+
+    private fun emitCartUpdate() {
+        val userId = auth.currentUser?.uid ?: return
+        val items = _cartItems.value ?: return
+        val total = items.values.sumOf { it.price * it.quantity }
+
+        val cart = Cart(
+            shopId = currentShopId,
+            shopName = currentShopName,
+            shopDistrict = currentShopDistrict,
+            shopAddress = currentShopAddress,
+            totalAmount = total,
+            items = items
+        )
+
+        cartUpdates.tryEmit(CartPayload(userId, currentShopId, cart))
+    }
+
+    fun flushCart() {
+        val userId = auth.currentUser?.uid ?: return
+        val items = _cartItems.value ?: return
+        if (items.isEmpty()) return
+        val total = items.values.sumOf { it.price * it.quantity }
+        val cart = Cart(
+            shopId = currentShopId,
+            shopName = currentShopName,
+            shopDistrict = currentShopDistrict,
+            shopAddress = currentShopAddress,
+            totalAmount = total,
+            items = items
+        )
+        viewModelScope.launch {
+            firebaseRepository.syncCartToFirebase(CartPayload(userId, currentShopId, cart))
+        }
     }
 }
 ````
@@ -67109,6 +65357,10 @@ import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
 import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
 import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
 import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -67152,6 +65404,7 @@ class LoginActivity : AppCompatActivity() {
 
         setupUI()
         observeViewModel()
+        syncBypassOtpConfig()
     }
 
     override fun onResume() {
@@ -67228,6 +65481,20 @@ class LoginActivity : AppCompatActivity() {
             val intent = Intent(this, RegisterActivity::class.java)
             startActivity(intent)
         }
+    }
+
+    private fun syncBypassOtpConfig() {
+        try {
+            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        } catch (_: Exception) {}
     }
 
     private fun observeViewModel() {
@@ -68109,666 +66376,6 @@ class DriverActiveOrdersAdapter(
 
             binding.btnCancelOrder.setOnClickListener {
                 onCancelOrder(order)
-            }
-        }
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ArrayAdapter
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
-import com.chuyen_de_2.foodorder.internal.databinding.DialogNewOrderPopupBinding
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
-import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
-import dagger.hilt.android.AndroidEntryPoint
-
-/**
- * Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center)
- * Cách hoạt động:
- *  - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
- *  - Lắng nghe danh sách đơn chờ nhận (READY) từ Quán trực thuộc của tài xế.
- *  - Quản lý đơn đang thực hiện (Active Orders) và cho phép bấm "Tiếp tục giao" để mở màn hình lộ trình GPS [DeliveryTripActivity].
- *  - Hỗ trợ hủy đơn với lý do cụ thể (xe hỏng, việc gấp...) để hoàn trả đơn về danh sách chờ cho tài xế khác.
- *  - Thống kê tức thời: Số cuốc hoàn thành hôm nay và tổng thu nhập phí ship kiếm được.
- * Luồng hướng tới:
- *  - Nhận đơn -> Cập nhật trạng thái đơn sang ASSIGNED trên Firestore.
- *  - Bấm "Tiếp tục giao" -> Mở màn hình điều hướng lộ trình bản đồ [DeliveryTripActivity].
- */
-@AndroidEntryPoint
-class ShipperFragment : Fragment() {
-
-    private var _binding: FragmentShipperBinding? = null
-    private val binding get() = _binding!!
-
-    @javax.inject.Inject
-    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-
-    private val viewModel: ShipperViewModel by activityViewModels()
-
-    private lateinit var activeAdapter: DriverActiveOrdersAdapter
-    private lateinit var pendingAdapter: DriverPendingOrdersAdapter
-
-    private var isOnline = true
-
-    private val locationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-        if (fine || coarse) {
-            startLocationService()
-        }
-    }
-
-    private fun autoStartLocationServiceIfPermitted() {
-        val hasFine = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-        val hasCoarse = ContextCompat.checkSelfPermission(
-            requireContext(),
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasFine || hasCoarse) {
-            startLocationService()
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
-        }
-    }
-
-    private fun startLocationService() {
-        val activeIds = arrayListOf<String>()
-        val currentUid = authRepository.currentUser?.uid ?: ""
-        viewModel.assignedOrders.value?.filter {
-            (it.status == Order.Status.DELIVERING ||
-             it.status == Order.Status.ASSIGNED ||
-             it.status == Order.Status.ARRIVED_AT_SHOP ||
-             it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-             it.status == Order.Status.RETURNING_TO_STORE) &&
-            it.shipperId == currentUid
-        }?.forEach { ord ->
-            if (ord.orderId.isNotBlank()) activeIds.add(ord.orderId)
-        }
-
-        val firstId = activeIds.firstOrNull() ?: "DRIVER_ACTIVE_DUTY"
-        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
-            putExtra(LocationForegroundService.EXTRA_ORDER_ID, firstId)
-            putStringArrayListExtra(LocationForegroundService.EXTRA_ORDER_IDS, activeIds)
-        }
-        try {
-            ContextCompat.startForegroundService(requireContext(), intent)
-        } catch (e: Exception) {
-            android.util.Log.e("ShipperFragment", "Error auto-starting location service: ${e.message}")
-        }
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentShipperBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View màn hình tài xế
-     * Cách hoạt động: Gắn adapter, bật/tắt chế độ trực, gắn nút đăng xuất và lắng nghe dữ liệu từ ViewModel.
-     * Luồng hướng tới: Sẵn sàng nhận đơn giao hàng.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupAdapters()
-        setupDutyToggle()
-        setupLogout()
-        observeData()
-        autoStartLocationServiceIfPermitted()
-    }
-
-    /**
-     * Tên chức năng: Xử lý Đăng xuất ca trực của Tài xế
-     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa phiên Auth và chuyển về [LoginActivity].
-     * Luồng hướng tới: Quay về [LoginActivity].
-     */
-    private fun setupLogout() {
-        binding.btnShipperLogoutHeader.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    authRepository.logout()
-                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
-                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    }
-                    startActivity(intent)
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo Adapter danh sách đơn đang giao và đơn chờ nhận
-     * Cách hoạt động: Cấu hình 2 RecyclerView độc lập (rvActiveOrders và rvPendingOrders) kèm các sự kiện bấm nhận đơn, tiếp tục cuốc đi, và hủy nhận đơn.
-     * Luồng hướng tới: Hiển thị các đơn hàng cho shipper.
-     */
-    private fun setupAdapters() {
-        activeAdapter = DriverActiveOrdersAdapter(
-            onContinueTrip = { order ->
-                DeliveryTripActivity.start(requireContext(), order.orderId)
-            },
-            onCancelOrder = { order ->
-                showCancelModal(order)
-            }
-        )
-
-        pendingAdapter = DriverPendingOrdersAdapter(
-            onAcceptOrder = { order ->
-                viewModel.acceptOrder(order.orderId) { success, msg ->
-                    if (success) {
-                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)} thành công!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
-                    }
-                }
-            }
-        )
-
-        binding.rvActiveOrders.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = activeAdapter
-        }
-
-        binding.rvPendingOrders.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = pendingAdapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Chuyển đổi trạng thái Trực tuyến / Tạm nghỉ (Duty Toggle)
-     * Cách hoạt động: Gạt trạng thái trực của tài xế và đồng bộ lên Firebase qua [ShipperViewModel.toggleDuty].
-     * Luồng hướng tới: Hệ thống chỉ phát đơn mới khi tài xế ĐANG TRỰC.
-     */
-    private fun setupDutyToggle() {
-        binding.btnDutyToggle.setOnClickListener {
-            isOnline = !isOnline
-            viewModel.toggleDuty(isOnline)
-            updateDutyUI()
-            if (isOnline) {
-                autoStartLocationServiceIfPermitted()
-            } else {
-                try {
-                    requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
-                } catch (_: Exception) {}
-            }
-        }
-    }
-
-    private fun updateDutyUI() {
-        if (isOnline) {
-            binding.btnDutyToggle.text = "🟢 ĐANG TRỰC"
-            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.brand_green_bg))
-            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn!", Toast.LENGTH_SHORT).show()
-        } else {
-            binding.btnDutyToggle.text = "⏸️ TẠM NGHỈ"
-            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.divider))
-            Toast.makeText(requireContext(), "Bạn đã chuyển sang chế độ TẠM NGHỈ.", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe và đồng bộ dữ liệu đơn hàng tài xế
-     * Cách hoạt động:
-     *  - Lắng nghe đơn do chính tài xế đang giao (ASSIGNED, DELIVERING, ARRIVED_AT_SHOP, ARRIVED_AT_CUSTOMER).
-     *  - Lắng nghe đơn chờ nhận từ quán được phân công.
-     *  - Tính toán số cuốc hoàn thành và tiền cước tích lũy trong ngày.
-     * Luồng hướng tới: Cập nhật giao diện tức thời.
-     */
-    private fun observeData() {
-        viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
-            val currentUid = authRepository.currentUser?.uid ?: ""
-            val activeOrders = orders.filter {
-                (it.status == Order.Status.DELIVERING ||
-                 it.status == Order.Status.ASSIGNED ||
-                 it.status == Order.Status.ARRIVED_AT_SHOP ||
-                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                 it.status == Order.Status.RETURNING_TO_STORE) &&
-                        it.shipperId == currentUid
-            }
-
-            val hasActive = activeOrders.isNotEmpty()
-            if (hasActive) {
-                startLocationService()
-            }
-            activeAdapter.submitList(activeOrders)
-            binding.lblActiveBadge.text = "${activeOrders.size} đơn"
-            binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
-            binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
-            binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
-
-            viewModel.storePendingOrders.value?.let { pendingOrders ->
-                pendingAdapter.submitList(pendingOrders, activeOrders.size)
-            }
-
-            val calendar = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, 0)
-                set(java.util.Calendar.MINUTE, 0)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-            }
-            val startOfToday = calendar.timeInMillis
-
-            val todayCompleted = orders.filter {
-                it.status == Order.Status.COMPLETED &&
-                it.shipperId == currentUid &&
-                (it.createdAt >= startOfToday || it.timestamp >= startOfToday)
-            }
-            val completedCount = todayCompleted.size
-            val earnings = todayCompleted.sumOf { if (it.shippingFee > 0) it.shippingFee else 0L }
-
-            binding.tvStatCompletedCount.text = "$completedCount cuốc"
-            binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
-        }
-
-        viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
-            if (storeName.isNotBlank()) {
-                binding.tvShopBadge.text = "🏪 $storeName"
-            } else if (storeId.isNotBlank()) {
-                binding.tvShopBadge.text = "🏪 Quán $storeId"
-            } else {
-                binding.tvShopBadge.text = "⚠️ Chưa gán quán"
-            }
-        }
-
-        viewModel.driverProfile.observe(viewLifecycleOwner) { driver ->
-            val vehicleModel = driver?.vehicleModel?.trim().orEmpty()
-            val vehiclePlate = driver?.vehiclePlate?.trim().orEmpty()
-            val vehicleText = when {
-                vehicleModel.isNotBlank() && vehiclePlate.isNotBlank() -> "$vehicleModel • $vehiclePlate"
-                vehiclePlate.isNotBlank() -> vehiclePlate
-                vehicleModel.isNotBlank() -> vehicleModel
-                else -> ""
-            }
-            binding.tvDriverSub.text = if (vehicleText.isNotBlank()) {
-                "Tài xế chuyên quán • $vehicleText"
-            } else {
-                "Tài xế chuyên quán"
-            }
-        }
-
-        viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
-            val hasActive = activeAdapter.itemCount > 0
-            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
-            binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
-            binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
-
-            val currentStore = viewModel.shipperStore.value
-            val storeTitle = currentStore?.second?.ifBlank { currentStore.first } ?: ""
-            if (storeTitle.isNotBlank()) {
-                binding.tvEmptyPending.text = "Hiện tại $storeTitle chưa có đơn mới cần giao."
-            } else {
-                binding.tvEmptyPending.text = "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Quán để được thêm vào danh sách tài xế nội bộ."
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại Hủy nhận đơn giao hàng (Cancel Order Modal)
-     * Cách hoạt động: Cho phép tài xế chọn lý do bất khả kháng (hỏng xe, quán làm lâu...) và trả lại đơn về danh sách chờ.
-     * Luồng hướng tới: Cập nhật đơn về trạng thái READY không có tài xế trên Firestore.
-     */
-    private fun showCancelModal(order: Order) {
-        val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
-        val formattedCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn $formattedCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
-
-        val reasons = arrayOf(
-            "Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)",
-            "Quán chuẩn bị món quá lâu",
-            "Bị trùng tuyến hoặc quá tải đơn ghép",
-            "Tài xế có việc gia đình đột xuất"
-        )
-        dialogBinding.spinnerCancelReason.adapter = ArrayAdapter(
-            requireContext(), android.R.layout.simple_spinner_dropdown_item, reasons
-        )
-
-        val dialog = AlertDialog.Builder(requireContext())
-            .setView(dialogBinding.root)
-            .create()
-
-        dialogBinding.btnCancelDialogBack.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialogBinding.btnCancelDialogConfirm.setOnClickListener {
-            val selectedReason = dialogBinding.spinnerCancelReason.selectedItem.toString()
-            viewModel.cancelAssignedOrder(order.orderId, selectedReason) { success, msg ->
-                if (success) {
-                    Toast.makeText(requireContext(), "Đã hủy đơn thành công: $selectedReason", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } else {
-                    Toast.makeText(requireContext(), "Lỗi: $msg", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.ship
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
-import javax.inject.Inject
-
-@HiltViewModel
-class ShipperViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository,
-    private val auth: FirebaseAuth
-) : ViewModel() {
-
-    private val _assignedOrders = MutableLiveData<List<Order>>()
-    val assignedOrders: LiveData<List<Order>> = _assignedOrders
-
-    private val _storePendingOrders = MutableLiveData<List<Order>>()
-    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
-
-    private val _currentDeliveryOrderId = MutableLiveData<String?>()
-    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
-
-    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
-    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
-
-    private val _driverProfile = MutableLiveData<Driver?>()
-    val driverProfile: LiveData<Driver?> = _driverProfile
-
-    private val _isOnline = MutableLiveData(true)
-    val isOnline: LiveData<Boolean> = _isOnline
-
-    private val _messageEvent = MutableLiveData<String>()
-    val messageEvent: LiveData<String> = _messageEvent
-
-    private var cachedShipperName: String = ""
-    private var cachedShipperPhone: String = ""
-
-    init {
-        loadShipperStoreAndOrders()
-    }
-
-    private fun loadShipperStoreAndOrders() {
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        viewModelScope.launch {
-            if (shipperId.isNotBlank()) {
-                launch {
-                    firebaseRepository.observeDriver(shipperId).collectLatest { driver ->
-                        _driverProfile.value = driver
-                    }
-                }
-                firebaseRepository.setupDriverPresence(shipperId)
-                val isCurrentlyOnline = _isOnline.value ?: true
-                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
-                try {
-                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
-                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
-                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
-                } catch (_: Exception) {}
-            }
-            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
-            _shipperStore.value = storeInfo
-            observeShipperOrders()
-            observePendingStoreOrders(storeInfo.first)
-        }
-    }
-
-    private fun observeShipperOrders() {
-        val shipperId = auth.currentUser?.uid
-        if (shipperId.isNullOrBlank()) {
-            _assignedOrders.value = emptyList()
-            return
-        }
-        viewModelScope.launch {
-            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
-                // Chỉ nhận những đơn có đúng shipperId của tài xế này
-                val myOrders = orders.filter { it.shipperId == shipperId }
-                _assignedOrders.value = myOrders
-
-                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
-                val delivering = myOrders.find {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                }
-                _currentDeliveryOrderId.value = delivering?.orderId
-
-                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
-                val isCurrentlyOnline = _isOnline.value ?: true
-                if (delivering != null) {
-                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
-                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
-                        "#$shortCode (Trả hàng về quán)"
-                    } else {
-                        "#$shortCode (${delivering.customerName})"
-                    }
-                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
-                } else {
-                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
-                }
-            }
-        }
-    }
-
-    private fun observePendingStoreOrders(storeId: String) {
-        viewModelScope.launch {
-            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
-                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
-                if (storeId.isNotBlank()) {
-                    val pending = allOrders.filter { order ->
-                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
-                                order.status == Order.Status.READY &&
-                                order.storeId.isNotBlank() &&
-                                order.storeId == storeId
-                    }
-                    _storePendingOrders.value = pending
-                } else {
-                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
-                    _storePendingOrders.value = emptyList()
-                }
-            }
-        }
-    }
-
-    fun toggleDuty(online: Boolean) {
-        _isOnline.value = online
-        val shipperId = auth.currentUser?.uid.orEmpty()
-        if (shipperId.isNotBlank()) {
-            viewModelScope.launch {
-                val hasDelivering = _assignedOrders.value?.any {
-                    it.status == Order.Status.DELIVERING ||
-                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-                    it.status == Order.Status.ARRIVED_AT_SHOP ||
-                    it.status == Order.Status.ASSIGNED ||
-                    it.status == Order.Status.RETURNING_TO_STORE
-                } == true
-                val status = if (hasDelivering) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
-                } else if (online) {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
-                } else {
-                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
-                }
-                firebaseRepository.updateDriverDutyStatus(shipperId, status)
-            }
-        }
-    }
-
-    /** Nhận đơn mới từ quán (ghép chuyến) */
-    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
-        val currentActiveCount = _assignedOrders.value?.count {
-            it.status == Order.Status.DELIVERING ||
-            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
-            it.status == Order.Status.ARRIVED_AT_SHOP ||
-            it.status == Order.Status.ASSIGNED ||
-            it.status == Order.Status.RETURNING_TO_STORE
-        } ?: 0
-
-        if (currentActiveCount >= 3) {
-            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
-            return
-        }
-
-        val shipperId = auth.currentUser?.uid ?: ""
-        if (shipperId.isBlank()) {
-            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
-            return
-        }
-
-        val myStoreId = _shipperStore.value?.first.orEmpty()
-        val myStoreName = _shipperStore.value?.second.orEmpty()
-
-        if (myStoreId.isBlank()) {
-            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
-            return
-        }
-
-        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
-        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
-            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
-            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
-            return
-        }
-
-        val resolvedShipperName = cachedShipperName.ifBlank {
-            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
-        }
-        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
-            auth.currentUser?.phoneNumber.orEmpty()
-        }
-
-        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
-        if (acceptedOrder != null) {
-            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
-            val updatedOrder = acceptedOrder.copy(
-                shipperId = shipperId,
-                shipperName = resolvedShipperName,
-                shipperPhone = resolvedShipperPhone,
-                status = Order.Status.ASSIGNED,
-                orderStatus = Order.Status.ASSIGNED
-            )
-            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
-            if (currentAssigned.none { it.orderId == orderId }) {
-                currentAssigned.add(0, updatedOrder)
-                _assignedOrders.value = currentAssigned
-            }
-            _currentDeliveryOrderId.value = orderId
-        }
-
-        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
-            if (success) {
-                _currentDeliveryOrderId.value = orderId
-            } else {
-                if (acceptedOrder != null) {
-                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-                }
-            }
-            onResult(success, msg)
-        }
-    }
-
-    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
-    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
-        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
-        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
-        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
-
-        viewModelScope.launch {
-            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
-                if (!success && removedOrder != null) {
-                    val current = _assignedOrders.value.orEmpty().toMutableList()
-                    current.add(removedOrder)
-                    _assignedOrders.value = current
-                }
-                onResult(success, msg)
-            }
-        }
-    }
-
-    /** Shipper xác nhận lấy hàng thành công tại quán */
-    fun confirmPickedUpAtShop(orderId: String) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
-        }
-        viewModelScope.launch {
-            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
-        }
-    }
-
-    /** Shipper xác nhận hoàn thành giao hàng */
-    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
-        // Optimistic UI
-        _assignedOrders.value = _assignedOrders.value?.map {
-            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
-        }
-        viewModelScope.launch {
-            try {
-                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
-                firebaseRepository.clearTracking(orderId)
-                onResult?.invoke(true)
-            } catch (e: Exception) {
-                onResult?.invoke(false)
             }
         }
     }
@@ -74339,1077 +71946,6 @@ class MenuManageFragment : Fragment() {
 </androidx.core.widget.NestedScrollView>
 ````
 
-## File: app-internal/src/main/res/layout/fragment_shipper_profile.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="14dp">
-
-        <!-- Top Header (7.html: top-header) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="12dp">
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Hồ Sơ Tài Xế Quán"
-                android:textColor="@color/text_primary"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvDriverBadgeId"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_shop_tag"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:text="MÃ TX: TX-14"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-        </LinearLayout>
-
-        <!-- Thẻ Tài Xế (7.html: profile-card) -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="16dp">
-
-                <FrameLayout
-                    android:id="@+id/flDriverAvatar"
-                    android:layout_width="60dp"
-                    android:layout_height="60dp"
-                    android:background="@drawable/bg_badge_orange">
-
-                    <ImageView
-                        android:importantForAccessibility="no"
-                        android:id="@+id/ivDriverAvatar"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:scaleType="centerCrop"
-                        android:visibility="gone" />
-
-                    <ImageView
-                        android:importantForAccessibility="no"
-                        android:id="@+id/tvDriverAvatarEmoji"
-                        android:layout_width="36dp"
-                        android:layout_height="36dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_truck"
-                        app:tint="@color/brand_orange" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvProfileName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text=""
-                        android:textColor="@color/text_primary"
-                        android:textSize="16.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvProfileSub"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Tài xế chuyên quán"
-                        tools:text="0908 123 456 • Sirius 59-T1 882.91"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:background="@color/brand_orange_bg"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="2dp"
-                        android:text="⭐ 4.9 (158 cuốc giao)"
-                        android:textColor="#92400E"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnEditDriverProfile"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="34dp"
-                    android:backgroundTint="@color/brand_blue_bg"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:paddingHorizontal="10dp"
-                    android:text="✏️ Sửa"
-                    android:textColor="@color/brand_blue"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Thẻ Thông Tin Chi Tiết Phương Tiện & Định Danh -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="THÔNG TIN ĐỊNH DANH &amp; PHƯƠNG TIỆN"
-                        android:textColor="@color/text_primary"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/btnEditDriverDetails"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:padding="4dp"
-                        android:text="✏️ Chỉnh sửa"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginVertical="10dp"
-                    android:background="@color/divider" />
-
-                <!-- Dòng xe -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:text="🛵 Dòng xe máy:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailVehicleModel"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Chưa cập nhật"
-                        tools:text="Sirius FI"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Biển số xe -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:text="🔢 Biển kiểm soát:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailVehiclePlate"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="59-T1 882.91"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <!-- Số điện thoại -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:text="📞 Điện thoại:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailDriverPhone"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="0908 123 456"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12.5sp" />
-                </LinearLayout>
-
-                <!-- CCCD -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:text="🪪 Thẻ CCCD:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailCccd"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="079098123456"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12.5sp" />
-                </LinearLayout>
-
-                <!-- GPLX -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="120dp"
-                        android:layout_height="wrap_content"
-                        android:text="💳 Giấy phép lái xe:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tvDetailLicense"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="790123456789 (Hạng A1)"
-                        android:textColor="@color/text_primary"
-                        android:textSize="12.5sp" />
-                </LinearLayout>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Thẻ Quán Trực Thuộc Duy Nhất (7.html: store-affiliation-card) -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeWidth="0dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_card_affiliation"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="QUÁN TRỰC THUỘC DUY NHẤT"
-                    android:textColor="@color/brand_blue"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvAffiliationStoreName"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Quán ăn trực thuộc"
-                    android:textColor="#1E3A8A"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvAffiliationStoreAddress"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="3dp"
-                    android:text="120 Võ Văn Ngân, P. Linh Chiểu, TP. Thủ Đức, TP.HCM"
-                    android:textColor="@color/brand_blue"
-                    android:textSize="11.5sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:background="@drawable/bg_badge_shop_tag"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="5dp"
-                    android:text="Tài xế chuyên quán nội bộ • Độc quyền giao đơn"
-                    android:textColor="#1E40AF"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:singleLine="true"
-                    android:ellipsize="end" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Thống Kê Hiệu Suất Hoạt Động (7.html: metrics-grid) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="98%"
-                        android:textColor="@color/brand_green"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Tỉ lệ nhận"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10.5sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="3dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="100%"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Hoàn thành"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10.5sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:orientation="vertical"
-                    android:padding="12dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0%"
-                        android:textColor="@color/danger"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Hủy đơn"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10.5sp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-        </LinearLayout>
-
-        <!-- Thẻ Cài Đặt & Tiện Ích -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <!-- Toggle GPS Dịch vụ nền -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Định vị GPS Nền (Foreground)"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13.5sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvProfileGpsStatus"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="Cập nhật tọa độ thời gian thực cho quán và khách"
-                            android:textColor="@color/text_secondary"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchProfileGps"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginVertical="12dp"
-                    android:background="@color/divider" />
-
-                <!-- Ca trực -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="⏰ Ca trực hôm nay"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="08:00 - 17:00 (Ca sáng)"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="1dp"
-                    android:layout_marginVertical="12dp"
-                    android:background="@color/divider" />
-
-                <!-- Hotline Quản lý quán -->
-                <LinearLayout
-                    android:id="@+id/layoutCallManager"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="?attr/selectableItemBackground"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingVertical="4dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Hỗ trợ Quản lý Quán"
-                        android:textColor="@color/text_primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="0912 345 678"
-                        android:textColor="@color/brand_green"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Nút Đăng Xuất -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnProfileLogout"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:text="Đăng Xuất Tài Khoản"
-            android:textColor="@color/danger"
-            app:strokeColor="@color/danger"
-            android:insetTop="0dp"
-            android:insetBottom="0dp"
-            android:minHeight="0dp"
-            android:minWidth="0dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:paddingTop="0dp"
-            android:paddingBottom="0dp" />
-
-    </LinearLayout>
-</androidx.core.widget.NestedScrollView>
-````
-
-## File: app-internal/src/main/res/layout/fragment_shipper.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background"
-    android:fillViewport="true"
-    android:clipToPadding="false">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="14dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="96dp">
-
-        <!-- Brand Bar (2.html: brand-bar) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="10dp">
-
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                app:cardCornerRadius="8dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="0dp">
-
-                <ImageView
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_app_logo"
-                    android:contentDescription="Oishi Merchant Logo" />
-            </com.google.android.material.card.MaterialCardView>
-
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Oishi Food Driver"
-                android:textColor="@color/primary"
-                android:textSize="16.5sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvShopBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_badge_shop_tag"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp"
-                android:text="Tài xế nội bộ quán"
-                android:textColor="@color/brand_blue"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnShipperLogoutHeader"
-                style="@style/Widget.Material3.Button.TonalButton"
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
-                android:layout_marginStart="6dp"
-                android:backgroundTint="@color/danger_bg"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingHorizontal="8dp"
-                android:text="Đăng xuất"
-                android:textColor="#DC2626"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
-        </LinearLayout>
-
-        <!-- Driver Profile Card (2.html: driver-card) -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:padding="14dp">
-
-                <FrameLayout
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:background="@drawable/bg_badge_orange">
-
-                    <ImageView
-                        android:importantForAccessibility="no"
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:layout_gravity="center"
-                        android:src="@drawable/ic_truck"
-                        app:tint="@color/brand_orange" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvDriverName"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        tools:text="Tài xế"
-                        android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvDriverSub"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Tài xế chuyên quán"
-                        tools:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp" />
-                </LinearLayout>
-
-                <!-- Nút Toggle Ca Trực: ĐANG TRỰC / TẠM NGHỈ -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnDutyToggle"
-                    style="@style/Widget.Material3.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="38dp"
-                    android:backgroundTint="@color/brand_green_bg"
-                    android:paddingHorizontal="10dp"
-                    android:text="ĐANG TRỰC"
-                    android:textColor="@color/brand_green"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    app:cornerRadius="20dp"
-                    app:strokeColor="#A7F3D0"
-                    android:insetTop="0dp"
-                    android:insetBottom="0dp"
-                    android:minHeight="0dp"
-                    android:minWidth="0dp"
-                    android:paddingStart="10dp"
-                    android:paddingEnd="10dp"
-                    android:paddingTop="0dp"
-                    android:paddingBottom="0dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Quick Stats (2.html: stats-row) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            android:orientation="horizontal">
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="5dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="10dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Thu nhập hôm nay"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvStatTodayIncome"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="0 đ"
-                        tools:text="+385.000 đ"
-                        android:textColor="@color/brand_green"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="3dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="10dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Đơn hoàn thành"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvStatCompletedCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="0 cuốc"
-                        tools:text="12 cuốc"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="5dp"
-                android:layout_weight="1"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="10dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Đang chạy ghép"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvStatActiveCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="0 đơn"
-                        tools:text="1 đơn"
-                        android:textColor="@color/brand_blue"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-        </LinearLayout>
-
-        <!-- 1. CÁC ĐƠN ĐANG CHẠY (2.html: Multi-Order Batch) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Đơn Bạn Đang Nhận Giao"
-                android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/lblActiveBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_blue"
-                android:paddingHorizontal="7dp"
-                android:paddingVertical="2dp"
-                android:text="0 đơn"
-                tools:text="1 đơn"
-                android:textColor="@color/white"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Ghép tối đa 3 đơn"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvActiveOrders"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:nestedScrollingEnabled="false"
-            tools:listitem="@layout/item_driver_active_order" />
-
-        <TextView
-            android:id="@+id/tvEmptyActive"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            android:background="@drawable/bg_badge_duty_off"
-            android:padding="12dp"
-            android:text="Bạn chưa có đơn đang giao. Hãy bấm nhận các đơn bên dưới để chạy ghép!"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
-            android:visibility="gone" />
-
-        <!-- 2. DANH SÁCH ĐƠN HÀNG CỦA QUÁN ĐANG CHỜ TÀI XẾ NHẬN (2.html) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Đơn Chờ Giao Của Quán"
-                android:textColor="@color/text_primary"
-                android:textSize="13.5sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/lblPendingBadge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_badge_orange"
-                android:paddingHorizontal="7dp"
-                android:paddingVertical="2dp"
-                android:text="0 đơn"
-                tools:text="2 đơn"
-                android:textColor="@color/white"
-                android:textSize="10.5sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvPendingOrders"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:nestedScrollingEnabled="false"
-            tools:listitem="@layout/item_driver_pending_order" />
-
-        <TextView
-            android:id="@+id/tvEmptyPending"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginVertical="12dp"
-            android:gravity="center"
-            android:text="Hiện quán chưa có thêm đơn chờ giao."
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
-            android:visibility="gone" />
-
-    </LinearLayout>
-</androidx.core.widget.NestedScrollView>
-````
-
 ## File: app-internal/src/main/res/layout/item_bundle_order_card.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -76379,6 +72915,149 @@ class MenuManageFragment : Fragment() {
 </resources>
 ````
 
+## File: app-internal/src/main/AndroidManifest.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
+    <queries>
+        <package android:name="com.chuyen_de_2.foodorder.customer" />
+    </queries>
+
+    <application
+        android:name=".FoodOrderInternalApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FoodOrder.Internal">
+
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Auth -->
+        <activity
+            android:name=".ui.auth.LoginActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".ui.auth.RegisterActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <activity
+            android:name=".ui.auth.OtpVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
+        <activity
+            android:name=".ui.auth.StoreVerificationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình ghim vị trí quán trên bản đồ -->
+        <activity
+            android:name=".ui.auth.SelectLocationActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Dashboard (RBAC routing) -->
+        <activity
+            android:name=".ui.dashboard.DashboardActivity"
+            android:theme="@style/Theme.FoodOrder.Internal" />
+
+        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
+        <activity
+            android:name=".ui.boss.BossDashboardActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
+        <activity
+            android:name=".ui.ship.DeliveryTripActivity"
+            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
+
+        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
+        <service
+            android:name=".service.LocationForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- FCM Service -->
+        <service
+            android:name=".service.InternalFCMService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
+        <service
+            android:name=".service.MerchantKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
+        <service
+            android:name=".service.BankNotificationListenerService"
+            android:label="Tự Động Duyệt Thanh Toán Oishi"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+    </application>
+</manifest>
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/User.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -76475,51 +73154,1809 @@ data class User(
 }
 ````
 
-## File: .gitignore
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/di/NetworkModule.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.di
+
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
+
+/**
+ * Hilt Module cung cấp OkHttpClient và Retrofit cho các nhu cầu kết nối HTTP ngoài (nếu có).
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    private const val BASE_URL = "https://api.foodorder.example.com/"
+
+    @Provides
+    @Singleton
+    fun provideLoggingInterceptor(): HttpLoggingInterceptor {
+        return HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        loggingInterceptor: HttpLoggingInterceptor
+    ): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+}
 ````
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.idea/
-.kotlin/
-.DS_Store
-/build
-*/build
-captures/
-.externalNativeBuild
-.cxx
-local.properties
-.wrangler/
-**/node_modules/
 
-# Extracted web prototypes (already in repo root)
-chuyen-de-2-android-main/
-chuyende2/
+## File: scripts/cleanup_firebase_nodes.py
+````python
+# -*- coding: utf-8 -*-
+"""
+Script dọn rác và tối ưu các node trên Firebase Realtime Database:
+1. Xóa các key rác và các tracking cũ của đơn đã kết thúc trong node 'tracking'
+2. Đồng bộ cấu hình sang 'system_config/delivery_countdown' và xóa node dư thừa 'delivery_time_frames'
+"""
+⋮----
+API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
+DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
+ADMIN_EMAIL = "admin@gmail.com"
+ADMIN_PASSWORD = "123456"
+⋮----
+def make_request(url, method="GET", data=None)
+⋮----
+headers = {"Content-Type": "application/json"}
+body = json.dumps(data).encode("utf-8") if data is not None else None
+req = urllib.request.Request(url, data=body, headers=headers, method=method)
+⋮----
+content = resp.read().decode("utf-8")
+⋮----
+def main()
+⋮----
+# Đăng nhập Admin
+⋮----
+auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+auth_res = make_request(auth_url, method="POST", data={
+id_token = auth_res.get("idToken")
+⋮----
+# 1. Dọn dẹp node tracking
+⋮----
+orders_url = f"{DATABASE_URL}/orders.json?auth={id_token}"
+orders = make_request(orders_url, method="GET") or {}
+⋮----
+tracking_url = f"{DATABASE_URL}/tracking.json?auth={id_token}"
+trackings = make_request(tracking_url, method="GET") or {}
+⋮----
+removed_tracking = 0
+active_statuses = {"DELIVERING", "ARRIVED_AT_CUSTOMER", "RETURNING_TO_STORE"}
+⋮----
+order = orders.get(t_id)
+# Xóa nếu không phải mã đơn hợp lệ hoặc đơn không còn active
+is_invalid_key = not t_id.startswith("OISHI_")
+is_ended = order is not None and order.get("status", "").upper() not in active_statuses
+is_not_found = order is None
+⋮----
+del_url = f"{DATABASE_URL}/tracking/{t_id}.json?auth={id_token}"
+⋮----
+# 2. Xóa node dư thừa delivery_time_frames sau khi đảm bảo system_config đã có
+⋮----
+dtf_url = f"{DATABASE_URL}/delivery_time_frames.json?auth={id_token}"
+dtf = make_request(dtf_url, method="GET")
+⋮----
+cfg = dtf["countdown_config"]
+# Đảm bảo lưu sang system_config
+sys_cfg_url = f"{DATABASE_URL}/system_config/delivery_countdown.json?auth={id_token}"
+⋮----
+# Xóa node delivery_time_frames
+````
 
-# Analysis and tool cache
-.claude/
-CLAUDE.md
-graphify-out/
+## File: BAO_CAO_CHUYEN_DE_2_OISHI_FOOD.md
+````markdown
+# TRƯỜNG CAO ĐẲNG CÔNG NGHỆ THỦ ĐỨC
+## KHOA CÔNG NGHỆ THÔNG TIN
+---
 
-# Antigravity Repomix Code Map
-.antigravity/
+# BÁO CÁO KẾT THÚC MÔN HỌC
+## HỌC PHẦN: LẬP TRÌNH DI ĐỘNG 2 (CHUYÊN ĐỀ 2)
 
-# Database backups
-backup_*.json
+# ĐỀ TÀI: HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN ĐA PHÂN HỆ OISHI FOOD (OISHI FOOD DELIVERY ECOSYSTEM)
 
-# Office temp lock files
-~$*
+- **Lớp:** CD24TT7 | **Khóa:** 12 | **Ngành:** Công nghệ thông tin
+- **Giảng viên hướng dẫn:** ThS. TIÊU KIM CƯƠNG
+- **Nhóm sinh viên thực hiện:**
+  1. **DƯƠNG MINH THƯ**
+  2. **PHẠM PHÚC MẠNH GIÀU**
+  3. **TRẦN VŨ**
+  4. **HỒ THỊ VÂN ANH**
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
+*TP. Hồ Chí Minh, Năm học 2025 – 2026*
+
+---
+
+## NHẬT KÝ HOẠT ĐỘNG & PHÂN CÔNG BÁO CÁO NHÓM
+
+| STT | Họ và tên | Công việc đã thực hiện | Nhóm đánh giá (%) | Chữ ký |
+|:---:|:---|:---|:---:|:---:|
+| 1 | **Dương Minh Thư** | • Thiết kế kiến trúc Firebase Realtime Database, Firebase Auth & Xác thực Email OTP (`AuthRepository`, `EmailOtpApi`).<br>• Xây dựng module `core` (32 Models, `FirebaseRepository`, `AccountLockWatcher`, `CccdOcrHelper`).<br>• Phát triển ứng dụng Quản trị viên `app-admin` (Dashboard, Duyệt quán, Quản lý danh mục, Giám sát đơn/user, Giải quyết khiếu nại). | 25% | |
+| 2 | **Trần Vũ** | • Phát triển phân hệ Quán ăn & Chủ chuỗi trong `app-internal` (`OrderListFragment`, `MenuManageFragment`, `StoreReportFragment`, `BossDashboardActivity`).<br>• Xây dựng dịch vụ tự động đọc thông báo ngân hàng xác nhận VietQR (`BankNotificationListenerService`) & giữ kết nối (`MerchantKeepAliveService`).<br>• Phát triển phân hệ Tài xế (`ShipperFragment`, `DeliveryTripActivity`, `LocationForegroundService`, Ghép đơn đa điểm, Quét QR/PIN, Báo cáo sự cố 15 phút). | 25% | |
+| 3 | **Phạm Phúc Mạnh Giàu** | • Phát triển ứng dụng Khách hàng `app-customer` (`HomeActivity`, `MenuActivity`, `CartActivity`, `CheckoutActivity`, `PaymentActivity`).<br>• Xây dựng màn hình Theo dõi đơn hàng realtime (`TrackingActivity`), Chat với quán (`ChatStoreBottomSheetDialogFragment`), Hủy đơn đang giao & Cơ chế Điểm uy tín (`TrustScoreLog`, chế độ đặt cọc `DEPOSIT`).<br>• Phát triển hệ thống Khiếu nại của khách (`ComplaintActivity`, `CustomerComplaintTrackingActivity`). | 25% | |
+| 4 | **Hồ Thị Vân Anh** | • Thiết kế toàn bộ hệ thống giao diện UI/UX Material Design 3 (hơn 85 file XML layouts, BottomSheets, Dialogs, Vector Drawables) cho cả 3 ứng dụng.<br>• Xây dựng màn hình Lịch sử đơn hàng, Đánh giá món ăn, Thông báo đẩy (`CustomerFCMService`, `InternalFCMService`) & Sổ địa chỉ.<br>• Thực hiện kiểm thử tích hợp (Test Cases) và biên soạn hồ sơ Đặc tả yêu cầu phần mềm (SRS) & Báo cáo cuối kỳ. | 25% | |
+
+---
+
+## MỤC LỤC
+
+- **DANH MỤC BẢNG BIỂU, HÌNH VẼ, SƠ ĐỒ**
+- **CHƯƠNG 1. MỞ ĐẦU**
+  - 1.1 Giới thiệu môn học, nhóm thực hiện và Tổng quan hệ thống
+  - 1.2 Phạm vi của hệ thống
+  - 1.3 Sự cần thiết của ứng dụng trong thực tiễn (10 khía cạnh cốt lõi)
+- **CHƯƠNG 2. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG**
+  - 2.1 Phân tích hệ thống (SRS - Software Requirement Specification)
+    - 2.1.1 Mục tiêu hệ thống
+    - 2.1.2 Đối tượng sử dụng hệ thống (5 Nhóm đối tượng)
+    - 2.1.3 Phạm vi hệ thống (Các chức năng có và giới hạn hiện tại)
+    - 2.1.4 Các tác nhân (Actors) và Sơ đồ Use Case tổng quát
+    - 2.1.5 Yêu cầu chức năng hệ thống (FR1 – FR24)
+    - 2.1.6 Yêu cầu phi chức năng (NFR1 – NFR8)
+    - 2.1.7 Quy tắc xử lý nghiệp vụ cốt lõi (Business Rules BR1 – BR15)
+    - 2.1.8 Kiến trúc tổng quan hệ thống
+    - 2.1.9 Các vai trò người dùng (Roles)
+    - 2.1.10 Bản đồ các Chức năng chính & Giải thích từng file mã nguồn (Feature & Code Map)
+    - 2.1.11 Sơ đồ luồng xử lý tổng quát & Chi tiết các mối liên hệ kỹ thuật quan trọng
+  - 2.2 Thiết kế hệ thống (SDS - Software Design Specification)
+    - 2.2.1 Thiết kế Kiến trúc Đa Module (Multi-Module Architecture: `core`, `app-customer`, `app-internal`, `app-admin`)
+    - 2.2.2 Thiết kế Cơ sở dữ liệu Firebase Realtime Database chi tiết
+    - 2.2.3 Sơ đồ Lớp (Class Diagram) toàn hệ thống
+    - 2.2.4 Sơ đồ Tuần tự (Sequence Diagrams) cho các luồng nghiệp vụ phức tạp
+    - 2.2.5 Sơ đồ trạng thái vòng đời đơn hàng
+  - 2.3 Đặc tả chi tiết Giao diện và Yêu cầu chức năng từng màn hình (32 Màn hình & Hộp thoại)
+    - *Phần A: Các màn hình Ứng dụng Khách hàng (`app-customer`)*
+    - *Phần B: Các màn hình Ứng dụng Nội bộ - Quán ăn, Chủ chuỗi & Tài xế (`app-internal`)*
+    - *Phần C: Các màn hình Ứng dụng Quản trị viên (`app-admin`)*
+- **CHƯƠNG 3. CÀI ĐẶT VÀ KIỂM THỬ**
+  - 3.1 Cài đặt và Hiện thực hóa hệ thống
+    - 3.1.1 Môi trường phát triển, Công nghệ và Thư viện tích hợp
+    - 3.1.2 Hiện thực hóa các Dịch vụ chạy ngầm (Services), OCR, Thanh toán & Bản đồ
+  - 3.2 Kiểm thử hệ thống
+    - 3.2.1 Môi trường kiểm thử
+    - 3.2.2 Dữ liệu kiểm thử
+    - 3.2.3 Quy ước
+    - 3.2.4 Danh sách 118 Test Case theo 11 nhóm chức năng
+    - 3.2.5 Tổng hợp kết quả
+    - 3.2.6 Ảnh minh chứng
+    - 3.2.7 Lỗi phát hiện & khắc phục
+- **CHƯƠNG 4. KẾT QUẢ ĐẠT ĐƯỢC VÀ HƯỚNG PHÁT TRIỂN**
+  - 4.1 Kết quả đạt được
+  - 4.2 Các kết luận và kiến nghị (Điểm làm được, Hạn chế, Hướng phát triển bổ sung)
+- **PHỤ LỤC** (A. Hướng dẫn cài đặt – B. Cấu trúc mã nguồn – C. Đường dẫn mã nguồn)
+- **TÀI LIỆU THAM KHẢO**
+
+---
+
+
+## DANH MỤC BẢNG BIỂU, HÌNH VẼ, SƠ ĐỒ
+
+### Danh mục hình vẽ, sơ đồ
+| Ký hiệu | Tên hình / sơ đồ | Mục |
+|:---:|:---|:---:|
+| Sơ đồ 1 | Sơ đồ Use Case tổng quát hệ thống Oishi Food | 2.1.4 |
+| Sơ đồ 2 | Sơ đồ mối liên hệ luồng vận hành giữa các phân hệ | 2.1.11 |
+| Sơ đồ 3 | Sơ đồ lớp (Class Diagram) | 2.2.3 |
+| Sơ đồ 4 | Sơ đồ tuần tự: Đặt hàng – Duyệt VietQR – Chế biến – Giao QR/PIN | 2.2.4 |
+| Sơ đồ 5 | Sơ đồ tuần tự: Khách hủy đơn khi đang giao & trừ điểm uy tín | 2.2.4 |
+| Sơ đồ 6 | Sơ đồ trạng thái vòng đời đơn hàng (Order State Machine) | 2.2.5 |
+| Ảnh 1 – Ảnh 25B | Ảnh chụp giao diện các màn hình của 3 ứng dụng | 2.3 |
+| Ảnh KT-1 – KT-6 | Ảnh minh chứng kết quả kiểm thử | 3.2.6 |
+
+### Danh mục bảng biểu
+| Ký hiệu | Tên bảng | Mục |
+|:---:|:---|:---:|
+| Bảng 1 | Nhật ký hoạt động & phân công nhóm | Đầu tài liệu |
+| Bảng 2 | Các tác nhân (Actors) của hệ thống | 2.1.4 |
+| Bảng 3 | Thiết kế các nhánh dữ liệu Firebase Realtime Database | 2.2.2 |
+| Bảng 4 – Bảng 28 | Bảng yêu cầu chức năng từng màn hình (Mục / Mô tả / Hành động / Phản hồi) | 2.3 |
+| Bảng 29 | Môi trường & thiết bị kiểm thử | 3.2.1 |
+| Bảng 30 | Tài khoản dữ liệu kiểm thử | 3.2.2 |
+| Bảng 31 – Bảng 41 | Bảng Test Case chi tiết theo từng nhóm chức năng | 3.2.4 |
+| Bảng 42 | Tổng hợp kết quả kiểm thử | 3.2.5 |
+
+---
+
+# CHƯƠNG 1. MỞ ĐẦU
+
+## 1.1 Giới thiệu môn học, nhóm thực hiện và Tổng quan hệ thống
+
+### 1.1.1 Giới thiệu môn học và nhóm thực hiện
+Học phần **Lập trình di động 2 (Chuyên đề 2)** thuộc chương trình đào tạo ngành Công nghệ Thông tin tại **Trường Cao đẳng Công nghệ Thủ Đức** giúp sinh viên vận dụng toàn diện kỹ năng lập trình Android hiện đại bằng ngôn ngữ Kotlin, thiết kế kiến trúc phần mềm đa phân hệ (Multi-module), đồng bộ hóa dữ liệu đám mây thời gian thực và giải quyết các bài toán nghiệp vụ thương mại điện tử phức tạp.
+
+Dưới sự hướng dẫn của giảng viên **ThS. Tiêu Kim Cương**, nhóm sinh viên lớp **CD24TT7** (gồm Dương Minh Thư, Phạm Phúc Mạnh Giàu, Trần Vũ, Hồ Thị Vân Anh) đã nghiên cứu và phát triển hệ sinh thái **Oishi Food** — nền tảng đặt món, quản lý bếp, điều phối giao hàng thông minh và quản trị sàn giao dịch ẩm thực trực tuyến.
+
+### 1.1.2 Tổng quan hệ thống Oishi Food
+**Mục tiêu:** Hệ thống **Oishi Food** được xây dựng nhằm kết nối liền mạch 4 chủ thể trong chuỗi cung ứng ẩm thực: **Khách hàng (Customer) – Cửa hàng/Quán ăn (Merchant & Boss) – Tài xế giao hàng (Driver/Shipper) – Quản trị viên hệ thống (Admin)** thông qua 3 ứng dụng Android độc lập dùng chung một nhân lõi (`core`). Hệ thống tích hợp hàng loạt công nghệ chuyên sâu như:
+- **Firebase Authentication & Email OTP API:** Xác thực tài khoản bảo mật kết hợp gửi mã OTP xác minh qua Email.
+- **Firebase Realtime Database:** Đồng bộ tức thời trạng thái đơn hàng, vị trí GPS của tài xế trên bản đồ, phòng chat nội bộ và khóa tài khoản vi phạm theo thời gian thực.
+- **Google Maps SDK, Location Services & Geocoding/Directions API:** Tìm kiếm gợi ý địa chỉ, ghim tọa độ trên bản đồ, đo khoảng cách thực tế tính phí vận chuyển theo vùng (`ShippingRule`: nội quận 15.000đ, liên quận 25.000đ, ngoại thành 45.000đ), vẽ đường đi (Polyline) và theo dõi xe giao hàng trực tiếp.
+- **VietQR Napas247 & BankNotificationListenerService:** Tự động sinh mã QR chuyển khoản ngân hàng chuẩn Napas247 chứa đúng số tiền và cú pháp mã đơn; tích hợp dịch vụ lắng nghe thông báo biến động số dư ngân hàng trên máy chủ quán để tự động duyệt đơn đã thanh toán; tự động hủy đếm ngược và thoát màn hình VietQR nếu đơn bị hủy.
+- **Google ML Kit / OCR Căn cước công dân (`CccdOcrHelper`):** Tự động quét và bóc tách thông tin Căn cước công dân khi chủ quán đăng ký xác minh cửa hàng.
+- **ZXing QR Code & Mã PIN 6 số:** Cơ chế xác thực bàn giao đơn hàng 2 lớp chống gian lận.
+- **Hệ thống Điểm uy tín (`TrustScore`) & Cơ chế Đặt cọc (`DEPOSIT`):** Đánh giá độ tin cậy của khách hàng, tự động trừ điểm khi khách hủy đơn COD đang giao hoặc bom hàng, yêu cầu đặt cọc chuyển khoản trước nếu điểm uy tín thấp, và tự động khóa tài khoản khi vi phạm ngưỡng cho phép.
+
+---
+
+### 1.1.3 Tổng quan chi tiết các nhóm chức năng theo từng phân hệ
+
+#### A. Phân hệ Ứng dụng Khách hàng (`app-customer`)
+1. **Xác thực và Bảo mật tài khoản (`LoginActivity`, `RegisterActivity`, `OtpVerificationActivity`):**
+   - Đăng ký tài khoản mới với kiểm tra định dạng số điện thoại, email và mật khẩu.
+   - Gửi mã OTP 6 chữ số về Email thật của người dùng thông qua `EmailOtpApi` và xác nhận qua `OtpVerificationActivity`.
+   - Đăng nhập tự động lưu phiên và tích hợp trình giám sát `AccountLockWatcher` tự động đăng xuất ngay lập tức nếu tài khoản bị Admin khóa hoặc điểm uy tín tụt xuống mức cấm.
+2. **Trang chủ, Tìm kiếm và Bộ lọc thông minh (`HomeActivity`):**
+   - Hiển thị danh mục món ăn trực quan (`HomeCategoryAdapter` với bộ nhớ đệm icon `CategoryIconCache`).
+   - Hiển thị danh sách **Món ăn đang Hot (`HotDishAdapter`)**, **Quán ăn gần bạn (`NearbyStoreAdapter`)** tính theo khoảng cách GPS thực tế và danh sách toàn bộ cửa hàng (`RestaurantAdapter`).
+   - Tìm kiếm tức thời theo tên món ăn hoặc tên quán; hỗ trợ **Bộ lọc nâng cao (`bottom_sheet_advanced_filter.xml`)** theo khoảng giá, đánh giá sao, khoảng cách và khu vực quận/huyện.
+3. **Xem Thực đơn Quán, Chọn Topping/Size & Xem Đánh giá (`MenuActivity`):**
+   - Hiển thị thông tin chi tiết quán ăn, trạng thái Đang mở cửa / Đóng cửa, danh sách món lẻ và các gói **Combo tiết kiệm**.
+   - Cho phép chọn tùy chọn món ăn (Size S/M/L, mức đá, mức đường, topping thêm) qua `DishOptionBottomSheetDialogFragment`.
+   - Cho phép xem chi tiết điểm đánh giá sao và nhận xét kèm hình ảnh của những khách hàng đã mua trước đó qua `DishReviewsBottomSheetDialogFragment`.
+4. **Quản lý Giỏ hàng & Thanh toán đa phương thức (`CartActivity`, `CheckoutActivity`, `PaymentActivity`):**
+   - Quản lý giỏ hàng theo từng cửa hàng, điều chỉnh số lượng món, tự động tính tổng tiền tạm tính.
+   - Chọn địa chỉ giao hàng từ **Sổ địa chỉ (`AddressBookAdapter`)**, tìm kiếm gợi ý địa chỉ tự động (`AddressSuggestionAdapter`) hoặc ghim trực tiếp trên bản đồ Google Maps (`SelectLocationActivity`).
+   - Tự động tính cước phí vận chuyển theo vùng giao hàng (`ShippingRule`: nội quận 15.000đ – liên quận 25.000đ – ngoại thành 45.000đ); khách hạng Kim Cương (≥ 95 điểm) được giảm 5.000đ phí ship.
+   - Hỗ trợ 3 chế độ thanh toán chuẩn hóa: **Tiền mặt khi nhận hàng (COD)**, **Chuyển khoản ngân hàng 100% (VietQR Napas247)** và **Đặt cọc trước 20% qua VietQR (`PaymentMode.DEPOSIT`)**.
+   - Tự động kích hoạt chế độ **Bắt buộc đặt cọc (`PaymentMode.DEPOSIT`)** nếu hệ thống phát hiện khách hàng có điểm uy tín thấp.
+5. **Theo dõi Đơn hàng Thời gian thực & Tương tác Giao nhận (`TrackingActivity`):**
+   - Hiển thị thanh tiến trình vòng đời đơn hàng trực quan theo thời gian thực.
+   - Tích hợp Google Maps hiển thị lộ trình và biểu tượng xe máy của Shipper di chuyển trực tiếp khi đơn đang giao.
+   - Cung cấp **Mã QR xác nhận nhận hàng** và **Mã PIN 6 số** bảo mật (`#OISHI_XXXXXX • PIN: XXXXXX`) để tài xế đối chiếu khi giao món.
+   - Hỗ trợ **Chat thời gian thực với Quán (`ChatStoreBottomSheetDialogFragment`)** kèm bộ đếm tin nhắn chưa đọc và gọi điện trực tiếp cho Shipper.
+   - Cho phép khách hàng **hủy đơn ở bất kỳ giai đoạn nào** trước khi đơn hoàn tất: hủy khi quán chưa nấu, hủy khi bếp đang nấu (báo động đỏ dừng nấu tại bếp & quán), hủy khi tài xế đang đến quán (giải phóng tài xế ngay), hoặc **hủy khi tài xế đã lấy món đang chạy giao** (chuyển đơn sang `RETURNING_TO_STORE` để tài xế mang món quay về quán). Quy tắc uy tín khi khách hủy: **Đơn COD hoặc Đặt cọc bị trừ 10 điểm uy tín**, còn **Đơn đã trả hết 100% không bị trừ điểm**.
+   - Xem hình ảnh bằng chứng sự cố do Shipper chụp lại (`IncidentProofBottomSheetDialogFragment`) nếu đơn hàng gặp sự cố liên lạc.
+6. **Lịch sử Đơn hàng, Đánh giá Món ăn & Khiếu nại (`OrderHistoryActivity`, `ComplaintActivity`, `CustomerComplaintTrackingActivity`):**
+   - Theo dõi danh sách đơn đang xử lý và lịch sử đơn đã hoàn tất / đã hủy.
+   - Chấm điểm sao và viết nhận xét đánh giá cho từng món ăn sau khi đơn hoàn tất.
+   - Gửi đơn **Khiếu nại (`ComplaintActivity`)** kèm ảnh chụp minh chứng lên Admin khi món ăn có vấn đề hoặc thái độ phục vụ không tốt, và theo dõi tiến độ giải quyết khiếu nại (`CustomerComplaintTrackingActivity`).
+7. **Quản lý Hồ sơ, Sổ địa chỉ & Điểm uy tín (`ProfileActivity`):**
+   - Cập nhật thông tin cá nhân, ảnh đại diện, quản lý danh sách địa chỉ nhận hàng thường dùng.
+   - Xem chi tiết **Điểm uy tín cá nhân (`TrustScore`)** cùng toàn bộ nhật ký cộng/trừ điểm (`TrustScoreLog`) minh bạch.
+
+#### B. Phân hệ Ứng dụng Nội bộ: Quán ăn, Chủ chuỗi & Tài xế (`app-internal`)
+1. **Định danh Cửa hàng & Quét OCR Căn cước công dân (`StoreVerificationActivity`, `CccdOcrHelper`):**
+   - Chủ quán mới đăng ký thực hiện tải lên ảnh chụp **mặt trước và mặt sau thẻ CCCD (`cccdFrontUrl`, `cccdBackUrl`)**, nhập thông tin định danh chủ hộ kinh doanh và tài khoản ngân hàng VietQR (đã tinh gọn bỏ trường giờ mở cửa `openHours`, thời gian làm món `prepTime` và bỏ khung AI tự động điền) để gửi hồ sơ chờ Admin phê duyệt; tự động đồng bộ hồ sơ pháp lý cho các chi nhánh của Chủ chuỗi.
+2. **Phân hệ Chủ chuỗi / Tổng quản lý (`BossDashboardActivity`):**
+   - Dành cho chủ sở hữu chuỗi nhiều cửa hàng: tạo chi nhánh mới (`dialog_create_branch.xml`), tạo tài khoản quản lý quán (`dialog_create_merchant.xml`), phân quyền và gán quản lý phụ trách từng chi nhánh (`dialog_assign_branch_to_merchant.xml`).
+3. **Phân hệ Quán ăn – Quản lý Đơn hàng Kanban (`OrderListFragment`, `OrderAdapter`):**
+   - Phân loại đơn hàng thông minh theo 4 Tab: **Đơn Mới**, **Đang Làm**, **Đang Giao**, **Lịch Sử** kèm bộ đếm số lượng đơn trên từng tab.
+   - Phát âm thanh chuông báo động và hiển thị hộp thoại **Popup Đơn hàng mới (`dialog_new_order_popup.xml`)** ngay khi khách đặt món.
+   - Tích hợp dịch vụ **`BankNotificationListenerService`** tự động lắng nghe thông báo biến động số dư từ ứng dụng ngân hàng trên máy chủ quán để tự động xác nhận các đơn chuyển khoản VietQR.
+   - Vận hành **Quy trình Bếp tinh gọn**: Duyệt đơn của khách ➔ Bếp chế biến ➔ Báo nấu xong để phát đơn cho tài xế nhận. Khi tài xế đã nhận đơn và đến quầy, quán theo dõi trạng thái tài xế trực tiếp và tài xế tự gạt xác nhận lấy món nhanh chóng.
+   - Duyệt hoặc từ chối yêu cầu hủy đơn từ khách hàng; nhắn tin trao đổi trực tiếp với khách (`ChatCustomerBottomSheetDialogFragment`); xác nhận nhận lại túi món ăn khi Shipper mang trả về quán (`dialog_bom_return_flow.xml`).
+4. **Phân hệ Quán ăn – Quản lý Thực đơn, Danh mục, Combo & Báo cáo (`MenuManageFragment`, `StoreReportFragment`, `DriverListFragment`):**
+   - Thêm mới, chỉnh sửa giá, hình ảnh, tùy chọn món ăn (Options/Toppings) và bật/tắt trạng thái hết món tức thời (`ManageDishAdapter`).
+   - Quản lý danh mục món ăn riêng của quán (`ManageStoreCategoryAdapter`) và thiết lập các gói **Combo khuyến mãi (`dialog_create_combo.xml`)**.
+   - Xem báo cáo thống kê doanh thu theo ngày/tuần/tháng và biểu đồ xếp hạng **Top món ăn bán chạy nhất (`BestSellerDishAdapter`)**.
+   - Quản lý tập trung **Đội Tài Xế (`drivers`)** và **Đội Đầu Bếp (`chefs`)** của cửa hàng trên 2 tab trực quan, hỗ trợ thêm mới và xóa tài khoản tài xế/đầu bếp (`DriverListFragment`, `ChefFragment`).
+5. **Phân hệ Tài xế – Nhận đơn, Ghép chuyến & Giao hàng GPS (`ShipperFragment`, `DeliveryTripActivity`):**
+   - Bật/tắt trạng thái trực tuyến nhận đơn, phát tín hiệu định vị GPS liên tục qua `LocationForegroundService`.
+   - Hỗ trợ **Ghép đơn thông minh (Multi-drop Bundle)** lên đến 3 đơn hàng cùng tuyến đường; cho phép tài xế chủ động chọn thứ tự giao khách nào trước ngay trên bản đồ (`DeliveryTripActivity`).
+   - Thao tác bằng thanh trượt chống chạm nhầm (Slide-to-confirm): *Đã đến quán* ➔ *Xác nhận đã lấy món* ➔ *Đã đến nhà khách*.
+   - Xác thực hoàn tất giao hàng bằng **Camera quét mã QR (`dialog_qr_scanner.xml`)** hoặc nhập **Mã PIN 6 số**.
+   - Quy trình **Xử lý sự cố khách không nhận hàng / gọi nhỡ (`dialog_report_incident.xml`)**: Bắt buộc gọi đủ 3 cuộc gọi, gửi ảnh chụp bằng chứng tại điểm giao, kích hoạt đồng hồ đếm ngược 15 phút Lần 1 và Lần 2 trước khi chuyển trạng thái hoàn trả món về quán (`RETURNING_TO_STORE`).
+   - Thống kê chi tiết **Thu nhập tài xế (`ShipperIncomeFragment`)** và lịch sử các chuyến đi hoàn tất.
+
+#### C. Phân hệ Ứng dụng Quản trị viên Hệ thống (`app-admin`)
+1. **Bảng điều khiển Trung tâm (`AdminDashboardFragment`):**
+   - Thống kê toàn cảnh hệ thống: Tổng doanh thu toàn sàn, tổng đơn hàng thành công/hủy, số lượng cửa hàng đang hoạt động, số lượng tài xế và khách hàng.
+   - Cấu hình tham số hệ thống động như thời gian đếm ngược chờ khách (`DeliveryCountdownConfig` qua `dialog_edit_countdown_config.xml`).
+2. **Kiểm duyệt & Quản lý Cửa hàng (`AdminStoreListFragment`, `AdminStoreDetailBottomSheetDialogFragment`):**
+   - Kiểm tra hồ sơ đăng ký quán mới (đối chiếu ảnh CCCD, giấy phép, địa chỉ bản đồ) để Phê duyệt hoặc Từ chối mở quán.
+   - Áp dụng chế tài xử phạt hoặc tạm khóa cửa hàng vi phạm chất lượng (`dialog_apply_store_penalty.xml`).
+3. **Quản lý Danh mục Chuẩn toàn sàn (`AdminCategoryListFragment`):**
+   - Thêm mới, cập nhật icon và tên các danh mục ẩm thực chung trên toàn hệ thống (`AddEditCategoryDialogFragment`).
+4. **Giám sát Đơn hàng & Quản lý Người dùng (`AdminMonitorFragment`):**
+   - Theo dõi mọi đơn hàng đang diễn ra trên hệ thống, hỗ trợ can thiệp cập nhật trạng thái đơn hàng khi xảy ra sự cố kỹ thuật (`EditOrderDialogFragment`).
+   - Quản lý danh sách người dùng (Customer, Merchant, Driver), xem lịch sử vi phạm, điều chỉnh **Điểm uy tín (`TrustScore`)** và khóa/mở khóa tài khoản tức thời (`EditUserDialogFragment`).
+5. **Trung tâm Giải quyết Khiếu nại & Tranh chấp (`AdminComplaintListFragment`, `AdminComplaintDetailActivity`, `ResolveComplaintDialogFragment`):**
+   - Tiếp nhận khiếu nại từ khách hàng, xem xét hình ảnh bằng chứng của cả Khách và Tài xế/Quán, đưa ra phán quyết xử lý công bằng và gửi thông báo kết quả tự động cho các bên.
+
+---
+
+## 1.2 Phạm vi của hệ thống
+- **Phạm vi chức năng:** Bao phủ trọn vẹn quy trình khép kín từ lúc Chủ quán đăng ký mở cửa hàng (OCR CCCD) ➔ Admin phê duyệt ➔ Quán đăng thực đơn & Combo ➔ Khách hàng tìm kiếm, đặt món & thanh toán (COD / VietQR 100% / Đặt cọc VietQR 20%) ➔ Quán nhận chuông báo & chế biến ➔ Tài xế ghép đơn, nhận món & điều hướng GPS giao hàng ➔ Quét QR/PIN hoàn tất ➔ Đánh giá món ăn, thống kê doanh thu & giải quyết khiếu nại.
+- **Hệ điều hành hỗ trợ:** Android 8.0 (API Level 26 - Oreo) trở lên đến Android 15.
+- **Thiết bị thử nghiệm thực tế:** Điện thoại Samsung Galaxy, Xiaomi Redmi/POCO, Oppo, Vivo, Realme và máy ảo Android Emulator (Pixel).
+- **Độ phân giải màn hình:** Tối ưu hóa hiển thị từ HD+ (720x1280) đến Full HD+ (1080x2400) và 2K, hỗ trợ Edge-to-Edge Insets (`InsetUtils`).
+- **Yêu cầu hạ tầng:** Thiết bị kết nối Internet (Wi-Fi/4G/5G) để đồng bộ dữ liệu Firebase Realtime Database, tải bản đồ Google Maps và xác thực giao dịch thanh toán; bật quyền Vị trí (GPS) đối với Khách hàng và Tài xế; cấp quyền Camera khi quét mã QR hoặc chụp ảnh CCCD/bằng chứng.
+
+---
+
+## 1.3 Sự cần thiết của ứng dụng trong thực tiễn
+
+### 1.3.1 Số hóa và chuẩn hóa quy trình đặt món ăn trực tuyến
+- Thay thế phương thức gọi điện thoại hoặc nhắn tin đặt đồ ăn thủ công vốn dễ xảy ra sai sót về tên món, ghi chú khẩu vị (ít cay, không hành, thêm topping) và địa chỉ giao hàng.
+- Cung cấp thực đơn điện tử trực quan kèm hình ảnh, giá bán minh bạch và trạng thái "Còn món / Hết món" được cập nhật theo thời gian thực.
+
+### 1.3.2 Tự động hóa xác nhận thanh toán không tiền mặt (VietQR Napas247 & Đặt cọc 20%)
+- Giải quyết triệt để tình trạng nhân viên thu ngân phải chụp màn hình hoặc kiểm tra thủ công từng giao dịch chuyển khoản ngân hàng vào giờ cao điểm.
+- Tích hợp tạo mã VietQR động chứa sẵn số tiền và nội dung chuyển khoản chuẩn xác theo mã đơn, kết hợp `BankNotificationListenerService` tự động đọc thông báo biến động số dư để duyệt đơn tức thì.
+
+### 1.3.3 Tối ưu hóa vận hành nhà bếp theo mô hình Kanban 3 bước
+- Giúp quán ăn phân tách rõ ràng các luồng đơn: *Đơn mới chờ duyệt – Đơn bếp đang nấu – Đơn đã xong chờ giao – Lịch sử đơn*.
+- Chuông báo âm thanh kết hợp Popup nổi giúp quán không bao giờ bỏ lỡ đơn hàng mới ngay cả khi nhân viên đang bận chế biến.
+- Loại bỏ thao tác bấm xác nhận giao món rườm rà bên phía quán: khi bếp báo nấu xong, tài xế đến quầy kiểm tra và tự gạt nhận túi món trên ứng dụng tài xế, rút ngắn 40% thời gian chờ tại quầy.
+
+### 1.3.4 Nâng cao hiệu suất giao hàng với thuật toán Ghép đơn đa điểm (Multi-Drop)
+- Cho phép một tài xế nhận và giao đồng thời từ 2 đến 3 đơn hàng cùng tuyến đường trong một chuyến đi (`DeliveryTripActivity`).
+- Hỗ trợ tài xế linh hoạt chọn thứ tự giao khách hàng nào trước tùy theo tình hình giao thông thực tế, giúp tăng thu nhập cho tài xế và giảm thời gian chờ đợi của khách.
+
+### 1.3.5 Minh bạch hóa hành trình giao nhận bằng định vị GPS thời gian thực
+- Khách hàng theo dõi trực tiếp vị trí di chuyển của tài xế trên bản đồ Google Maps ngay khi đơn hàng bước sang trạng thái đang giao (`DELIVERING`).
+- Hệ thống tự động xác định vùng giao hàng và cước phí công bằng, rõ ràng ngay từ bước thanh toán.
+
+### 1.3.6 Chống gian lận giao nhận nhờ xác thực 2 lớp (QR Code & PIN 6 số)
+- Khắc phục tình trạng tài xế bấm "Đã giao hàng" khống khi chưa thực sự giao đồ ăn đến tay khách, hoặc giao nhầm đơn hàng trong chặng ghép nhiều đơn.
+- Tài xế bắt buộc phải quét đúng mã QR `#OISHI_XXXXXX` hoặc nhập đúng mã PIN 6 số hiển thị trên màn hình điện thoại của khách hàng thì hệ thống mới cho phép hoàn tất đơn.
+
+### 1.3.7 Bảo vệ quyền lợi Quán ăn và Tài xế trước nạn "Bom hàng" & Hủy đơn giữa chừng
+- Xây dựng hệ thống **Điểm uy tín (`TrustScore`)** khởi tạo 100 điểm cho mỗi khách hàng.
+- Khách hàng có thể hủy đơn bất cứ lúc nào khi đơn chưa kết thúc. Nếu hủy đơn **COD hoặc Đặt cọc**, khách bị trừ **10 điểm uy tín** (nếu bom hàng không nghe máy sau 2 vòng đếm ngược 15 phút thì trừ **30 điểm**); ngược lại nếu đơn **đã trả hết 100% qua VietQR thì không bị trừ điểm uy tín**. Đặc biệt, khi tài xế đã lấy món và đang chạy tới nhà khách mà khách hủy đơn, hệ thống tự động chuyển đơn sang `RETURNING_TO_STORE` để tài xế dẫn đường mang món về trả cho quán (`RETURNED_TO_STORE`).
+
+### 1.3.8 Quy trình xử lý sự cố khách không nghe máy bài bản, nhân văn
+- Khi tài xế đến điểm giao nhưng không liên lạc được với khách, ứng dụng cung cấp quy trình chuẩn: kiểm tra đủ 3 cuộc gọi nhỡ, chụp ảnh minh chứng tại chỗ và kích hoạt đồng hồ đếm ngược 15 phút (Lần 1) để khách có thời gian phản hồi.
+- Chỉ khi hết 15 phút Lần 1 bước sang Lần 2 mà khách vẫn không nhận, hệ thống mới phát cảnh báo mất đơn và cho phép hoàn hàng về quán, vừa bảo vệ tài xế không phải chờ vô thời hạn, vừa tránh hủy nhầm đơn của khách bận đột xuất.
+
+### 1.3.9 Hỗ trợ mô hình Quản lý Chuỗi đa chi nhánh (Boss – Branch – Merchant)
+- Không chỉ phục vụ quán ăn đơn lẻ, hệ thống còn hỗ trợ chủ thương hiệu lớn (`BossDashboardActivity`) quản lý tập trung nhiều chi nhánh, khởi tạo tài khoản cửa hàng trưởng và theo dõi hiệu quả kinh doanh toàn chuỗi.
+
+### 1.3.10 Đảm bảo trật tự và công bằng trên toàn sàn thông qua Phân hệ Admin
+- Định danh chủ quán bằng công nghệ quét OCR Căn cước công dân (`CccdOcrHelper`) trước khi cho phép mở bán.
+- Cung cấp công cụ để Quản trị viên giải quyết khiếu nại, đối chất bằng chứng giữa Khách – Quán – Shipper và áp dụng chế tài xử phạt minh bạch.
+
+---
+
+# CHƯƠNG 2. PHÂN TÍCH VÀ THIẾT KẾ HỆ THỐNG
+
+## 2.1 PHÂN TÍCH HỆ THỐNG (SRS - SOFTWARE REQUIREMENT SPECIFICATION)
+
+### 2.1.1 Mục tiêu hệ thống
+Hệ thống **Oishi Food** được xây dựng nhằm cung cấp một nền tảng thương mại điện tử đặt và giao đồ ăn toàn diện trên hệ điều hành Android, cho phép:
+1. Đăng ký tài khoản có xác thực mã OTP qua Email thật và đăng nhập phân quyền tự động.
+2. Định danh cửa hàng mới bằng công nghệ nhận diện ký tự quang học OCR trên Căn cước công dân.
+3. Hiển thị danh sách quán ăn, món ăn đang Hot, quán ăn gần vị trí GPS của khách và tìm kiếm/lọc đa tiêu chí.
+4. Xem thực đơn chi tiết của quán, các gói Combo ưu đãi, chọn tùy chọn món (size, topping) và xem đánh giá thực tế.
+5. Quản lý giỏ hàng thông minh, ghim vị trí nhận hàng trên Google Maps và tự động tính phí giao hàng theo vùng (nội quận / liên quận / ngoại thành).
+6. Thanh toán đa chế độ: Tiền mặt (COD), Chuyển khoản VietQR Napas247 toàn bộ (`FULL`) và Đặt cọc trước 20% (`DEPOSIT`), tự động thoát màn hình thanh toán nếu đơn bị hủy.
+7. Tự động lắng nghe thông báo biến động số dư ngân hàng trên máy chủ quán để duyệt thanh toán VietQR.
+8. Quản lý đơn hàng tại quán theo bảng Kanban 4 trạng thái kèm chuông báo động và hộp thoại đơn mới.
+9. Quản lý danh mục riêng của quán, thêm/sửa/xóa món ăn, tạo Combo và xem thống kê doanh thu/món bán chạy.
+10. Hỗ trợ Chủ chuỗi (Boss) tạo chi nhánh mới và phân quyền tài khoản quản lý cho từng chi nhánh.
+11. Hỗ trợ Tài xế nhận đơn lẻ hoặc ghép tối đa 3 đơn cùng tuyến đường, tự chọn thứ tự giao hàng ưu tiên.
+12. Theo dõi lộ trình và vị trí xe máy của Tài xế trực tiếp trên bản đồ Google Maps theo thời gian thực.
+13. Xác thực giao nhận hàng hóa bằng Camera quét mã QR hoặc nhập mã PIN 6 chữ số.
+14. Nhắn tin Chat thời gian thực giữa Khách hàng và Quán ăn trong suốt quá trình thực hiện đơn.
+15. Cho phép khách hủy đơn khi đang giao kèm luồng hoàn trả món về quán và tự động trừ điểm uy tín đối với đơn COD.
+16. Hỗ trợ Tài xế báo cáo sự cố khách không liên lạc được (yêu cầu gọi 3 lần, chụp ảnh bằng chứng, đếm ngược 15 phút 2 vòng).
+17. Quản lý Điểm uy tín (`TrustScore`), lịch sử biến động điểm và tự động khóa tài khoản vi phạm tức thời (`AccountLockWatcher`).
+18. Gửi khiếu nại kèm hình ảnh minh chứng và theo dõi tiến độ giải quyết tranh chấp từ Ban quản trị (Admin).
+
+---
+
+### 2.1.2 Đối tượng sử dụng hệ thống
+Hệ thống phân quyền theo **4 vai trò (RBAC – `Role.kt`)**: ADMIN (1), CUSTOMER (2), MERCHANT (3), DRIVER (4); trong đó MERCHANT có thêm chế độ Chủ chuỗi. Cụ thể gồm 5 nhóm đối tượng:
+1. **Khách hàng (`CUSTOMER` - Sử dụng `app-customer`):**
+   - Đăng ký (xác thực OTP Email), đăng nhập, quản lý hồ sơ và sổ địa chỉ nhận hàng.
+   - Tìm kiếm món ăn/quán ăn, lọc theo quận/huyện/giá/đánh giá, xem thực đơn, chọn topping/combo.
+   - Đặt hàng, thanh toán COD / VietQR / Đặt cọc 20%, theo dõi GPS tài xế, chat với quán, mở mã QR/PIN nhận hàng.
+   - Hủy đơn hàng, đánh giá món ăn sau khi nhận, gửi khiếu nại và theo dõi điểm uy tín cá nhân.
+2. **Quản lý Quán ăn (`MERCHANT` / `MANAGER` - Sử dụng `app-internal`):**
+   - Đăng ký mở quán, gửi ảnh CCCD quét OCR để xác minh cửa hàng.
+   - Nhận đơn hàng mới qua chuông báo, duyệt đơn, báo bếp nấu, báo nấu xong phát đơn cho tài xế.
+   - Quản lý món ăn, danh mục quán, tạo gói Combo, quản lý tài xế của quán, xem báo cáo doanh thu và món bán chạy.
+   - Duyệt/từ chối yêu cầu hủy đơn, chat với khách hàng, xác nhận nhận lại món hoàn trả.
+3. **Chủ chuỗi cửa hàng (tài khoản `MERCHANT` chủ sở hữu – Sử dụng `app-internal`):**
+   - Tạo và quản lý danh sách các chi nhánh cửa hàng trong chuỗi.
+   - Tạo tài khoản Merchant và gán quyền quản lý cho từng chi nhánh cụ thể.
+4. **Tài xế giao hàng (`DRIVER` / `SHIPPER` - Sử dụng `app-internal`):**
+   - Bật/tắt chế độ trực tuyến, phát tọa độ GPS chạy ngầm, nhận đơn lẻ hoặc ghép chặng 2–3 đơn.
+   - Xem bản đồ dẫn đường Google Maps, gạt thanh trượt cập nhật tiến độ (Đến quán ➔ Lấy món ➔ Đến nhà khách).
+   - Quét mã QR hoặc nhập mã PIN từ khách để hoàn tất đơn; báo cáo sự cố gọi nhỡ đếm ngược 15 phút; đem hàng trả lại quán khi đơn bị hủy/bom; xem thống kê thu nhập.
+5. **Quản trị viên hệ thống (`ADMIN` - Sử dụng `app-admin`):**
+   - Giám sát số liệu toàn sàn trên Dashboard, cấu hình thời gian đếm ngược sự cố.
+   - Kiểm duyệt hồ sơ mở quán mới, phạt hoặc khóa cửa hàng vi phạm.
+   - Quản lý danh mục ẩm thực toàn hệ thống, giám sát/can thiệp đơn hàng, quản lý tài khoản người dùng & điểm uy tín, giải quyết khiếu nại.
+
+---
+
+### 2.1.3 Phạm vi hệ thống
+- **Các chức năng đã hoàn thiện trong hệ thống:**
+  1. Hệ thống xác thực đa tầng (Firebase Auth + Email OTP + Kiểm tra khóa tài khoản thời gian thực).
+  2. Hệ thống định danh cửa hàng bằng OCR Căn cước công dân (`CccdOcrHelper`).
+  3. Hệ thống tìm kiếm, gợi ý địa chỉ, ghim bản đồ và tính phí giao hàng tự động theo vùng (`ShippingRule`).
+  4. Hệ thống giỏ hàng, tùy chọn món ăn (Topping/Size), gói Combo và thanh toán COD / VietQR / Đặt cọc 20%.
+  5. Dịch vụ tự động đọc thông báo ngân hàng xác nhận thanh toán VietQR (`BankNotificationListenerService`).
+  6. Hệ thống điều phối đơn hàng Kanban cho quán và ghép đơn đa điểm (Multi-drop) cho tài xế.
+  7. Hệ thống dẫn đường và theo dõi vị trí tài xế thời gian thực trên Google Maps (`LocationForegroundService`).
+  8. Hệ thống xác thực giao hàng 2 lớp bằng QR Code & Mã PIN 6 số.
+  9. Hệ thống xử lý sự cố giao hàng đếm ngược 15 phút (2 vòng), hủy đơn đang giao và hoàn trả món về quán.
+  10. Hệ thống Điểm uy tín (`TrustScore`), chế độ bắt buộc đặt cọc (`DEPOSIT`) và quản trị khiếu nại toàn sàn (`app-admin`).
+- **Các giới hạn hiện tại (Chưa bao gồm):**
+  1. Chưa hỗ trợ phiên bản trên hệ điều hành iOS (hiện tập trung tối ưu sâu cho nền tảng Android).
+  2. Chưa tích hợp gọi thoại VoIP trực tiếp trong ứng dụng (hiện kết nối qua trình gọi điện thoại mặc định của hệ điều hành).
+  3. Chưa hỗ trợ thanh toán thẻ tín dụng quốc tế Visa/Mastercard.
+
+---
+
+### 2.1.4 Các tác nhân (Actors) và Sơ đồ Use Case tổng quát
+
+| Tác nhân (Actor) | Mô tả vai trò và trách nhiệm chính |
+|:---|:---|
+| **Khách hàng (Customer)** | Người dùng sử dụng `app-customer` để tìm kiếm quán ăn, chọn món/combo, đặt hàng, thanh toán (COD/VietQR/MoMo), theo dõi vị trí tài xế, cung cấp mã QR/PIN khi nhận món, chat với quán, hủy đơn, đánh giá món ăn và gửi khiếu nại. |
+| **Quán ăn (Merchant / Manager)** | Đối tác cửa hàng sử dụng `app-internal` để xác minh quán (OCR CCCD), quản lý danh mục/món ăn/combo, tiếp nhận và chế biến đơn hàng theo quy trình bếp, chat với khách, xử lý yêu cầu hủy và theo dõi báo cáo doanh thu. |
+| **Chủ chuỗi (Boss)** | Cấp quản lý cao nhất của chuỗi nhà hàng trên `app-internal`, chịu trách nhiệm mở thêm chi nhánh mới, tạo tài khoản quản lý (Merchant) và phân công quản lý từng chi nhánh. |
+| **Tài xế (Driver / Shipper)** | Nhân viên giao hàng sử dụng `app-internal` để nhận đơn (đơn lẻ hoặc ghép chuyến), di chuyển theo lộ trình Google Maps, lấy món tại quán, quét mã QR/nhập PIN giao hàng cho khách, báo cáo sự cố liên lạc và theo dõi thu nhập. |
+| **Quản trị viên (Admin)** | Người vận hành hệ thống sử dụng `app-admin` để duyệt cửa hàng mới, quản lý danh mục toàn sàn, giám sát toàn bộ đơn hàng và tài khoản người dùng, điều chỉnh điểm uy tín, cấu hình hệ thống và phán quyết khiếu nại. |
+
+**[CHỖ CHÈN ẢNH SƠ ĐỒ 1: Hình Sơ đồ Use Case Tổng quát của Hệ thống Oishi Food]**
+
+```mermaid
+flowchart LR
+    Cust([Khách Hàng - Customer])
+    Shop([Quán Ăn - Merchant])
+    Boss([Chủ Chuỗi - Boss])
+    Ship([Tài Xế - Shipper])
+    Adm([Quản Trị Viên - Admin])
+
+    subgraph OISHI_SYSTEM [HỆ THỐNG ĐẶT & GIAO ĐỒ ĂN OISHI FOOD]
+        UC1(Đăng ký OTP / Đăng nhập)
+        UC2(Tìm kiếm Quán & Chọn Món/Combo)
+        UC3(Đặt hàng & Thanh toán COD/VietQR/MoMo)
+        UC4(Theo dõi GPS & Cung cấp QR/PIN nhận hàng)
+        UC5(Hủy đơn & Quản lý Điểm uy tín)
+        UC6(Đánh giá món & Gửi Khiếu nại)
+
+        UC7(Xác minh Quán bằng OCR CCCD)
+        UC8(Quản lý Thực đơn, Danh mục & Combo)
+        UC9(Xử lý Đơn hàng Kanban & Tự động duyệt VietQR)
+        UC10(Thống kê Doanh thu & Món bán chạy)
+
+        UC11(Quản lý Chi nhánh & Gán quyền Merchant)
+
+        UC12(Nhận đơn & Ghép chuyến Đa điểm)
+        UC13(Điều hướng GPS & Quét QR/PIN Giao hàng)
+        UC14(Báo sự cố 15 phút & Hoàn trả món về quán)
+
+        UC15(Duyệt Quán, Quản lý Danh mục & Cấu hình)
+        UC16(Giám sát Đơn/User & Giải quyết Khiếu nại)
+    end
+
+    Cust --> UC1
+    Cust --> UC2
+    Cust --> UC3
+    Cust --> UC4
+    Cust --> UC5
+    Cust --> UC6
+
+    Shop --> UC1
+    Shop --> UC7
+    Shop --> UC8
+    Shop --> UC9
+    Shop --> UC10
+
+    Boss --> UC1
+    Boss --> UC11
+
+    Ship --> UC1
+    Ship --> UC12
+    Ship --> UC13
+    Ship --> UC14
+
+    Adm --> UC15
+    Adm --> UC16
+```
+
+---
+
+### 2.1.5 Yêu cầu chức năng hệ thống (Functional Requirements: FR1 – FR24)
+
+- **FR1. Xác thực tài khoản & Bảo mật OTP:**
+  - Đăng ký tài khoản mới theo vai trò (`CUSTOMER`, `MERCHANT`, `DRIVER`).
+  - Gửi mã xác thực OTP 6 chữ số qua Email (`EmailOtpApi`) và kiểm tra tính hợp lệ (`RegistrationOtpManager`).
+  - Đăng nhập bằng Email/Số điện thoại và Mật khẩu qua Firebase Authentication.
+  - Tự động lắng nghe trạng thái khóa tài khoản thời gian thực (`AccountLockWatcher`).
+- **FR2. Định danh Cửa hàng bằng OCR Căn cước công dân:**
+  - Chụp hoặc tải ảnh CCCD hai mặt và giấy phép kinh doanh của chủ quán.
+  - Quét nhận diện văn bản tự động (`CccdOcrHelper`) để trích xuất thông tin định danh gửi Admin duyệt.
+- **FR3. Quản lý Chuỗi chi nhánh (Boss Management):**
+  - Tạo mới các chi nhánh cửa hàng kèm tọa độ địa lý.
+  - Tạo tài khoản quản lý chi nhánh (Merchant) và gán/thu hồi quyền quản lý chi nhánh.
+- **FR4. Duyệt Trang chủ, Tìm kiếm & Lọc nâng cao:**
+  - Hiển thị danh mục ẩm thực, món ăn đang Hot, quán ăn gần vị trí GPS hiện tại và danh sách nhà hàng.
+  - Tìm kiếm theo từ khóa tên món hoặc tên quán theo thời gian thực.
+  - Lọc nâng cao theo quận/huyện, mức giá, khoảng cách và số sao đánh giá.
+- **FR5. Xem Thực đơn, Tùy chọn Món (Options) & Gói Combo:**
+  - Hiển thị danh sách món ăn theo phân nhóm danh mục của quán và các gói Combo tiết kiệm.
+  - Chọn kích cỡ (Size), mức đường/đá, topping đi kèm và ghi chú riêng cho từng món.
+  - Xem danh sách đánh giá sao và nhận xét của khách hàng đối với từng món ăn.
+- **FR6. Quản lý Giỏ hàng (Cart Management):**
+  - Thêm món vào giỏ hàng, tự động nhóm theo cửa hàng, tăng/giảm số lượng hoặc xóa món.
+  - Đồng bộ giỏ hàng và tính toán tổng tiền món ăn tức thời.
+- **FR7. Định vị Địa chỉ & Tính phí Vận chuyển tự động:**
+  - Quản lý sổ địa chỉ cá nhân (`CustomerAddress`), gợi ý địa chỉ khi gõ (`AddressSuggestionAdapter`) hoặc chọn trực tiếp trên bản đồ (`SelectLocationActivity`).
+  - Xác định vùng giao hàng (quận/huyện của quán và của khách) và áp dụng biểu phí `ShippingRule`: INTRA_DISTRICT 15.000đ, INTER_DISTRICT 25.000đ, SUBURBAN 45.000đ.
+- **FR8. Đặt hàng & Thanh toán Đa chế độ (COD, VietQR 100%, Đặt cọc 20%):**
+  - Tạo đơn hàng với chế độ Tiền mặt (COD), Chuyển khoản ngân hàng VietQR 100% (`FULL`) hoặc Đặt cọc 20% (`DEPOSIT`).
+  - Tự động sinh mã QR chuyển khoản ngân hàng chuẩn VietQR chứa đúng số tiền và mã đơn.
+  - Chỉ khách có điểm uy tín **≥ 90** mới được chọn COD; khách **< 90 điểm** bắt buộc **Đặt cọc trước 20% giá trị đơn (`PaymentMode.DEPOSIT`, làm tròn đến 1.000đ)** qua chuyển khoản VietQR, phần còn lại (80%) thu tiền mặt khi giao hàng.
+- **FR9. Tự động Xác nhận Chuyển khoản Ngân hàng tại Quán:**
+  - Dịch vụ `BankNotificationListenerService` chạy ngầm đọc thông báo biến động số dư ngân hàng trên thiết bị của quán, tự động khớp mã đơn và chuyển trạng thái đơn sang Đã thanh toán (`PAID`).
+- **FR10. Quản lý Đơn hàng tại Quán theo mô hình Kanban:**
+  - Phân luồng đơn hàng theo 4 tab: *Đơn Mới – Đang Làm – Đang Giao – Lịch Sử*.
+  - Phát chuông cảnh báo âm thanh và hiển thị Popup khi có đơn hàng mới.
+  - Cập nhật trạng thái bếp: Xác nhận đơn (`PREPARING`) ➔ Báo nấu xong (`READY`) để phát đơn cho tài xế.
+- **FR11. Quản lý Thực đơn, Danh mục riêng & Combo tại Quán:**
+  - Thêm mới, chỉnh sửa, xóa món ăn; bật/tắt trạng thái còn hàng/hết hàng.
+  - Tạo, đổi tên, sắp xếp danh mục món ăn riêng của từng quán; tạo gói Combo nhiều món giá ưu đãi.
+- **FR12. Quản lý Đội ngũ Tài xế & Thống kê Doanh thu Quán:**
+  - Thêm và quản lý danh sách tài xế thuộc quán (`DriverListFragment`).
+  - Thống kê doanh thu hôm nay, tổng số đơn hoàn tất và xếp hạng các món bán chạy nhất (`StoreReportFragment`).
+- **FR13. Nhận đơn & Ghép chuyến Đa điểm cho Tài xế (Multi-Drop):**
+  - Hiển thị danh sách đơn hàng đã nấu xong (`READY`) đang chờ tài xế nhận.
+  - Cho phép tài xế nhận đơn lẻ hoặc ghép tối đa 3 đơn hàng cùng khu vực vào một hành trình giao hàng.
+  - Cho phép tài xế chủ động bấm chọn thứ tự ưu tiên giao khách hàng nào trước trên bản đồ.
+- **FR14. Điều hướng Bản đồ & Cập nhật Tiến độ Giao hàng:**
+  - Phát tọa độ GPS thời gian thực của tài xế lên Firebase thông qua `LocationForegroundService`.
+  - Vẽ lộ trình đường đi trên Google Maps từ vị trí tài xế đến quán và đến từng khách hàng.
+  - Cập nhật trạng thái qua thanh trượt: *Đã đến quán (`ARRIVED_AT_SHOP`)* ➔ *Đã lấy món (`DELIVERING`)* ➔ *Đã đến nhà khách (`ARRIVED_AT_CUSTOMER`)*.
+- **FR15. Xác thực Giao hàng bằng Mã QR & Mã PIN 6 số:**
+  - Khách hàng hiển thị mã QR (`#OISHI_XXXXXX`) và mã PIN 6 số trên màn hình theo dõi đơn.
+  - Tài xế dùng Camera quét mã QR hoặc nhập mã PIN để hệ thống xác thực và chuyển đơn sang Hoàn tất (`COMPLETED`).
+- **FR16. Xử lý Sự cố Giao hàng & Đồng hồ Đếm ngược 15 phút (2 Vòng):**
+  - Khi khách không nghe máy, tài xế bấm báo cáo sự cố, thực hiện đủ 3 cuộc gọi và chụp ảnh bằng chứng tại địa chỉ giao.
+  - Hệ thống kích hoạt đếm ngược 15 phút Lần 1 (hỗ trợ liên lạc) và 15 phút Lần 2 (cảnh báo mất đơn) trước khi cho phép hủy đơn bom (`BOOM`) và mang hàng về quán.
+- **FR17. Hủy đơn khi Đang giao & Luồng Hoàn trả Món về Quán:**
+  - Khách hàng có thể bấm hủy đơn ngay cả khi tài xế đang trên đường giao.
+  - Đơn hàng lập tức chuyển sang trạng thái `RETURNING_TO_STORE`, thông báo cho tài xế quay đầu mang đồ ăn về trả cho quán; khi quán nhận lại đồ ăn sẽ xác nhận `RETURNED_TO_STORE`.
+- **FR18. Quản lý Điểm uy tín (`TrustScore`) & Nhật ký Điểm:**
+  - Tự động trừ 30 điểm uy tín khi khách hàng hủy đơn COD đang giao hoặc bom hàng (không trừ điểm nếu đơn đã thanh toán Online).
+  - Ghi nhận lịch sử chi tiết từng lần cộng/trừ điểm (`TrustScoreLog`) và hiển thị trực quan trong hồ sơ khách hàng.
+- **FR19. Nhắn tin Chat Thời gian thực (Khách hàng – Quán ăn):**
+  - Cho phép Khách hàng và Quán ăn nhắn tin trao đổi trực tiếp trong từng đơn hàng (`tracking/chats_{orderId}`), hiển thị thông báo tin nhắn mới tức thời.
+- **FR20. Đánh giá Món ăn & Xem Lịch sử Đơn hàng:**
+  - Sau khi đơn hàng hoàn tất, khách hàng chấm điểm từ 1–5 sao và viết nhận xét cho từng món ăn.
+  - Tự động tính lại điểm trung bình sao của món ăn và cửa hàng.
+- **FR21. Gửi Khiếu nại & Theo dõi Giải quyết Khiếu nại:**
+  - Khách hàng tạo yêu cầu khiếu nại kèm lý do và hình ảnh minh chứng gửi lên hệ thống.
+  - Theo dõi trạng thái xử lý khiếu nại (Đang chờ xử lý / Đã giải quyết / Từ chối) và phản hồi từ Admin.
+- **FR22. Thống kê Thu nhập & Lịch sử Chuyến đi của Tài xế:**
+  - Tài xế theo dõi tổng tiền cước vận chuyển kiếm được theo ngày/tuần/tháng và danh sách các đơn đã giao.
+- **FR23. Quản trị Hệ thống, Duyệt Quán & Quản lý Danh mục (`app-admin`):**
+  - Xem bảng điều khiển thống kê toàn sàn, chỉnh sửa cấu hình thời gian đếm ngược sự cố.
+  - Duyệt hoặc từ chối hồ sơ xác minh cửa hàng mới, áp dụng hình phạt đối với cửa hàng vi phạm.
+  - Thêm, sửa, xóa danh mục ẩm thực chuẩn của hệ thống.
+- **FR24. Giám sát Đơn hàng, Quản lý Người dùng & Phán quyết Khiếu nại (`app-admin`):**
+  - Giám sát và can thiệp chỉnh sửa trạng thái đơn hàng bất thường.
+  - Quản lý tài khoản người dùng, điều chỉnh điểm uy tín và khóa/mở khóa tài khoản.
+  - Xem xét bằng chứng và ra quyết định giải quyết các khiếu nại của khách hàng.
+
+---
+
+### 2.1.6 Yêu cầu phi chức năng (Non-Functional Requirements: NFR1 – NFR8)
+- **NFR1. Giao diện người dùng (UI/UX):** Thiết kế đồng nhất theo chuẩn **Material Design 3**, bảng màu thương hiệu cam năng động (`#FF6B00`), bố cục rõ ràng, hỗ trợ hiển thị tràn viền (Edge-to-Edge) và tương thích hoàn hảo trên nhiều kích thước màn hình Android.
+- **NFR2. Hiệu năng và Độ trễ thời gian thực:** Đồng bộ trạng thái đơn hàng, tin nhắn chat và tọa độ GPS trên Firebase Realtime Database với độ trễ dưới 500ms; tối ưu hóa `RecyclerView` bằng `ListAdapter` & `DiffUtil` giúp cuộn danh sách mượt mà 60fps.
+- **NFR3. Tính ổn định và Phục hồi trạng thái (Resilience):** Các dịch vụ nền như `LocationForegroundService` và `MerchantKeepAliveService` hoạt động bền bỉ với cơ chế `START_STICKY`; lưu giữ chính xác trạng thái từng chặng giao hàng ngay cả khi tài xế thoát ứng dụng hoặc chuyển đổi qua lại giữa các đơn ghép.
+- **NFR4. Bảo mật và Toàn vẹn dữ liệu:** Mật khẩu được băm bảo mật qua Firebase Auth; xác thực đăng ký bằng OTP Email thật; mã QR và mã PIN 6 số sinh ngẫu nhiên độc nhất cho từng đơn hàng; các thao tác cộng/trừ điểm uy tín và doanh thu đảm bảo tính nguyên vẹn.
+- **NFR5. Tính dễ sử dụng (Usability):** Các thao tác quan trọng của tài xế khi đang chạy xe được thiết kế dạng thanh trượt lớn (Slide-to-confirm) chống bấm nhầm; quy trình bếp của quán rút gọn tối đa chỉ còn các nút hành động chính theo từng bước.
+- **NFR6. Khả năng bảo trì và Mở rộng (Maintainability):** Mã nguồn tổ chức theo kiến trúc **Multi-Module (`core`, `app-customer`, `app-internal`, `app-admin`)** kết hợp mẫu thiết kế **MVVM (Model-View-ViewModel)**, giúp tách biệt hoàn toàn logic nghiệp vụ khỏi giao diện và dễ dàng mở rộng.
+- **NFR7. Tương thích phần cứng:** Khai thác hiệu quả cảm biến GPS, Camera (quét QR & chụp CCCD/bằng chứng), Chuông âm thanh hệ thống (`RingtoneManager`) và Notification Listener.
+- **NFR8. Quản lý tài nguyên mạng và Pin:** Tối ưu hóa tần suất cập nhật GPS theo khoảng cách di chuyển thực tế và nén hình ảnh trước khi tải lên đám mây, giúp tiết kiệm dung lượng 4G và pin cho thiết bị của tài xế.
+
+---
+
+### 2.1.7 Quy tắc xử lý nghiệp vụ cốt lõi (Business Rules: BR1 – BR15)
+1. **BR1 (Xác thực OTP & Khóa tài khoản):** Mọi tài khoản đăng ký mới phải xác thực đúng mã OTP gửi qua Email trong **10 phút** (`OTP_VALIDITY_DURATION_MS`), chỉ được gửi lại mã sau **60 giây** (`RESEND_COOLDOWN_MS`); phiên xác minh OTP được ghi nhớ **24 giờ** trên thiết bị (`OtpSessionManager`), riêng tài khoản `admin@gmail.com` được miễn OTP. Nếu tài khoản bị Admin chuyển sang trạng thái khóa (`LOCKED`) hoặc điểm uy tín giảm xuống ngưỡng khóa, `AccountLockWatcher` sẽ lập tức cưỡng chế đăng xuất trên mọi thiết bị.
+2. **BR2 (Xác minh Cửa hàng trước khi mở bán):** Tài khoản `MERCHANT` mới tạo phải hoàn tất gửi hồ sơ xác minh (`StoreVerificationActivity` gồm ảnh CCCD quét OCR và thông tin quán) và được `ADMIN` phê duyệt thì cửa hàng mới hiển thị cho khách đặt món.
+3. **BR3 (Quy tắc tính phí vận chuyển `ShippingRule`):** Phí giao hàng tính theo vùng: giao trong cùng quận (`INTRA_DISTRICT`) 15.000đ; giao khác quận nội thành (`INTER_DISTRICT`) 25.000đ; giao ra ngoại thành (`SUBURBAN`) 45.000đ. Khách có điểm uy tín ≥ 95 được giảm 5.000đ phí ship.
+4. **BR4 (Quy tắc Điểm uy tín & Đặt cọc `DEPOSIT`):** Mỗi khách hàng khởi đầu với `trustScore = 100` (thang 0–100). Mỗi đơn nhận hàng thành công **+2 điểm** (tối đa 100); mỗi lần bom/hủy đơn COD khi đang giao **−30 điểm** (tối thiểu 0). Xếp hạng: ≥ 95 Kim Cương (COD + giảm 5.000đ ship), ≥ 90 Vàng (COD), 50–89 Bạc (cấm COD), 20–49 Hạn chế. Khách **< 90 điểm** bắt buộc đặt cọc **20%** (`PaymentMode.DEPOSIT`). Điểm **< 20** ➔ tài khoản tự động bị khóa (`status = LOCKED`).
+5. **BR5 (Tự động duyệt thanh toán VietQR):** Khi khách chọn thanh toán VietQR, đơn hàng ở trạng thái `AWAITING_PAYMENT`. Khi `BankNotificationListenerService` tại quán phát hiện thông báo nhận tiền khớp mã đơn (hoặc chủ quán kiểm tra và bấm xác nhận), đơn hàng chuyển sang `PAID` và đưa vào bếp.
+6. **BR6 (Quy trình Bếp 3 bước & Bàn giao cho Tài xế):** Quán chỉ thực hiện bấm xác nhận ở các bước: Nhận đơn (`PENDING` ➔ `PREPARING`) và Báo nấu xong (`PREPARING` ➔ `READY`). Khi đơn đã `READY` và có tài xế nhận (`ASSIGNED` / `ARRIVED_AT_SHOP`), quán không cần bấm nút bàn giao mà tài xế sẽ tự kiểm tra túi món tại quầy và gạt thanh trượt lấy hàng để chuyển đơn sang `DELIVERING`.
+7. **BR7 (Quy tắc Ghép đơn Tài xế - Multi-Drop):** Một tài xế chỉ được ghép tối đa 3 đơn hàng đang hoạt động cùng lúc. Tài xế có toàn quyền chạm chọn đơn hàng nào trong danh sách ghép để ưu tiên giao trước; trạng thái từng đơn (như `ARRIVED_AT_CUSTOMER`) được lưu độc lập trên Firebase, không bị mất trạng thái khi chuyển đổi qua lại giữa các đơn.
+8. **BR8 (Hiển thị vị trí Shipper cho Khách hàng):** Để bảo mật và tránh gây rối giao diện, khung bản đồ vị trí Shipper trên màn hình của khách (`TrackingActivity`) được ẩn ở giai đoạn chuẩn bị và chỉ hiển thị theo dõi lộ trình khi tài xế đang thực hiện giao hàng.
+9. **BR9 (Xác thực hoàn tất đơn bằng QR hoặc PIN):** Tài xế chỉ có thể hoàn tất đơn hàng (`COMPLETED`) khi đã ở bước "Đã đến nhà khách" (`ARRIVED_AT_CUSTOMER`) và quét đúng mã QR `#OISHI_XXXXXX` hoặc nhập đúng mã `pickupPin` 6 số của đơn hàng đó.
+10. **BR10 (Quy tắc Khách hủy đơn ở mọi giai đoạn, Điểm uy tín & Hoàn trả món về quán):**
+    - Khách hàng được quyền bấm **"✕ Hủy Đơn Hàng"** ở bất kỳ trạng thái nào khi đơn chưa kết thúc (`PENDING`, `AWAITING_PAYMENT`, `PAID`, `PREPARING`, `READY`, `ASSIGNED`, `ARRIVED_AT_SHOP`, `DELIVERING`, `ARRIVED_AT_CUSTOMER`).
+    - **Quy tắc trừ điểm uy tín khi khách hủy đơn:** Nếu đơn là **COD (Tiền mặt)** hoặc **Đặt cọc (`DEPOSIT`)**, hệ thống tự động trừ **10 điểm uy tín** và ghi `TrustScoreLog`. Nếu đơn **Đã thanh toán đủ 100% (`FULL` / `isPaid == true`)**, khách hàng **không bị trừ điểm uy tín**.
+    - **Thông báo cho Bếp & Quán:** Khi khách hủy đơn lúc đang chế biến (`PREPARING`), cả màn hình Đội Bếp (`ChefFragment`) và Quán (`OrderListFragment`) đều nhận hộp thoại cảnh báo dừng nấu ngay lập tức; thẻ đơn tại Bếp chuyển sang viền đỏ `🚫 KHÁCH ĐÃ HỦY • DỪNG NẤU` (không tự mất đơn cho đến khi đầu bếp bấm xác nhận xóa).
+    - **Luồng Tài xế mang món về quán:** Nếu khách hủy khi tài xế chưa lấy món (`ASSIGNED`, `ARRIVED_AT_SHOP`), đơn chuyển sang `CANCELLED` và giải phóng tài xế ngay. Nếu tài xế **đã lấy món và đang chạy giao (`DELIVERING`, bước >= 3)**, đơn chuyển sang `RETURNING_TO_STORE` (`bomStatus = "RETURNING_TO_STORE"`), màn hình `DeliveryTripActivity` của tài xế lập tức bật cảnh báo `🚨 KHÁCH HỦY ĐƠN - MANG MÓN VỀ QUÁN` và dẫn đường quay về quán trả món (`RETURNED_TO_STORE`).
+11. **BR11 (Quy tắc Sự cố Gọi nhỡ Khách hàng 15 phút – 2 Vòng):**
+    - Khi tài xế đến nhà khách nhưng không liên lạc được, tài xế phải gọi tối thiểu 3 lần và gửi ảnh bằng chứng để bắt đầu đếm ngược **Vòng 1 (15 phút hỗ trợ)**. Trong Vòng 1, đơn hàng của khách chưa bị gắn nhãn cảnh báo mất đơn.
+    - Chỉ khi hết 15 phút Vòng 1 mà khách vẫn không phản hồi, hệ thống mới chuyển sang **Vòng 2 (`countdownRound >= 2`)**, hiển thị cảnh báo mất đơn trên máy khách. Hết Vòng 2, tài xế được quyền xác nhận khách bom hàng (`BOOM`) và đem món về quán (`RETURNING_TO_STORE`).
+12. **BR12 (Hoàn trả món ăn về Quán):** Đối với mọi đơn hàng ở trạng thái `RETURNING_TO_STORE`, sau khi tài xế mang đồ ăn về tới quầy và bàn giao lại, đơn hàng được cập nhật thành `RETURNED_TO_STORE` để kết thúc chuyến đi của tài xế.
+13. **BR13 (Đánh giá món ăn):** Khách hàng chỉ được phép đánh giá sao và viết nhận xét cho món ăn sau khi đơn hàng đã đạt trạng thái `COMPLETED`.
+14. **BR14 (Giải quyết Khiếu nại):** Mọi khiếu nại từ khách hàng phải đính kèm mã đơn hàng và nội dung/hình ảnh. Quyết định của Admin (`ResolveComplaintDialogFragment`) là quyết định cuối cùng và có thể đi kèm hoàn điểm uy tín hoặc phạt cửa hàng.
+15. **BR15 (Tính doanh thu trong ngày của Quán):** Doanh thu hiển thị trên bảng thống kê của quán chỉ cộng dồn các đơn hàng đã hoàn tất (`status == COMPLETED`) có thời gian tạo nằm trong ngày hiện tại (từ 00:00:00 đến 23:59:59).
+
+---
+
+### 2.1.8 Kiến trúc tổng quan hệ thống
+Hệ thống vận hành theo kiến trúc **Client – Cloud Server thời gian thực** kết hợp **Multi-Module Android**:
+- **Tầng Ứng dụng Di động (3 Android Apps chạy mã nguồn Kotlin, ViewBinding & MVVM):**
+  1. `app-customer`: Ứng dụng phục vụ Khách hàng đặt món.
+  2. `app-internal`: Ứng dụng phục vụ Nội bộ vận hành (Chủ quán, Chủ chuỗi chi nhánh và Tài xế giao hàng).
+  3. `app-admin`: Ứng dụng phục vụ Quản trị viên vận hành sàn.
+- **Tầng Thư viện Lõi (`core` module):** Chứa toàn bộ Models, `FirebaseRepository`, `AuthRepository`, các trình tiện ích bản đồ, thanh toán, OCR và bảo mật dùng chung cho cả 3 ứng dụng.
+- **Tầng Đám mây & Cơ sở dữ liệu (Firebase Platform):**
+  - *Firebase Authentication:* Quản lý định danh tài khoản người dùng.
+  - *Firebase Realtime Database:* Cơ sở dữ liệu NoSQL thời gian thực lưu trữ toàn bộ nhánh `users`, `stores`, `orders`, `dishes`, `categories`, `combos`, `tracking`, `complaints`, `notifications`, `trust_score_logs`, `system_config`.
+  - *Firebase Cloud Messaging (FCM):* Dịch vụ gửi thông báo đẩy (`CustomerFCMService`, `InternalFCMService`).
+- **Tầng Dịch vụ & APIs bên thứ ba:**
+  - *Google Maps SDK, Location & Directions API:* Hiển thị bản đồ số, định vị GPS, gợi ý địa chỉ và vẽ lộ trình giao hàng.
+  - *VietQR & MoMo Payment API:* Tạo mã thanh toán ngân hàng và ví điện tử.
+  - *Email OTP Service (`EmailOtpApi`):* Gửi mã xác thực OTP về hộp thư điện tử.
+  - *Google ML Kit Text Recognition (`CccdOcrHelper`):* Nhận diện ký tự quang học trên thẻ CCCD.
+
+---
+
+### 2.1.9 Các vai trò người dùng (Roles)
+Hệ thống phân quyền chặt chẽ thông qua thuộc tính `role` (enum `Role.kt`) lưu tại nhánh `/users/$uid` trên Firebase:
+1. **`CUSTOMER` (Khách hàng):** Truy cập `app-customer`, thực hiện toàn bộ luồng khám phá ẩm thực, đặt món, thanh toán, theo dõi đơn, nhận hàng bằng QR/PIN, đánh giá và khiếu nại.
+2. **`MERCHANT` / `MANAGER` (Quản lý Quán ăn):** Truy cập giao diện Cửa hàng trên `app-internal`, quản lý thực đơn, xử lý đơn hàng của quán, chat với khách và xem báo cáo doanh thu chi nhánh.
+3. **Chủ chuỗi (tài khoản `MERCHANT` chủ sở hữu nhiều chi nhánh – không phải role riêng):** Khi đăng nhập chưa chọn chi nhánh, `DashboardActivity` chuyển sang `BossDashboardActivity` trên `app-internal`, khởi tạo chi nhánh mới và phân bổ tài khoản quản lý cho từng cơ sở.
+4. **`DRIVER` / `SHIPPER` (Tài xế giao hàng):** Truy cập giao diện Tài xế trên `app-internal`, nhận đơn, ghép chuyến, dẫn đường GPS, quét QR/PIN giao hàng và báo cáo sự cố.
+5. **`ADMIN` (Quản trị viên hệ thống):** Truy cập `app-admin`, kiểm duyệt cửa hàng, quản lý danh mục, giám sát toàn bộ đơn hàng/người dùng và xử lý khiếu nại.
+
+---
+
+### 2.1.10 Bản đồ các Chức năng chính & Giải thích từng file mã nguồn (Feature & Code Map)
+
+#### I. Module `core` (Thư viện nền tảng dùng chung)
+- **Tầng Dữ liệu & Firebase (`core/data/firebase/`):**
+  - `FirebaseRepository.kt`: Trái tim giao tiếp dữ liệu của toàn dự án (hơn 1.200 dòng code), cung cấp đầy đủ các hàm CRUD và lắng nghe thời gian thực (`ValueEventListener`, `Flow`) cho đơn hàng, quán ăn, món ăn, tài xế, tọa độ GPS, chat, đánh giá, khiếu nại và điểm uy tín.
+  - `AuthRepository.kt` & `FirebaseAuthChecker.kt`: Xử lý đăng nhập, đăng ký, kiểm tra phân quyền vai trò và phiên đăng nhập.
+  - `EmailOtpApi.kt`: Giao tiếp API gửi mã xác thực OTP 6 chữ số đến địa chỉ Email người dùng khi đăng ký.
+- **Tầng Mô hình Thực thể (`core/data/model/` – 27 Models):**
+  - `Order.kt`: Thực thể đơn hàng với đầy đủ các hằng số trạng thái (`Status`), phương thức thanh toán (`PaymentMethod`), chế độ đặt cọc (`PaymentMode`), trạng thái hủy (`CancelRequestStatus`), thông tin món, tọa độ và đếm ngược sự cố.
+  - `Store.kt` & `Restaurant.kt`: Thông tin cửa hàng, tọa độ GPS, trạng thái mở cửa, thông tin ngân hàng VietQR, trạng thái xác minh CCCD.
+  - `Dish.kt`, `DishOption.kt`, `MenuItem.kt`, `Combo.kt`, `Category.kt`: Cấu trúc món ăn, nhóm tùy chọn topping/size, gói combo giảm giá và danh mục ẩm thực.
+  - `User.kt`, `Customer.kt`, `Merchant.kt`, `Driver.kt`, `Admin.kt`, `Role.kt`, `UserStatus.kt`: Cấu trúc hồ sơ người dùng theo từng vai trò và trạng thái hoạt động.
+  - `Cart.kt`, `CartItem.kt`, `CustomerAddress.kt`, `AddressSuggestion.kt`, `ShippingRule.kt`: Mô hình giỏ hàng, sổ địa chỉ và quy tắc tính cước phí vận chuyển.
+  - `TrackingLocation.kt`, `DeliveryCountdownConfig.kt`, `TrustScoreLog.kt`, `Complaint.kt`, `DishReview.kt`, `Notification.kt`: Mô hình tọa độ GPS thời gian thực, cấu hình đếm ngược 15 phút, nhật ký điểm uy tín, khiếu nại và đánh giá.
+- **Tầng Tiện ích Chuyên sâu (`core/util/`):**
+  - `AccountLockWatcher.kt`: Lắng nghe trạng thái khóa tài khoản thời gian thực, tự động hiển thị cảnh báo và đăng xuất ngay nếu tài khoản bị khóa.
+  - `CccdOcrHelper.kt`: Quét và bóc tách số CCCD, họ tên từ ảnh chụp thẻ Căn cước công dân.
+  - `GoogleMapUtils.kt`: Tính khoảng cách địa lý (công thức Haversine & lộ trình thực tế), giải mã Polyline vẽ đường đi trên Google Maps.
+  - `MomoPaymentGatewayClient.kt`, `BankData.kt`, `QRCodeUtils.kt`: Xử lý thanh toán ví MoMo, tra cứu mã ngân hàng tạo VietQR và sinh ảnh Bitmap mã QR nhận hàng.
+  - `RegistrationOtpManager.kt`, `OtpSessionManager.kt`, `OtpNotificationHelper.kt`: Quản lý vòng đời mã OTP xác thực.
+
+#### II. Module `app-customer` (Ứng dụng Khách hàng)
+- **Xác thực (`ui/auth/`):**
+  - `LoginActivity.kt`: Đăng nhập tài khoản khách hàng, kiểm tra khóa tài khoản.
+  - `RegisterActivity.kt`: Nhập thông tin đăng ký tài khoản mới và kích hoạt gửi OTP.
+  - `OtpVerificationActivity.kt`: Nhập mã OTP 6 số xác nhận hoàn tất đăng ký.
+- **Trang chủ & Khám phá (`ui/home/`):**
+  - `HomeActivity.kt` & `HomeViewModel.kt`: Màn hình chính tích hợp tìm kiếm, lọc nâng cao, hiển thị danh mục (`HomeCategoryAdapter`), món Hot (`HotDishAdapter`), quán gần bạn (`NearbyStoreAdapter`) và danh sách nhà hàng (`RestaurantAdapter`).
+- **Thực đơn & Chi tiết Quán (`ui/menu/`):**
+  - `MenuActivity.kt` & `MenuViewModel.kt`: Hiển thị thông tin quán, danh sách món ăn & Combo (`MenuAdapter`).
+  - `DishOptionBottomSheetDialogFragment.kt`: Hộp thoại chọn size, topping, số lượng trước khi thêm vào giỏ.
+  - `DishReviewsBottomSheetDialogFragment.kt`: Hộp thoại xem danh sách đánh giá sao và bình luận của món ăn (`DishReviewsAdapter`).
+- **Giỏ hàng, Đặt hàng & Thanh toán (`ui/cart/`, `ui/checkout/`, `ui/payment/`):**
+  - `CartActivity.kt` & `CartAdapter.kt`: Xem và chỉnh sửa các món đã chọn trong giỏ.
+  - `CheckoutActivity.kt` & `CheckoutViewModel.kt`: Chọn địa chỉ, tính phí ship, chọn thanh toán COD / VietQR / Đặt cọc 20%, xử lý đặt cọc `DEPOSIT`.
+  - `SelectLocationActivity.kt`: Bản đồ Google Maps cho phép khách kéo ghim chọn chính xác tọa độ giao hàng.
+  - `PaymentActivity.kt`: Hiển thị mã QR chuyển khoản ngân hàng VietQR / MoMo kèm đếm ngược thanh toán.
+  - `OrderSuccessActivity.kt`: Thông báo đặt hàng thành công và chuyển hướng theo dõi đơn.
+- **Theo dõi Đơn hàng & Tương tác (`ui/tracking/`, `ui/order/`):**
+  - `TrackingActivity.kt` & `TrackingViewModel.kt`: Theo dõi tiến trình đơn hàng thời gian thực, bản đồ GPS Shipper, hiển thị mã QR `#OISHI_XXXXXX` và mã PIN 6 số, nút hủy đơn (bao gồm hủy khi đang giao kèm trừ điểm uy tín COD).
+  - `ChatStoreBottomSheetDialogFragment.kt`: Hộp thoại nhắn tin thời gian thực giữa Khách hàng và Quán ăn.
+  - `IncidentProofBottomSheetDialogFragment.kt`: Xem hình ảnh bằng chứng sự cố do tài xế gửi lên.
+  - `OrderHistoryActivity.kt` & `OrderHistoryFragment.kt`: Danh sách đơn hàng đang giao và lịch sử đơn cũ, tích hợp chấm sao đánh giá món ăn.
+- **Khiếu nại, Thông báo & Hồ sơ (`ui/complaint/`, `ui/notification/`, `ui/profile/`):**
+  - `ComplaintActivity.kt`: Form gửi khiếu nại đơn hàng kèm ảnh chụp minh chứng.
+  - `CustomerComplaintTrackingActivity.kt` & `CustomerComplaintDetailBottomSheet.kt`: Theo dõi danh sách và kết quả xử lý khiếu nại.
+  - `NotificationActivity.kt` & `CustomerFCMService.kt`: Quản lý danh sách thông báo và nhận Push Notification.
+  - `ProfileActivity.kt` & `ProfileFragment.kt`: Quản lý thông tin cá nhân, sổ địa chỉ (`AddressBookAdapter`) và xem chi tiết Điểm uy tín (`bottom_sheet_trust_score_detail.xml`).
+
+#### III. Module `app-internal` (Ứng dụng Nội bộ: Quán ăn, Chủ chuỗi & Tài xế)
+- **Xác thực & Định danh (`ui/auth/`):**
+  - `LoginActivity.kt`, `RegisterActivity.kt`, `OtpVerificationActivity.kt`, `SelectLocationActivity.kt`: Đăng nhập/đăng ký phân quyền nội bộ (Merchant, Boss, Driver) và ghim tọa độ quán.
+  - `StoreVerificationActivity.kt`: Tải ảnh CCCD (quét OCR tự động) và giấy phép để xác minh mở quán.
+- **Phân hệ Chủ chuỗi (`ui/boss/`):**
+  - `BossDashboardActivity.kt`, `BossBranchAdapter.kt`, `BossMerchantAdapter.kt`: Quản lý danh sách chi nhánh, tạo chi nhánh mới, tạo tài khoản quản lý và gán quyền vận hành từng chi nhánh.
+- **Phân hệ Quán ăn (`ui/shop/`, `ui/driver/`):**
+  - `DashboardActivity.kt`: Màn hình điều hướng chính của Quán ăn và Tài xế.
+  - `OrderListFragment.kt`, `OrderAdapter.kt`, `ShopViewModel.kt`: Quản lý đơn hàng theo 4 tab Kanban, chuông báo đơn mới, quy trình bếp, xử lý yêu cầu hủy đơn và nhận lại hàng hoàn trả.
+  - `ChatCustomerBottomSheetDialogFragment.kt`: Cửa sổ chat trực tiếp từ phía Quán tới Khách hàng.
+  - `MenuManageFragment.kt`, `ManageDishAdapter.kt`, `ManageStoreCategoryAdapter.kt`, `SelectComboDishAdapter.kt`: Quản lý toàn bộ món ăn, danh mục quán và tạo gói Combo.
+  - `StoreReportFragment.kt` & `BestSellerDishAdapter.kt`: Thống kê doanh thu, số lượng đơn và xếp hạng món bán chạy nhất.
+  - `StoreProfileFragment.kt`: Chỉnh sửa hồ sơ quán, trạng thái đóng/mở cửa và tài khoản ngân hàng nhận VietQR.
+  - `DriverListFragment.kt` & `DriverAdapter.kt`: Quản lý danh sách tài xế nội bộ của cửa hàng.
+- **Phân hệ Tài xế (`ui/ship/`):**
+  - `ShipperFragment.kt`, `ShipperViewModel.kt`, `DriverPendingOrdersAdapter.kt`, `DriverActiveOrdersAdapter.kt`: Sảnh nhận đơn của tài xế, hỗ trợ nhận đơn lẻ hoặc ghép chặng đa đơn hàng.
+  - `DeliveryTripActivity.kt`: Màn hình bản đồ dẫn đường giao hàng đa điểm, chọn đơn giao trước/sau, thanh trượt cập nhật trạng thái, quét mã QR / nhập PIN hoàn tất đơn, báo cáo sự cố khách không liên lạc được (đếm ngược 15 phút 2 vòng) và luồng trả món về quán.
+  - `ShipperIncomeFragment.kt` & `ShipperIncomeAdapter.kt`: Thống kê thu nhập tài xế và lịch sử chuyến giao.
+  - `ShipperProfileFragment.kt`: Quản lý hồ sơ cá nhân và phương tiện của tài xế.
+- **Các Dịch vụ Chạy ngầm (`service/`):**
+  - `BankNotificationListenerService.kt`: Tự động đọc thông báo nhận tiền ngân hàng để xác nhận thanh toán VietQR.
+  - `LocationForegroundService.kt`: Dịch vụ chạy nền phát tọa độ GPS của tài xế liên tục lên Firebase.
+  - `MerchantKeepAliveService.kt` & `InternalFCMService.kt`: Giữ kết nối nhận đơn tức thời cho quán ăn và nhận thông báo đẩy.
+
+#### IV. Module `app-admin` (Ứng dụng Quản trị viên Hệ thống)
+- `AdminLoginActivity.kt` & `AdminMainActivity.kt`: Đăng nhập quản trị viên và điều hướng 5 phân mục quản trị.
+- `AdminDashboardFragment.kt`: Bảng thống kê toàn hệ thống và hộp thoại cấu hình thời gian đếm ngược sự cố (`dialog_edit_countdown_config.xml`).
+- `AdminStoreListFragment.kt`, `AdminStoreDetailBottomSheetDialogFragment.kt`, `EditStoreDialogFragment.kt`: Kiểm duyệt hồ sơ mở quán mới, chỉnh sửa thông tin và áp dụng chế tài phạt quán (`dialog_apply_store_penalty.xml`).
+- `AdminCategoryListFragment.kt` & `AddEditCategoryDialogFragment.kt`: Quản lý danh mục ẩm thực toàn hệ thống.
+- `AdminMonitorFragment.kt`, `EditOrderDialogFragment.kt`, `EditUserDialogFragment.kt`: Giám sát toàn bộ đơn hàng và tài khoản người dùng, điều chỉnh điểm uy tín (`TrustScore`) và khóa/mở khóa tài khoản.
+- `AdminComplaintListFragment.kt`, `AdminComplaintDetailActivity.kt`, `ResolveComplaintDialogFragment.kt`: Tiếp nhận, thẩm tra bằng chứng và giải quyết khiếu nại của khách hàng.
+
+---
+
+### 2.1.11 Sơ đồ luồng xử lý tổng quát & Chi tiết các mối liên hệ kỹ thuật quan trọng
+
+#### A. Các bước luồng xử lý tổng quát toàn hệ thống
+1. **Chủ quán** đăng ký tài khoản trên `app-internal`, quét OCR Căn cước công dân (`StoreVerificationActivity`) gửi yêu cầu mở quán.
+2. **Admin** đăng nhập `app-admin`, kiểm tra hồ sơ và phê duyệt kích hoạt cửa hàng.
+3. **Chủ quán** thiết lập danh mục món, đăng tải các món ăn, tùy chọn Topping/Size và gói Combo (`MenuManageFragment`).
+4. **Khách hàng** mở `app-customer`, duyệt quán ăn gần vị trí GPS, chọn món/combo vào giỏ hàng (`CartActivity`).
+5. **Khách hàng** chọn địa chỉ giao hàng trên bản đồ (`SelectLocationActivity`), hệ thống tính phí ship tự động; khách chọn thanh toán COD, VietQR hoặc MoMo (`CheckoutActivity`).
+6. Nếu khách thanh toán VietQR, `BankNotificationListenerService` tại máy của quán tự động nhận diện biến động số dư và duyệt đơn sang `PAID`.
+7. **Quán ăn** nhận chuông báo động đơn mới (`OrderListFragment`), bấm xác nhận chế biến (`PREPARING`) và khi nấu xong bấm báo hoàn tất bếp (`READY`).
+8. **Tài xế** đang bật trực tuyến trên `app-internal` (`ShipperFragment`) nhìn thấy đơn `READY`, bấm nhận đơn (hoặc ghép 2–3 đơn cùng tuyến) và bắt đầu hành trình (`DeliveryTripActivity`).
+9. **Tài xế** di chuyển đến quán, kiểm tra túi món ăn và gạt thanh trượt *"Xác nhận đã lấy hàng"*, chuyển trạng thái đơn sang `DELIVERING`.
+10. `LocationForegroundService` trên máy tài xế liên tục đẩy tọa độ GPS lên nhánh `/tracking/$shipperId`; **Khách hàng** nhìn thấy xe máy của tài xế di chuyển trực tiếp trên bản đồ (`TrackingActivity`).
+11. Khi đến địa chỉ giao, **Tài xế** gạt thanh trượt *"Đã đến nhà khách"* (`ARRIVED_AT_CUSTOMER`).
+12. **Trường hợp 1 (Giao thành công):** Khách hàng đưa mã QR `#OISHI_XXXXXX` hoặc đọc mã PIN 6 số; Tài xế quét QR / nhập PIN trùng khớp ➔ Đơn hàng chuyển sang `COMPLETED` ➔ Cộng doanh thu cho Quán & Thu nhập cho Tài xế ➔ Khách hàng đánh giá sao cho món ăn.
+13. **Trường hợp 2 (Khách chủ động bấm Hủy khi đang giao):** Khách bấm nút Hủy đơn trên `TrackingActivity` ➔ Đơn chuyển sang `RETURNING_TO_STORE` (nếu đơn COD thì trừ ngay 30 điểm uy tín của khách) ➔ Tài xế nhận thông báo quay đầu mang món về trả cho quán (`RETURNED_TO_STORE`).
+14. **Trường hợp 3 (Khách không liên lạc được):** Tài xế bấm Báo sự cố, gọi 3 cuộc, chụp ảnh bằng chứng ➔ Hệ thống đếm ngược 15 phút Vòng 1 và Vòng 2 ➔ Nếu hết giờ khách vẫn không nhận, chuyển trạng thái bom hàng (`BOOM` / `RETURNING_TO_STORE`), trừ điểm uy tín khách và hoàn món về quán.
+
+#### B. Sơ đồ Mối liên hệ và Luồng vận hành giữa các phân hệ
+```mermaid
+graph TD
+    subgraph ADMIN_FLOW [1. Luồng Quản trị viên - app-admin]
+        AD1[Duyệt OCR Cửa hàng mới] --> DB_STORES[(Firebase: /stores)]
+        AD2[Cấu hình Đếm ngược & Phí ship] --> DB_CFG[(Firebase: /system_config)]
+        AD3[Xử lý Khiếu nại & Khóa User] --> DB_USERS[(Firebase: /users)]
+    end
+
+    subgraph MERCHANT_FLOW [2. Luồng Quán ăn & Chủ chuỗi - app-internal]
+        M1[Quản lý Món ăn & Combo] --> DB_DISHES[(Firebase: /dishes & /combos)]
+        M2[BankNotificationListenerService] -->|Tự động duyệt VietQR| DB_ORDERS[(Firebase: /orders)]
+        M3[Quy trình Bếp: Nhận -> Nấu -> Xong] --> DB_ORDERS
+    end
+
+    subgraph CUSTOMER_FLOW [3. Luồng Khách hàng - app-customer]
+        C1[HomeActivity & MenuActivity] -->|Đọc Quán & Thực đơn| DB_STORES
+        C2[CheckoutActivity & PaymentActivity] -->|Tạo đơn mới| DB_ORDERS
+        C3[TrackingActivity: Xem GPS & Mở QR/PIN] <-->|Realtime Sync| DB_ORDERS
+        C4[Hủy đơn đang giao COD] -->|Trừ 30 điểm uy tín| DB_USERS
+    end
+
+    subgraph SHIPPER_FLOW [4. Luồng Tài xế - app-internal]
+        S1[ShipperFragment: Ghép 3 đơn] --> DB_ORDERS
+        S2[LocationForegroundService] -->|Đẩy GPS liên tục| DB_TRACK[(Firebase: /tracking)]
+        DB_TRACK -->|Hiển thị xe di chuyển| C3
+        S3[DeliveryTripActivity: Quét QR / Nhập PIN] -->|Hoàn tất COMPLETED| DB_ORDERS
+        S4[Báo sự cố gọi nhỡ 15p Vòng 1 & 2] -->|RETURNING_TO_STORE| DB_ORDERS
+    end
+```
+
+#### C. Chi tiết các mối liên hệ kỹ thuật quan trọng trong mã nguồn
+1. **Mối liên hệ giữa `BankNotificationListenerService` và Tự động duyệt đơn VietQR:**
+   - Khi khách hàng đặt đơn chọn phương thức `BANKING` (VietQR), đơn hàng được tạo với `status = AWAITING_PAYMENT` và mã định danh `#OISHI_XXXXXX`.
+   - Trên thiết bị của chủ quán, `BankNotificationListenerService` kế thừa `NotificationListenerService` của Android để lắng nghe các thông báo đẩy từ ứng dụng ngân hàng (MBBank, Vietcombank, BIDV, Techcombank...).
+   - Khi phát hiện nội dung thông báo có chứa mã đơn và số tiền khớp với `totalPayment`, dịch vụ tự động gọi `FirebaseRepository` cập nhật `paymentStatus = PAID` và chuyển `status = PAID`, giúp quán ăn đưa đơn vào bếp nấu ngay mà không cần kiểm tra thủ công.
+2. **Mối liên hệ giữa Hành trình Ghép đơn (`DeliveryTripActivity`) và Đồng bộ trạng thái độc lập từng đơn:**
+   - Khi tài xế nhận ghép nhiều đơn (ví dụ 3 đơn hàng trong cùng chuyến đi), tài xế có thể chạm vào thẻ của bất kỳ khách hàng nào để giao trước.
+   - Ngay khi tài xế gạt thanh trượt *"Đã đến nhà khách"* ở Đơn 1, hệ thống lập tức lưu `status = ARRIVED_AT_CUSTOMER` lên nhánh `/orders/$orderId1` và ghi nhớ bước hiện tại (`step = 4`) trong bộ nhớ phiên làm việc.
+   - Nhờ đó, nếu tài xế chuyển sang xem Đơn 2 rồi quay lại Đơn 1, hoặc khi hoàn tất Đơn 1 và hệ thống tự động chuyển sang Đơn 2, trạng thái của từng đơn luôn được khôi phục chính xác từ trạng thái thực tế trên Firebase, tuyệt đối không xảy ra lỗi lùi bước hay nhảy sai màn hình.
+3. **Mối liên hệ giữa Hủy đơn đang giao, Điểm uy tín (`TrustScore`) và Trình giám sát Khóa tài khoản (`AccountLockWatcher`):**
+   - Khi khách hàng bấm nút hủy đơn lúc đơn đang ở trạng thái `DELIVERING` hoặc `ARRIVED_AT_CUSTOMER`, hàm xử lý trong `TrackingActivity` cập nhật trạng thái đơn sang `RETURNING_TO_STORE`.
+   - Phía máy tài xế (`DeliveryTripActivity`) nhận được sự kiện thay đổi trạng thái tức thời, lập tức hiển thị thông báo yêu cầu tài xế dừng giao và mang món ăn quay về quán.
+   - Đồng thời, nếu đơn hàng là `COD`, hệ thống truy cập nhánh `/users/$customerId`, giảm `trustScore` đi 30 điểm và ghi một bản ghi `TrustScoreLog` vào `/trust_score_logs/$customerId`.
+   - Nếu `trustScore` giảm xuống dưới 20 điểm (hệ thống tự gán `status = LOCKED`, `lockReason = "Điểm uy tín dưới 20 điểm do bom hàng COD"`) hoặc Admin bấm khóa tài khoản trong `AdminMonitorFragment`, `AccountLockWatcher` đang lắng nghe ngầm trên máy khách sẽ lập tức hiển thị hộp thoại thông báo khóa tài khoản và xóa phiên đăng nhập.
+
+---
+
+## 2.2 THIẾT KẾ HỆ THỐNG (SDS - SOFTWARE DESIGN SPECIFICATION)
+
+### 2.2.1 Thiết kế Kiến trúc Đa Module (Multi-Module Architecture)
+Hệ thống được thiết kế theo kiến trúc phân tầng **MVVM (Model – View – ViewModel)** kết hợp tổ chức **4 Modules Gradle độc lập**:
+- **`core` (Android Library Module):** Chứa toàn bộ logic nghiệp vụ nền tảng, Models, Repositories và Utilities. Cả 3 ứng dụng đều phụ thuộc (`implementation(project(":core"))`) vào module này, đảm bảo tính nhất quán dữ liệu 100% trên toàn hệ thống.
+- **`app-customer` (Android Application Module - Package `com.chuyen_de_2.foodorder.customer`):** Đóng gói thành file APK dành riêng cho Khách hàng với dung lượng nhẹ, giao diện tối ưu cho trải nghiệm mua sắm.
+- **`app-internal` (Android Application Module - Package `com.chuyen_de_2.foodorder.internal`):** Đóng gói thành file APK dành cho Đối tác vận hành (Quán ăn, Chủ chuỗi và Tài xế giao hàng).
+- **`app-admin` (Android Application Module - Package `com.chuyen_de_2.foodorder.admin`):** Đóng gói thành file APK chuyên dụng cho Ban quản trị sàn.
+
+### 2.2.2 Thiết kế Cơ sở dữ liệu Firebase Realtime Database chi tiết
+
+| Tên Nhánh (Node) | Khóa Chính (Key) | Các thuộc tính chính lưu trữ | Mô tả chức năng của nhánh |
+|:---|:---|:---|:---|
+| **`/users`** | `userId` (UID) | `userId`, `name`, `email`, `phone`, `role` (`ADMIN`/`CUSTOMER`/`MERCHANT`/`DRIVER` – theo `Role.DEFAULT_ROLES`), `status` (`ACTIVE`/`LOCKED`), `trustScore`, `avatarUrl`, `storeId`, `vehiclePlate` | Lưu trữ thông tin định danh, phân quyền vai trò và điểm uy tín của toàn bộ người dùng. |
+| **`/stores`** | `storeId` | `id`, `name`, `address`, `latitude`, `longitude`, `phone`, `imageUrl`, `isOpen`, `rating`, `reviewCount`, `ownerId`, `bossId`, `bankId`, `bankAccountNo`, `bankAccountName`, `verificationStatus`, `cccdNumber`, `penaltyCount` | Lưu trữ thông tin các cửa hàng/chi nhánh, tọa độ bản đồ, cấu hình tài khoản nhận tiền VietQR và trạng thái duyệt OCR. |
+| **`/categories`** | `categoryId` | `id`, `name`, `iconUrl`, `orderIndex`, `storeId` (nếu là danh mục riêng của quán) | Lưu trữ danh mục ẩm thực toàn hệ thống và danh mục phân loại món riêng của từng quán. |
+| **`/dishes`** | `dishId` | `id`, `storeId`, `categoryId`, `name`, `description`, `price`, `imageUrl`, `isAvailable`, `soldCount`, `rating`, `options` (List `DishOption`) | Lưu trữ danh sách món ăn của các cửa hàng kèm các nhóm tùy chọn Size, Đá, Đường, Topping. |
+| **`/combos`** | `comboId` | `id`, `storeId`, `name`, `description`, `originalPrice`, `comboPrice`, `imageUrl`, `dishIds`, `isAvailable` | Lưu trữ các gói Combo nhiều món ăn giảm giá do quán thiết lập. |
+| **`/orders`** | `orderId` (`OISHI_...`) | `orderId`, `customerId`, `customerName`, `customerPhone`, `address`, `latitude`, `longitude`, `storeId`, `storeName`, `shipperId`, `shipperName`, `shipperPhone`, `status`, `items`, `total`, `shippingFee`, `totalPayment`, `paymentMethod`, `paymentMode`, `paymentStatus`, `pickupPin`, `qrToken`, `cancelRequested`, `cancelReason`, `countdownRound`, `countdownStartTime`, `incidentProofUrl`, `createdAt` | Lưu trữ toàn bộ thông tin đơn hàng, trạng thái vận chuyển, mã xác thực QR/PIN và dữ liệu xử lý sự cố. |
+| **`/tracking`** | `shipperId` & `chats_{orderId}` | • Nhánh `/{shipperId}`: `latitude`, `longitude`, `bearing`, `updatedAt`<br>• Nhánh `/chats_{orderId}/{msgId}`: `sender`, `senderName`, `message`, `timestamp` | Lưu trữ tọa độ GPS di chuyển thời gian thực của tài xế và phòng tin nhắn chat giữa Khách và Quán. |
+| **`/dish_reviews`** | `{dishId}/{reviewId}` | `reviewId`, `orderId`, `dishId`, `customerId`, `customerName`, `rating`, `comment`, `createdAt` | Lưu trữ đánh giá sao và nhận xét của khách hàng cho từng món ăn. |
+| **`/complaints`** | `complaintId` | `id`, `orderId`, `customerId`, `customerName`, `storeId`, `shipperId`, `title`, `description`, `evidenceImageUrl`, `status` (`PENDING`/`RESOLVED`/`REJECTED`), `adminResponse`, `createdAt` | Lưu trữ hồ sơ khiếu nại của khách hàng và phán quyết xử lý từ Admin. |
+| **`/trust_score_logs`** | `{userId}/{logId}` | `logId`, `userId`, `orderId`, `delta` (ví dụ `-30`, `+5`), `newScore`, `reason`, `timestamp` | Lưu trữ nhật ký biến động cộng/trừ điểm uy tín của khách hàng. |
+| **`/notifications`** | `{userId}/{notifId}` | `id`, `title`, `body`, `type`, `orderId`, `isRead`, `createdAt` | Lưu trữ danh sách thông báo của từng người dùng. |
+| **`/system_config`** | `configKey` | `round1Minutes` (mặc định 15), `round2Minutes` (mặc định 15), `updatedAt` (theo model `DeliveryCountdownConfig`) | Lưu trữ các tham số cấu hình động của toàn hệ thống do Admin thiết lập. |
+
+---
+
+### 2.2.3 Sơ đồ Lớp (Class Diagram) toàn hệ thống
+
+**[CHỖ CHÈN ẢNH SƠ ĐỒ 2: Hình Sơ đồ Lớp (Class Diagram) của Hệ thống Oishi Food]**
+
+```mermaid
+classDiagram
+    class User {
+        +String userId
+        +String name
+        +String email
+        +String phone
+        +Role role
+        +UserStatus status
+        +Int trustScore
+        +String storeId
+    }
+    class Store {
+        +String id
+        +String name
+        +String address
+        +Double latitude
+        +Double longitude
+        +Boolean isOpen
+        +String bankId
+        +String bankAccountNo
+        +String verificationStatus
+    }
+    class Dish {
+        +String id
+        +String storeId
+        +String categoryId
+        +String name
+        +Double price
+        +Boolean isAvailable
+        +Int soldCount
+        +List~DishOption~ options
+    }
+    class Combo {
+        +String id
+        +String storeId
+        +String name
+        +Double originalPrice
+        +Double comboPrice
+        +List~String~ dishIds
+    }
+    class Order {
+        +String orderId
+        +String customerId
+        +String storeId
+        +String shipperId
+        +String status
+        +Double totalPayment
+        +String paymentMethod
+        +String paymentMode
+        +String pickupPin
+        +String qrToken
+        +Int countdownRound
+        +Map~String, CartItem~ items
+    }
+    class Complaint {
+        +String id
+        +String orderId
+        +String customerId
+        +String description
+        +String evidenceImageUrl
+        +String status
+        +String adminResponse
+    }
+    class TrustScoreLog {
+        +String logId
+        +String userId
+        +String orderId
+        +Int delta
+        +Int newScore
+        +String reason
+    }
+    class FirebaseRepository {
+        +createOrder(Order)
+        +updateOrderStatus(String, String)
+        +assignShipperToOrder(String, User)
+        +verifyQrOrPin(String, String)
+        +cancelOrderWhileDelivering(Order)
+        +updateTrustScore(String, Int, String)
+        +submitComplaint(Complaint)
+    }
+
+    User "1" --> "*" Order : đặt đơn / giao đơn
+    User "1" --> "*" TrustScoreLog : lịch sử uy tín
+    User "1" --> "*" Complaint : gửi khiếu nại
+    Store "1" --> "*" Dish : có món ăn
+    Store "1" --> "*" Combo : có combo
+    Store "1" --> "*" Order : chế biến
+    Order "1" --> "0..1" Complaint : phát sinh
+    FirebaseRepository ..> User : quản lý
+    FirebaseRepository ..> Store : quản lý
+    FirebaseRepository ..> Order : đồng bộ realtime
+```
+
+---
+
+### 2.2.4 Sơ đồ Tuần tự (Sequence Diagrams) cho các luồng nghiệp vụ phức tạp
+
+#### A. Sơ đồ tuần tự 1: Luồng Đặt hàng, Tự động duyệt VietQR, Chế biến và Giao hàng QR/PIN
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Khách Hàng (app-customer)
+    actor M as Quán Ăn (app-internal)
+    actor S as Tài Xế (app-internal)
+    participant FB as Firebase Realtime DB
+
+    C->>FB: Đặt đơn hàng VietQR (Status = AWAITING_PAYMENT)
+    C->>C: Quét mã VietQR chuyển khoản ngân hàng
+    M->>M: BankNotificationListenerService đọc biến động số dư
+    M->>FB: Tự động cập nhật paymentStatus = PAID, status = PAID
+    FB-->>M: Phát chuông báo đơn mới & hiện Popup
+    M->>FB: Bấm "Xác nhận & Nấu món" (Status = PREPARING)
+    M->>FB: Bấm "Xác nhận đã nấu xong" (Status = READY)
+    FB-->>S: Hiển thị đơn trong danh sách chờ nhận (ShipperFragment)
+    S->>FB: Bấm nhận đơn / Ghép chuyến (Status = ASSIGNED)
+    S->>FB: Đến quán & Gạt "Xác nhận lấy hàng" (Status = DELIVERING)
+    loop Mỗi 3–5 giây khi đang giao
+        S->>FB: LocationForegroundService cập nhật tọa độ /tracking/{shipperId}
+        FB-->>C: Cập nhật Marker xe máy trên bản đồ TrackingActivity
+    end
+    S->>FB: Đến điểm giao & Gạt "Đã đến nhà khách" (Status = ARRIVED_AT_CUSTOMER)
+    C->>S: Đưa mã QR (#OISHI_XXXXXX) hoặc đọc mã PIN 6 số
+    S->>FB: Quét QR / Nhập PIN hợp lệ -> Cập nhật Status = COMPLETED
+    FB-->>C: Thông báo giao thành công & Mời đánh giá món ăn
+    FB-->>M: Cộng doanh thu đơn vào thống kê hôm nay
+```
+
+#### B. Sơ đồ tuần tự 2: Luồng Khách hàng hủy đơn khi đang giao & Trừ điểm uy tín COD
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Khách Hàng (TrackingActivity)
+    participant FB as Firebase Realtime DB
+    actor S as Tài Xế (DeliveryTripActivity)
+    actor M as Quán Ăn (OrderListFragment)
+
+    Note over C,S: Đơn hàng đang ở trạng thái DELIVERING hoặc ARRIVED_AT_CUSTOMER
+    C->>C: Bấm nút "Hủy Đơn Hàng (Không nhận nữa)"
+    C->>C: Hiển thị hộp thoại cảnh báo (Trừ 10 điểm nếu COD/Cọc; Không trừ nếu đã trả hết 100%)
+    C->>FB: Xác nhận hủy -> Nếu đang giao (DELIVERING) đổi Status = RETURNING_TO_STORE
+    alt Đơn hàng là COD hoặc Đặt cọc (DEPOSIT)
+        C->>FB: Giảm trustScore đi 10 điểm & Ghi TrustScoreLog
+    else Đơn hàng Đã trả hết 100% (VietQR FULL)
+        Note over C,FB: Không trừ điểm uy tín của khách
+    end
+    FB-->>S: Báo động đơn bị hủy! Yêu cầu quay về quán trả món
+    FB-->>M: Cập nhật thẻ đơn sang "🚨 ĐANG TRẢ MÓN VỀ QUÁN"
+    S->>M: Di chuyển mang túi đồ ăn quay về bàn giao cho quán
+    M->>FB: Xác nhận đã nhận lại món -> Đổi Status = RETURNED_TO_STORE
+```
+
+---
+
+
+### 2.2.5 Sơ đồ trạng thái vòng đời đơn hàng (Order State Machine)
+
+**[CHỖ CHÈN ẢNH SƠ ĐỒ 6: Sơ đồ trạng thái vòng đời đơn hàng]**
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING : Đặt COD
+    [*] --> AWAITING_PAYMENT : Đặt VietQR/MoMo/Đặt cọc
+    AWAITING_PAYMENT --> PAID : Nhận tiền (BankNotificationListener / quán duyệt)
+    PENDING --> PREPARING : Quán xác nhận đơn
+    PAID --> PREPARING : Quán xác nhận & nấu
+    PENDING --> CANCELLED : Khách hủy / Quán từ chối
+    PREPARING --> CANCELLED : Quán đồng ý yêu cầu hủy
+    PREPARING --> READY : Báo nấu xong
+    READY --> ASSIGNED : Tài xế nhận đơn
+    ASSIGNED --> ARRIVED_AT_SHOP : Tài xế đến quán
+    ARRIVED_AT_SHOP --> DELIVERING : Tài xế gạt lấy hàng
+    DELIVERING --> ARRIVED_AT_CUSTOMER : Gạt đã đến nhà khách
+    ARRIVED_AT_CUSTOMER --> COMPLETED : Quét QR / nhập PIN đúng
+    DELIVERING --> RETURNING_TO_STORE : Khách hủy khi đang giao
+    ARRIVED_AT_CUSTOMER --> RETURNING_TO_STORE : Khách hủy / hết 2 vòng đếm ngược
+    ARRIVED_AT_CUSTOMER --> BOOM : Khách bom hàng
+    BOOM --> RETURNING_TO_STORE
+    RETURNING_TO_STORE --> RETURNED_TO_STORE : Quán nhận lại món
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+    RETURNED_TO_STORE --> [*]
+```
+
+| Trạng thái | Ý nghĩa | Ai chuyển sang trạng thái này |
+|:---|:---|:---|
+| `PENDING` | Đơn COD mới, chờ quán xác nhận | Khách hàng |
+| `AWAITING_PAYMENT` | Chờ khách chuyển khoản VietQR/MoMo hoặc tiền cọc | Khách hàng |
+| `PAID` | Đã nhận tiền, chờ quán nấu | Dịch vụ đọc thông báo ngân hàng / Quán |
+| `PREPARING` | Bếp đang chế biến | Quán |
+| `READY` | Nấu xong, phát đơn cho tài xế | Quán |
+| `ASSIGNED` / `ARRIVED_AT_SHOP` | Tài xế đã nhận / đã đến quầy | Tài xế |
+| `DELIVERING` | Tài xế đã lấy món, đang giao | Tài xế |
+| `ARRIVED_AT_CUSTOMER` | Tài xế đã đến điểm giao | Tài xế |
+| `COMPLETED` | Giao thành công (+2 điểm uy tín cho khách) | Tài xế (quét QR/PIN) |
+| `CANCELLED` | Đơn bị hủy trước khi giao | Khách / Quán |
+| `RETURNING_TO_STORE` / `BOOM` | Đang mang món về quán (đơn COD: −30 điểm) | Khách hủy / Tài xế báo bom |
+| `RETURNED_TO_STORE` | Quán đã nhận lại món | Quán |
+
+---
+
+## 2.3 ĐẶC TẢ CHI TIẾT GIAO DIỆN VÀ YÊU CẦU CHỨC NĂNG TỪNG MÀN HÌNH (32 MÀN HÌNH)
+
+> **HƯỚNG DẪN CHÈN ẢNH:** Trong mục này, mỗi màn hình đều đã được phân tích chi tiết theo đúng chuẩn bảng **4 cột (`Mục | Mô tả | Hành động | Phản hồi`)** của tài liệu mẫu và chừa sẵn vị trí **`[CHỖ CHÈN ẢNH ...]`** để bạn dán ảnh chụp màn hình tương ứng vào.
+
+---
+
+### PHẦN A: CÁC MÀN HÌNH ỨNG DỤNG KHÁCH HÀNG (`app-customer`)
+
+---
+
+#### 2.3.1 Tính năng / Thành phần #1: Màn hình Đăng nhập Khách hàng (`LoginActivity`)
+##### 2.3.1.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 1: Màn hình Đăng nhập ứng dụng Khách hàng (`activity_login.xml`)]**
+
+##### 2.3.1.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Màn hình Đăng nhập** | Giao diện cho phép khách hàng đăng nhập vào ứng dụng Oishi Food bằng Email/SĐT và Mật khẩu | N/A | N/A |
+| **Logo & Tiêu đề thương hiệu** | Hiển thị biểu tượng tô mì Oishi Food và tiêu đề chào mừng người dùng quay trở lại | N/A | N/A |
+| **Ô nhập "Email hoặc Số điện thoại"** | Cho phép người dùng nhập địa chỉ email hoặc số điện thoại đã đăng ký | Chạm vào ô nhập và gõ bàn phím | Hiển thị chuỗi ký tự email/số điện thoại vừa nhập |
+| **Ô nhập "Mật khẩu"** | Cho phép người dùng nhập mật khẩu bảo mật của tài khoản | Chạm vào ô mật khẩu và nhập dữ liệu | Hiển thị ký tự ẩn dạng dấu chấm tròn và nút bật/tắt xem mật khẩu |
+| **Nút "Đăng nhập"** | Thực hiện xác thực thông tin tài khoản với Firebase Authentication | Chạm vào nút "Đăng nhập" | Kiểm tra hợp lệ; nếu đúng và tài khoản không bị khóa sẽ chuyển sang `HomeActivity`, nếu sai báo lỗi Toast |
+| **Liên kết "Chưa có tài khoản? Đăng ký ngay"** | Điều hướng người dùng mới sang màn hình tạo tài khoản | Chạm vào dòng chữ "Đăng ký ngay" | Mở màn hình `RegisterActivity` |
+
+---
+
+#### 2.3.2 Tính năng / Thành phần #2: Màn hình Đăng ký & Xác thực OTP (`RegisterActivity` & `OtpVerificationActivity`)
+##### 2.3.2.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 2A: Màn hình Đăng ký tài khoản Khách hàng (`activity_register.xml`)]**
+- **[CHỖ CHÈN ẢNH 2B: Màn hình Nhập mã xác thực OTP Email (`activity_otp_verification.xml`)]**
+
+##### 2.3.2.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Ô nhập "Họ và tên"** | Cho phép người dùng nhập tên hiển thị khi đặt hàng | Chạm và nhập họ tên | Hiển thị nội dung họ tên đã nhập |
+| **Ô nhập "Địa chỉ Email"** | Nhập email dùng để đăng nhập và nhận mã xác thực OTP 6 số | Chạm và nhập địa chỉ email | Kiểm tra định dạng email hợp lệ |
+| **Ô nhập "Số điện thoại"** | Nhập số điện thoại liên lạc khi giao hàng | Chạm và nhập số điện thoại 10 số | Kiểm tra chuẩn đầu số điện thoại Việt Nam (`PhoneNumberUtils`) |
+| **Ô nhập "Mật khẩu" & "Xác nhận mật khẩu"** | Thiết lập mật khẩu bảo vệ tài khoản (tối thiểu 6 ký tự) | Chạm và nhập mật khẩu | Kiểm tra khớp mật khẩu giữa 2 ô |
+| **Nút "Tiếp tục / Nhận mã OTP"** | Gửi yêu cầu sinh mã OTP và gửi về hộp thư Email đã nhập | Chạm vào nút "Đăng ký" | Gọi `EmailOtpApi`, gửi thông báo mã OTP và chuyển sang màn hình `OtpVerificationActivity` |
+| **6 Ô nhập mã "OTP"** | Cho phép nhập 6 chữ số xác thực nhận được từ Email | Nhập 6 chữ số OTP | Tự động nhảy con trỏ sang ô kế tiếp khi nhập từng số |
+| **Nút "Xác nhận OTP"** | Kiểm tra mã OTP người dùng nhập với phiên `OtpSessionManager` | Chạm vào nút "Xác nhận" | Nếu trùng khớp sẽ khởi tạo tài khoản trên Firebase với `role = CUSTOMER`, `trustScore = 100` và vào trang chủ |
+| **Nút "Gửi lại mã OTP"** | Yêu cầu gửi lại mã mới khi hết thời gian đếm ngược 60 giây | Chạm vào "Gửi lại mã" | Gửi mã OTP mới và đặt lại đồng hồ đếm ngược |
+
+---
+
+#### 2.3.3 Tính năng / Thành phần #3: Màn hình Trang chủ Khách hàng & Lọc nâng cao (`HomeActivity`)
+##### 2.3.3.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 3A: Màn hình Trang chủ Khách hàng hiển thị Danh mục, Món Hot & Quán gần bạn (`activity_home.xml`)]**
+- **[CHỖ CHÈN ẢNH 3B: Hộp thoại Bộ lọc tìm kiếm nâng cao (`bottom_sheet_advanced_filter.xml`)]**
+
+##### 2.3.3.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Thanh Địa chỉ hiện tại & GPS** | Hiển thị vị trí nhận hàng hiện tại của khách hàng ở đầu trang | Chạm vào thanh địa chỉ | Mở hộp thoại chọn địa chỉ hoặc lấy lại tọa độ GPS hiện tại |
+| **Ô Tìm kiếm món ăn / quán ăn** | Tìm kiếm nhanh món ăn hoặc tên cửa hàng theo từ khóa | Gõ từ khóa vào thanh tìm kiếm | Lọc và hiển thị danh sách món ăn/cửa hàng khớp từ khóa theo thời gian thực |
+| **Nút "Lọc nâng cao" (Biểu tượng phễu)** | Mở bảng thiết lập các tiêu chí lọc chuyên sâu | Chạm vào nút Lọc | Hiển thị `bottom_sheet_advanced_filter.xml` (lọc theo Quận/Huyện, Khoảng giá, Đánh giá sao, Khoảng cách) |
+| **Danh sách "Danh mục ẩm thực"** | Hiển thị các icon danh mục (Cơm, Bún/Phở, Trà sữa, Ăn vặt, Gà rán...) | Chạm vào một danh mục | Lọc các cửa hàng và món ăn thuộc danh mục vừa chọn |
+| **Khu vực "Món Ngon Đang Hot"** | Cuộn ngang các món ăn bán chạy nhất toàn hệ thống (`HotDishAdapter`) | Vuốt ngang hoặc chạm vào món ăn | Mở thẳng màn hình thực đơn của quán có món ăn đó |
+| **Khu vực "Quán Ăn Gần Bạn"** | Hiển thị các cửa hàng gần tọa độ GPS của khách kèm số km (`NearbyStoreAdapter`) | Chạm vào thẻ quán hoặc nút "Xem tất cả" | Mở chi tiết thực đơn quán hoặc mở `bottom_sheet_nearby_stores.xml` |
+| **Danh sách "Tất cả Quán ăn"** | Danh sách dọc các quán ăn kèm ảnh bìa, số sao, thời gian chuẩn bị và trạng thái mở cửa | Vuốt cuộn dọc, chạm vào một quán | Chuyển sang màn hình thực đơn chi tiết `MenuActivity` của quán đó |
+| **Nút Giỏ hàng nổi & Thanh điều hướng đáy** | Chuyển đổi nhanh giữa Trang chủ, Đơn hàng, Thông báo, Khiếu nại và Hồ sơ cá nhân | Chạm vào từng tab điều hướng | Chuyển sang màn hình chức năng tương ứng |
+
+---
+
+#### 2.3.4 Tính năng / Thành phần #4: Màn hình Thực đơn Quán, Chọn Topping & Xem Đánh giá (`MenuActivity`)
+##### 2.3.4.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 4A: Màn hình Thực đơn Quán ăn & Gói Combo (`activity_menu.xml`)]**
+- **[CHỖ CHÈN ẢNH 4B: Hộp thoại Chọn tùy chọn món Size/Topping (`dialog_dish_option.xml`)]**
+- **[CHỖ CHÈN ẢNH 4C: Hộp thoại Xem đánh giá & nhận xét món ăn (`dialog_dish_reviews.xml`)]**
+
+##### 2.3.4.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Ảnh bìa & Thông tin Quán ăn** | Hiển thị tên quán, địa chỉ, khoảng cách km, điểm sao trung bình và trạng thái Mở/Đóng cửa | N/A | Hiển thị trực quan thông tin cửa hàng |
+| **Thanh Chip Danh mục của Quán** | Hiển thị các nhóm món của quán (Combo ưu đãi, Món chính, Món thêm, Giải khát...) | Chạm vào từng Chip danh mục | Cuộn hoặc lọc danh sách món theo nhóm đã chọn |
+| **Thẻ Món ăn / Combo (`item_menu.xml`)** | Hiển thị ảnh món, tên món, mô tả, giá tiền, số lượt đã bán và điểm sao đánh giá | Chạm vào khu vực điểm sao của món | Mở hộp thoại `DishReviewsBottomSheetDialogFragment` hiển thị các bình luận đánh giá của khách cũ |
+| **Nút Thêm món (+)** | Mở bảng tùy chọn cấu hình món ăn hoặc thêm nhanh vào giỏ | Chạm vào nút "+" trên thẻ món | Nếu món có tùy chọn (Size/Topping) sẽ mở `DishOptionBottomSheetDialogFragment`, nếu không sẽ thêm vào giỏ |
+| **Hộp thoại Tùy chọn món (`dialog_dish_option.xml`)** | Cho phép chọn kích cỡ, topping thêm, điều chỉnh số lượng và nhập ghi chú riêng cho bếp | Tích chọn các tùy chọn và bấm "Thêm vào giỏ" | Tự động cộng giá topping vào đơn giá món và cập nhật vào giỏ hàng |
+| **Thanh Giỏ hàng tóm tắt dưới đáy** | Hiển thị tổng số món đã chọn trong quán và tổng tiền tạm tính | Chạm vào nút "Xem giỏ hàng / Đặt đơn" | Mở màn hình `CartActivity` hoặc `CheckoutActivity` |
+
+---
+
+#### 2.3.5 Tính năng / Thành phần #5: Màn hình Giỏ hàng (`CartActivity`)
+##### 2.3.5.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 5: Màn hình Giỏ hàng của Khách hàng (`activity_cart.xml`)]**
+
+##### 2.3.5.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách món trong giỏ (`item_cart.xml`)** | Hiển thị các món ăn đã thêm kèm ảnh, tên món, các tùy chọn topping đã chọn và thành tiền | Vuốt cuộn danh sách | Hiển thị đầy đủ các món trong giỏ |
+| **Nút Tăng (+) / Giảm (-) số lượng** | Điều chỉnh số lượng phần ăn cho từng món | Chạm vào nút "+" hoặc "-" | Cập nhật số lượng món và tính lại tổng tiền tức thời; nếu giảm về 0 sẽ xóa món khỏi giỏ |
+| **Nút "Xóa tất cả"** | Làm trống toàn bộ giỏ hàng hiện tại | Chạm vào biểu tượng thùng rác / Xóa | Hiển thị xác nhận và xóa sạch giỏ hàng |
+| **Nút "Tiến hành đặt hàng"** | Chuyển sang bước xác nhận địa chỉ và thanh toán | Chạm vào nút "Tiến hành đặt hàng" | Chuyển sang màn hình `CheckoutActivity` |
+
+---
+
+#### 2.3.6 Tính năng / Thành phần #6: Màn hình Thanh toán, Chọn bản đồ & Cổng Thanh toán VietQR (`CheckoutActivity`, `SelectLocationActivity`, `PaymentActivity`)
+##### 2.3.6.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 6A: Màn hình Xác nhận đặt hàng & Tính phí ship (`activity_checkout.xml`)]**
+- **[CHỖ CHÈN ẢNH 6B: Màn hình Ghim vị trí giao hàng trên Bản đồ Google Maps (`activity_select_location.xml`)]**
+- **[CHỖ CHÈN ẢNH 6C: Màn hình Quét mã thanh toán VietQR Napas247 (`activity_payment.xml`)]**
+
+##### 2.3.6.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Khu vực Địa chỉ nhận hàng** | Cho phép nhập tên người nhận, SĐT, gõ tìm địa chỉ có gợi ý tự động (`AddressSuggestionAdapter`) | Gõ địa chỉ hoặc chọn từ gợi ý | Tự động lấy tọa độ vĩ độ/kinh độ của địa chỉ giao hàng |
+| **Nút "Chọn trên bản đồ"** | Mở bản đồ Google Maps để ghim chính xác vị trí nhà khách | Chạm vào nút "Chọn trên bản đồ" | Mở `SelectLocationActivity`, kéo tâm bản đồ đến vị trí mong muốn để lấy địa chỉ và tọa độ GPS |
+| **Bảng chi tiết thanh toán** | Hiển thị Tổng tiền món, Vùng giao hàng (nội quận / liên quận / ngoại thành), Phí giao hàng tự động, Tiền cọc 20% (nếu uy tín < 90) và Tổng thanh toán cuối cùng | N/A | Tự động tính toán lại phí vận chuyển ngay khi địa chỉ nhận hàng thay đổi |
+| **Lựa chọn Phương thức thanh toán** | Cho phép chọn: Tiền mặt (COD), Chuyển khoản Ngân hàng 100% (VietQR) hoặc Đặt cọc 20% (VietQR) | Chạm chọn RadioButton phương thức | Thay đổi phương thức thanh toán; nếu điểm uy tín thấp sẽ thông báo chế độ bắt buộc đặt cọc (`DEPOSIT`) |
+| **Ô nhập "Ghi chú cho quán / tài xế"** | Nhập lời nhắn dặn dò thêm cho đơn hàng | Chạm và nhập văn bản | Lưu ghi chú vào thuộc tính `note` của đơn hàng |
+| **Nút "Đặt đơn hàng"** | Khởi tạo đơn hàng lên Firebase Realtime Database | Chạm vào nút "Đặt đơn hàng" | Nếu chọn COD sẽ mở `OrderSuccessActivity`; nếu chọn VietQR hoặc Đặt cọc sẽ mở `PaymentActivity` hiển thị mã QR chuyển khoản (tự động hủy đếm ngược và thông báo về trang chủ nếu quán hủy đơn) |
+| **Màn hình Mã QR Thanh toán (`PaymentActivity`)** | Hiển thị mã QR VietQR ngân hàng của quán kèm số tiền, nội dung chuyển khoản `#OISHI_...` | Khách quét mã chuyển khoản và bấm "Tôi đã chuyển khoản" | Cập nhật trạng thái chờ duyệt/đã thanh toán và chuyển sang màn hình theo dõi đơn hàng |
+
+---
+
+#### 2.3.7 Tính năng / Thành phần #7: Màn hình Theo dõi Đơn hàng, Bản đồ Shipper, Mã QR/PIN & Hủy đơn (`TrackingActivity`)
+##### 2.3.7.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 7A: Màn hình Theo dõi tiến trình đơn hàng & Bản đồ GPS Shipper (`activity_tracking.xml`)]**
+- **[CHỖ CHÈN ẢNH 7B: Khu vực Mã QR Xác nhận nhận hàng & Mã PIN 6 số (`#OISHI_XXXXXX • PIN: XXXXXX`)]**
+- **[CHỖ CHÈN ẢNH 7C: Hộp thoại Chat trực tiếp với Quán ăn (`dialog_chat_store.xml`)]**
+- **[CHỖ CHÈN ẢNH 7D: Nút Hủy đơn hàng khi đang giao & Hộp thoại cảnh báo trừ 30 điểm uy tín COD]**
+
+##### 2.3.7.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Mã đơn hàng (`#OISHI_XXXXXX`)** | Hiển thị mã định danh chuẩn hóa của đơn hàng trên thanh tiêu đề | N/A | Đồng bộ nhất quán với mã bên dưới thẻ QR |
+| **Thanh tiến trình trạng thái đơn** | Hiển thị trực quan các bước: Chờ xác nhận ➔ Bếp đang nấu ➔ Đang giao hàng ➔ Đã đến nơi ➔ Hoàn tất | N/A | Tự động đổi màu và cập nhật nội dung ngay khi Quán hoặc Tài xế thao tác |
+| **Bản đồ Vị trí Shipper & Lộ trình** | Hiển thị bản đồ Google Maps vẽ đường đi và vị trí xe máy của tài xế theo thời gian thực | Phóng to / thu nhỏ bản đồ | Chỉ hiển thị khi tài xế đang giao; cập nhật vị trí xe máy mượt mà theo nhánh `/tracking/$shipperId` |
+| **Khung Mã QR & Mã PIN Nhận hàng** | Hiển thị ảnh mã QR và dòng chữ `TOKEN_OISHI_XXXXXX • PIN: 6 số` để đưa cho tài xế khi nhận đồ ăn | Đưa màn hình cho tài xế quét hoặc đọc mã PIN | Tài xế quét khớp mã sẽ hoàn tất đơn hàng |
+| **Thẻ Thông tin Tài xế & Nút Gọi điện** | Hiển thị tên nhân viên giao hàng, biển số xe và nút gọi điện thoại màu xanh | Chạm vào biểu tượng Điện thoại | Mở trình quay số điện thoại gọi trực tiếp cho tài xế |
+| **Nút "Nhắn tin với Quán"** | Mở cửa sổ trao đổi tin nhắn thời gian thực với cửa hàng | Chạm vào nút Chat với quán | Mở `ChatStoreBottomSheetDialogFragment`, gửi/nhận tin nhắn tức thời |
+| **Nút "Hủy Đơn Hàng"** | Cho phép hủy ngay (khi quán chưa nấu), gửi yêu cầu xin hủy (khi bếp đang nấu), hoặc **Hủy đơn khi đang giao (Không nhận nữa)** | Chạm vào nút Hủy đơn và xác nhận lý do | Khi đang giao: đổi đơn sang `RETURNING_TO_STORE` để báo Shipper đem món về quán; nếu đơn COD sẽ trừ 30 điểm uy tín của khách |
+
+---
+
+#### 2.3.8 Tính năng / Thành phần #8: Màn hình Lịch sử Đơn hàng & Đánh giá Món ăn (`OrderHistoryActivity`)
+##### 2.3.8.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 8: Màn hình Lịch sử đơn hàng & Đánh giá sao món ăn (`activity_order_history.xml`)]**
+
+##### 2.3.8.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Đơn hàng (`item_order_history.xml`)** | Hiển thị toàn bộ các đơn hàng của khách kèm tên quán, ngày giờ đặt, danh sách món, tổng tiền và nhãn trạng thái | Chạm vào một thẻ đơn hàng | Mở màn hình `TrackingActivity` để xem chi tiết tiến trình của đơn hàng đó |
+| **Khu vực Đánh giá sao món ăn (`item_order_dish_rating.xml`)** | Hiển thị thanh 5 ngôi sao và ô viết nhận xét đối với các đơn hàng đã giao thành công (`COMPLETED`) | Chạm chọn số sao (1–5) và bấm "Gửi đánh giá" | Lưu đánh giá vào nhánh `/dish_reviews` và cập nhật điểm trung bình của món ăn |
+| **Nút "Khiếu nại đơn hàng"** | Chuyển sang màn hình gửi khiếu nại nếu đơn hàng gặp vấn đề | Chạm vào nút Khiếu nại | Mở màn hình `ComplaintActivity` với mã đơn hàng được điền sẵn |
+
+---
+
+#### 2.3.9 Tính năng / Thành phần #9: Màn hình Gửi Khiếu nại & Theo dõi Khiếu nại (`ComplaintActivity` & `CustomerComplaintTrackingActivity`)
+##### 2.3.9.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 9A: Màn hình Gửi khiếu nại đơn hàng kèm ảnh minh chứng (`activity_complaint.xml`)]**
+- **[CHỖ CHÈN ẢNH 9B: Màn hình Theo dõi trạng thái giải quyết khiếu nại (`activity_customer_complaint_tracking.xml`)]**
+
+##### 2.3.9.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Chọn Đơn hàng & Chủ đề khiếu nại** | Chọn mã đơn hàng cần phản ánh và loại sự cố (Món ăn hỏng/thiếu, Thái độ tài xế, Trừ điểm uy tín sai...) | Chạm chọn từ danh sách | Hiển thị thông tin đơn hàng liên quan |
+| **Ô nhập "Nội dung chi tiết"** | Mô tả rõ sự việc cần Ban quản trị hỗ trợ giải quyết | Nhập văn bản mô tả | Hiển thị nội dung đã nhập |
+| **Mục "Đính kèm hình ảnh bằng chứng"** | Tải ảnh chụp thực tế món ăn hoặc sự cố từ thư viện máy | Chạm vào khung tải ảnh | Mở trình chọn ảnh (`ImagePickerUtils`) và hiển thị ảnh xem trước |
+| **Nút "Gửi Khiếu Nại"** | Đẩy hồ sơ khiếu nại lên hệ thống chờ Admin thẩm định | Chạm vào nút "Gửi Khiếu Nại" | Lưu vào nhánh `/complaints` với trạng thái `PENDING` và thông báo gửi thành công |
+| **Danh sách Theo dõi Khiếu nại** | Hiển thị các khiếu nại đã gửi kèm trạng thái (`Chờ xử lý`, `Đã giải quyết`, `Từ chối`) và phản hồi của Admin | Chạm vào một mục khiếu nại | Mở `CustomerComplaintDetailBottomSheet` xem chi tiết kết quả phán quyết của Admin |
+
+---
+
+#### 2.3.10 Tính năng / Thành phần #10: Màn hình Thông báo Khách hàng (`NotificationActivity`)
+##### 2.3.10.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 10: Màn hình Danh sách thông báo của Khách hàng (`activity_notification.xml`)]**
+
+##### 2.3.10.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Thông báo (`item_notification.xml`)** | Hiển thị các thông báo về thay đổi trạng thái đơn hàng, biến động điểm uy tín, phản hồi khiếu nại | Chạm vào một thông báo | Đánh dấu đã đọc và mở trực tiếp đơn hàng hoặc nội dung liên quan |
+
+---
+
+#### 2.3.11 Tính năng / Thành phần #11: Màn hình Hồ sơ Cá nhân, Sổ địa chỉ & Điểm uy tín (`ProfileActivity`)
+##### 2.3.11.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 11A: Màn hình Hồ sơ cá nhân Khách hàng (`activity_profile.xml`)]**
+- **[CHỖ CHÈN ẢNH 11B: Hộp thoại Chi tiết Điểm uy tín & Lịch sử cộng/trừ điểm (`bottom_sheet_trust_score_detail.xml`)]**
+- **[CHỖ CHÈN ẢNH 11C: Hộp thoại Quản lý Sổ địa chỉ nhận hàng (`dialog_address_book.xml`)]**
+
+##### 2.3.11.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Thông tin Cá nhân & Ảnh đại diện** | Hiển thị tên khách hàng, email, số điện thoại và nút chỉnh sửa hồ sơ | Chạm vào "Chỉnh sửa thông tin" | Mở `dialog_edit_profile.xml` cho phép cập nhật tên, SĐT, mật khẩu |
+| **Thẻ "Điểm Uy Tín (Trust Score)"** | Hiển thị số điểm uy tín hiện tại (ví dụ: `100 điểm` hoặc `70 điểm`) và xếp loại khách hàng | Chạm vào thẻ Điểm uy tín | Mở `bottom_sheet_trust_score_detail.xml` hiển thị quy chế điểm và danh sách lịch sử cộng/trừ điểm (`item_trust_score_log_row.xml`) |
+| **Mục "Sổ địa chỉ nhận hàng"** | Quản lý các địa chỉ giao hàng quen thuộc (Nhà riêng, Công ty, Trường học...) | Chạm vào "Sổ địa chỉ" | Mở `dialog_address_book.xml` cho phép thêm, sửa, xóa hoặc đặt địa chỉ mặc định |
+| **Nút "Đăng xuất"** | Thoát tài khoản hiện tại khỏi thiết bị | Chạm vào nút "Đăng xuất" | Xóa phiên đăng nhập và quay về màn hình `LoginActivity` |
+
+---
+
+### PHẦN B: CÁC MÀN HÌNH ỨNG DỤNG NỘI BỘ – QUÁN ĂN, CHỦ CHUỖI & TÀI XẾ (`app-internal`)
+
+---
+
+#### 2.3.12 Tính năng / Thành phần #12: Màn hình Đăng nhập, Đăng ký Nội bộ & Định danh OCR CCCD (`LoginActivity`, `RegisterActivity`, `StoreVerificationActivity`)
+##### 2.3.12.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 12A: Màn hình Đăng nhập / Đăng ký Ứng dụng Nội bộ (`activity_login_internal.xml` & `activity_register_internal.xml`)]**
+- **[CHỖ CHÈN ẢNH 12B: Màn hình Xác minh Cửa hàng & Quét OCR Căn cước công dân (`activity_store_verification.xml`)]**
+
+##### 2.3.12.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Đăng nhập phân quyền Nội bộ** | Xác thực tài khoản và tự động nhận diện vai trò (`MERCHANT` hoặc `DRIVER`) để mở giao diện tương ứng | Nhập tài khoản và bấm Đăng nhập | Mở `DashboardActivity`; nếu tài khoản `MERCHANT` sở hữu nhiều chi nhánh mà chưa chọn chi nhánh thì chuyển sang `BossDashboardActivity` để chọn |
+| **Chụp / Tải ảnh CCCD Mặt trước & Mặt sau** | Cho phép chủ quán chụp ảnh thẻ Căn cước công dân để định danh chủ cửa hàng | Chạm vào khung ảnh CCCD và chọn ảnh | Kích hoạt `CccdOcrHelper` tự động nhận diện và điền Số CCCD, Họ tên chủ quán vào biểu mẫu |
+| **Tải ảnh Giấy phép kinh doanh / Ảnh mặt tiền quán** | Cung cấp hình ảnh thực tế của quán ăn | Chọn ảnh từ thiết bị | Hiển thị ảnh minh chứng trên màn hình |
+| **Nút "Gửi hồ sơ xác minh"** | Gửi toàn bộ dữ liệu định danh cửa hàng lên Firebase chờ Admin xét duyệt | Chạm vào nút "Gửi hồ sơ" | Cập nhật `verificationStatus = PENDING` và thông báo chờ quản trị viên phê duyệt |
+
+---
+
+#### 2.3.13 Tính năng / Thành phần #13: Màn hình Quản lý Chuỗi Chi nhánh dành cho Chủ chuỗi (`BossDashboardActivity`)
+##### 2.3.13.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 13A: Màn hình Tổng quan Quản lý Chuỗi Chi nhánh (`activity_boss_dashboard.xml`)]**
+- **[CHỖ CHÈN ẢNH 13B: Hộp thoại Tạo Chi nhánh mới & Gán quyền Quản lý Merchant (`dialog_create_branch.xml` & `dialog_assign_branch_to_merchant.xml`)]**
+
+##### 2.3.13.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Chi nhánh (`item_boss_branch.xml`)** | Hiển thị các cơ sở cửa hàng thuộc chuỗi kèm địa chỉ, trạng thái hoạt động và tên quản lý phụ trách | Chạm vào thẻ chi nhánh | Xem chi tiết hoặc gán người quản lý cho chi nhánh đó |
+| **Nút "Thêm Chi Nhánh Mới"** | Khởi tạo một cơ sở cửa hàng mới trong chuỗi | Chạm vào nút Thêm chi nhánh | Mở `dialog_create_branch.xml` nhập tên cơ sở, địa chỉ, chọn tọa độ bản đồ |
+| **Danh sách Quản lý (`item_boss_merchant.xml`) & Tạo Merchant** | Quản lý các tài khoản cửa hàng trưởng (`MERCHANT`) dưới quyền | Chạm vào "Tạo quản lý mới" hoặc "Gán chi nhánh" | Mở `dialog_create_merchant.xml` để cấp tài khoản hoặc `dialog_assign_branch_to_merchant.xml` để phân công chi nhánh |
+
+---
+
+#### 2.3.14 Tính năng / Thành phần #14: Màn hình Quản lý Đơn hàng Kanban tại Quán (`OrderListFragment`)
+##### 2.3.14.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 14A: Màn hình Quản lý Đơn hàng Quán ăn với 4 Tab Kanban & Thống kê nhanh (`fragment_order_list.xml`)]**
+- **[CHỖ CHÈN ẢNH 14B: Hộp thoại Popup Chuông báo có Đơn hàng mới (`dialog_new_order_popup.xml`)]**
+- **[CHỖ CHÈN ẢNH 14C: Thẻ Đơn hàng khi Tài xế đã nhận đơn & Hộp thoại Chat với Khách (`item_order.xml` & `dialog_store_chat_customer.xml`)]**
+
+##### 2.3.14.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Thanh Thống kê Doanh thu & Đơn hoàn tất hôm nay** | Hiển thị tổng tiền doanh thu trong ngày và số đơn đã giao thành công ngay đầu màn hình | N/A | Tự động cộng dồn thời gian thực mỗi khi có đơn chuyển sang `COMPLETED` |
+| **4 Tab lọc trạng thái Kanban** | Gồm: **Đơn Mới**, **Đang Làm**, **Đang Giao**, **Lịch Sử** kèm con số đếm số lượng đơn ở mỗi tab | Chạm vào từng Tab | Lọc danh sách đơn hàng tương ứng với giai đoạn chế biến/giao nhận |
+| **Thẻ Đơn hàng (`item_order.xml`)** | Hiển thị mã đơn, danh sách món ăn, tổng tiền, nhãn thanh toán (`Đã thanh toán Ngân hàng` / `Thu tiền mặt COD`), địa chỉ khách | N/A | Hiển thị rõ ràng, trực quan, không hiển thị các cảnh báo đỏ gây rối |
+| **Nút Hành động Bếp (`btnMainAction`)** | • Đơn mới: *"✓ XÁC NHẬN ĐƠN CỦA KHÁCH ➔"*<br>• Đang nấu: *"🍳 XÁC NHẬN ĐÃ NẤU XONG ➔"*<br>• Khi đã nấu xong & có tài xế: Ẩn nút bấm thừa, chỉ hiện khung trạng thái tài xế đến lấy món | Chạm vào nút hành động chính | Chuyển trạng thái đơn từ `PENDING` ➔ `PREPARING` ➔ `READY` và phát thông báo cho tài xế tới nhận |
+| **Khung Trạng thái Tài xế & Nút "Gọi TX"** | Hiển thị tên tài xế đã nhận đơn (ví dụ: *"🛵 Thư đã nhận đơn, đang đến quầy lấy món"*) và nút gọi nhanh | Chạm vào nút "Gọi TX" | Mở trình gọi điện thoại liên hệ trực tiếp với tài xế |
+| **Nút "Nhắn Khách / Tin nhắn Khách (1)"** | Mở cửa sổ chat với khách đặt đơn; tự động đổi màu cam khi có tin nhắn mới từ khách | Chạm vào nút Nhắn Khách | Mở `ChatCustomerBottomSheetDialogFragment` trao đổi trực tiếp với khách |
+| **Khung Duyệt Yêu cầu Hủy đơn (`boxCancelRequest`)** | Xuất hiện khi khách xin hủy đơn lúc bếp đang nấu, gồm 2 nút: *"Từ Chối Hủy"* và *"Đồng Ý Hủy"* | Chạm chọn Đồng ý hoặc Từ chối | Cập nhật trạng thái hủy đơn hoặc tiếp tục chế biến |
+
+---
+
+#### 2.3.15 Tính năng / Thành phần #15: Màn hình Quản lý Thực đơn, Danh mục riêng & Tạo Combo (`MenuManageFragment`)
+##### 2.3.15.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 15A: Màn hình Quản lý Thực đơn Món ăn của Quán (`fragment_menu_manage.xml`)]**
+- **[CHỖ CHÈN ẢNH 15B: Hộp thoại Thêm / Chỉnh sửa Món ăn & Tùy chọn Topping (`dialog_edit_dish.xml`)]**
+- **[CHỖ CHÈN ẢNH 15C: Hộp thoại Tạo gói Combo ưu đãi & Quản lý danh mục quán (`dialog_create_combo.xml` & `dialog_manage_store_categories.xml`)]**
+
+##### 2.3.15.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Món ăn của Quán (`item_manage_dish.xml`)** | Hiển thị ảnh món, tên món, giá bán, danh mục, công tắc gạt Còn món/Hết món, nút Sửa và Xóa | Gạt công tắc Switch trên thẻ món | Cập nhật ngay trạng thái `isAvailable` của món ăn trên ứng dụng khách hàng |
+| **Nút "Thêm Món Mới"** | Mở biểu mẫu tạo món ăn mới cho cửa hàng | Chạm vào nút Thêm món | Mở `dialog_edit_dish.xml` cho phép nhập tên, giá, mô tả, chọn ảnh, cấu hình nhóm Topping/Size |
+| **Nút "Quản lý Danh mục"** | Tạo hoặc đổi tên các nhóm thực đơn riêng của quán | Chạm vào nút Quản lý danh mục | Mở `dialog_manage_store_categories.xml` để thêm/sửa/xóa danh mục |
+| **Nút "Tạo Combo"** | Ghép nhiều món ăn thành một gói Combo giảm giá | Chạm vào nút Tạo Combo | Mở `dialog_create_combo.xml`, tích chọn các món thành phần (`item_select_combo_dish.xml`) và nhập giá ưu đãi |
+
+---
+
+#### 2.3.16 Tính năng / Thành phần #16: Màn hình Báo cáo Thống kê Doanh thu & Món bán chạy (`StoreReportFragment`)
+##### 2.3.16.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 16: Màn hình Báo cáo Doanh thu & Bảng xếp hạng Món bán chạy của Quán (`fragment_store_report.xml`)]**
+
+##### 2.3.16.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Bộ lọc Thời gian Báo cáo** | Chọn xem thống kê theo Hôm nay, 7 ngày qua, Tháng này hoặc Toàn thời gian | Chạm chọn mốc thời gian | Tự động tổng hợp lại số liệu doanh thu và số lượng đơn hàng |
+| **Các Thẻ Chỉ số Tài chính** | Hiển thị Tổng doanh thu thuần, Tổng số đơn hoàn tất, Số đơn bị hủy và Giá trị trung bình mỗi đơn | N/A | Hiển thị số liệu định dạng tiền tệ VNĐ chính xác |
+| **Danh sách "Món Ăn Bán Chạy Nhất" (`item_best_seller_dish.xml`)** | Xếp hạng các món ăn có số lượng bán ra cao nhất kèm doanh thu đóng góp của từng món | Cuộn xem danh sách | Giúp chủ quán nắm bắt xu hướng ẩm thực của khách hàng |
+
+---
+
+#### 2.3.17 Tính năng / Thành phần #17: Màn hình Quản lý Đội Tài xế, Đội Đầu bếp, Màn hình Bếp (`ChefFragment`) & Hồ sơ Quán (`DriverListFragment`, `ChefFragment` & `StoreProfileFragment`)
+##### 2.3.17.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 17A: Màn hình Quản lý Đội ngũ Tài xế (`fragment_driver_list.xml`)]**
+- **[CHỖ CHÈN ẢNH 17B: Màn hình Hồ sơ Cửa hàng & Cấu hình Ngân hàng VietQR (`fragment_store_profile.xml` & `dialog_edit_store_profile.xml`)]**
+
+##### 2.3.17.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **2 Tab Quản lý Nhân sự (`🛵 Đội Tài Xế` & `👨‍🍳 Đội Đầu Bếp`)** | Chuyển đổi quản lý giữa danh sách Tài xế nội bộ (`item_driver.xml`) và Đầu bếp nội bộ (`item_chef_manage.xml`), hỗ trợ Thêm mới và Xóa tài khoản | Chạm chọn Tab, bấm "+ Thêm TX" / "+ Thêm Bếp" hoặc nút "Xóa" | Tạo tài khoản nhân sự gắn với `storeId` hoặc xóa sạch tài khoản khỏi Firebase |
+| **Màn hình Bếp Nhận & Chế biến Món (`ChefFragment`)** | Hiển thị 2 danh sách: **Đơn chờ bếp nhận (`PREPARING` chưa có `chefId`)** và **Đơn tôi đang nấu**. Khi khách hủy đơn lúc đang nấu, hiện Popup cảnh báo dừng nấu và giữ thẻ đơn viền đỏ `🚫 KHÁCH ĐÃ HỦY • DỪNG NẤU` | Đầu bếp bấm "Nhận nấu", "🍳 ĐÃ NẤU XONG ➔" hoặc "✓ ĐÃ BIẾT (XÓA ĐƠN)" khi đơn bị hủy | Gán `chefId` khóa nguyên tử chống nhận trùng; khi nấu xong chuyển sang `READY` cho tài xế nhận giao; khi đơn hủy chỉ xóa khỏi màn hình bếp sau khi đầu bếp xác nhận đã biết |
+| **Công tắc Đóng / Mở cửa Quán & Cấu hình VietQR** | Cho phép bật/tắt trạng thái nhận khách của quán; cập nhật tên ngân hàng, số tài khoản, tên chủ thẻ nhận tiền VietQR | Chạm vào "Chỉnh sửa hồ sơ quán" | Lưu thông tin lên nhánh `/stores/$storeId` để sinh mã VietQR chính xác khi khách thanh toán |
+
+---
+
+#### 2.3.18 Tính năng / Thành phần #18: Màn hình Sảnh Nhận đơn & Ghép chuyến của Tài xế (`ShipperFragment`)
+##### 2.3.18.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 18: Màn hình Sảnh Nhận đơn & Ghép đơn đa điểm của Tài xế (`fragment_shipper.xml`)]**
+
+##### 2.3.18.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Công tắc Trực tuyến (Online / Offline)** | Bật hoặc tắt chế độ sẵn sàng nhận đơn giao hàng và kích hoạt dịch vụ GPS `LocationForegroundService` | Gạt nút Trực tuyến | Bắt đầu phát tọa độ GPS và tải danh sách các đơn hàng đang chờ giao |
+| **Thẻ Gợi ý Ghép đơn (`item_bundle_order_card.xml`)** | Tự động gom nhóm 2–3 đơn hàng cùng tuyến đường để gợi ý tài xế nhận cả chặng | Chạm vào nút "Nhận chuyến ghép" | Gán đồng thời các đơn trong nhóm cho tài xế và mở màn hình hành trình `DeliveryTripActivity` |
+| **Danh sách Đơn chờ nhận (`item_driver_pending_order.xml`)** | Hiển thị các đơn lẻ đã nấu xong (`READY`) kèm địa chỉ quán, địa chỉ khách, khoảng cách và phí ship | Chạm vào nút "Nhận đơn" | Gán `shipperId` của tài xế vào đơn hàng và chuyển sang trạng thái `ASSIGNED` |
+| **Danh sách Đơn đang giao (`item_driver_active_order.xml`)** | Hiển thị các đơn tài xế đã nhận nhưng chưa hoàn tất để tiếp tục hành trình | Chạm vào thẻ đơn đang giao | Mở lại màn hình `DeliveryTripActivity` tại đúng bước hiện tại của đơn đó |
+
+---
+
+#### 2.3.19 Tính năng / Thành phần #19: Màn hình Hành trình Giao hàng Đa điểm, Quét QR/PIN & Báo sự cố 15 phút (`DeliveryTripActivity`)
+##### 2.3.19.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 19A: Màn hình Bản đồ Hành trình Giao hàng Ghép 3 đơn & Chọn thứ tự giao (`activity_delivery_trip.xml`)]**
+- **[CHỖ CHÈN ẢNH 19B: Màn hình Thanh trượt "Gạt sang phải ĐÃ ĐẾN NHÀ KHÁCH" & Trạng thái thẻ đơn]**
+- **[CHỖ CHÈN ẢNH 19C: Hộp thoại Camera Quét mã QR & Nhập mã PIN 6 số xác nhận giao hàng (`dialog_qr_scanner.xml`)]**
+- **[CHỖ CHÈN ẢNH 19D: Hộp thoại Báo cáo sự cố khách không nghe máy & Đồng hồ đếm ngược 15 phút (`dialog_report_incident.xml`)]**
+
+##### 2.3.19.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Thanh Tiêu đề Chặng & Nhãn Ghép đơn** | Hiển thị mã đơn hiện tại `#OISHI_XXXXXX (Chặng 1/3)` và nhãn `Ghép 3 đơn` | N/A | Giúp tài xế nắm rõ tiến độ tổng thể của chuyến đi |
+| **Bản đồ Google Maps & Hộp Chỉ đường** | Vẽ tuyến đường màu xanh từ vị trí xe máy của tài xế đến điểm tiếp theo, kèm nút mở Google Maps ngoài | Chạm vào nút "Maps" | Mở ứng dụng Google Maps điều hướng giọng nói chi tiết |
+| **Danh sách Thẻ chọn Khách giao trước (`TÀI XẾ TỰ CHỌN GIAO AI TRƯỚC`)** | Hiển thị các thẻ đơn hàng trong chuyến ghép (kèm trạng thái: *Đang giao*, *Đã đến nhà khách*, *Đã giao* và số tiền cần thu) | Chạm vào thẻ của một khách hàng bất kỳ | Chuyển ngay mục tiêu dẫn đường và bảng điều khiển bên dưới sang khách hàng vừa chọn mà vẫn giữ nguyên trạng thái các đơn khác |
+| **Thông tin Khách hàng & Các nút Liên lạc / Sự cố** | Hiển thị tên/email khách, SĐT, địa chỉ, số tiền cần thu (hoặc báo *ĐÃ THANH TOÁN ONLINE - KHÔNG THU TIỀN*), nút Gọi điện, Chat và nút **Tam giác Cảnh báo sự cố** | Chạm vào nút Gọi, Chat hoặc nút Cảnh báo (`⚠️`) | Gọi điện cho khách, nhắn tin hoặc mở hộp thoại báo cáo sự cố liên lạc |
+| **Thanh trượt Hành động chính (Slide Button)** | Thay đổi theo từng bước: *Gạt ĐÃ ĐẾN QUÁN* ➔ *Gạt XÁC NHẬN LẤY HÀNG* ➔ *Gạt ĐÃ ĐẾN NHÀ KHÁCH* ➔ *Bấm QUÉT MÃ QR / NHẬP PIN* | Gạt nút tròn từ trái sang hết bên phải | Cập nhật trạng thái đơn hàng tương ứng lên Firebase theo thời gian thực |
+| **Hộp thoại Quét QR / Nhập PIN (`dialog_qr_scanner.xml`)** | Mở Camera quét mã QR trên màn hình máy khách hoặc nhập 6 chữ số PIN nhận hàng | Quét mã QR hoặc nhập PIN rồi bấm Xác nhận | Nếu khớp mã: chuyển đơn sang `COMPLETED`, đánh dấu *"✓ Đã giao"* trên thẻ đơn và tự động chuyển sang đơn chưa giao tiếp theo |
+| **Hộp thoại Báo cáo Sự cố (`dialog_report_incident.xml`)** | Kiểm tra điều kiện gọi đủ 3 cuộc gọi nhỡ, chụp ảnh bằng chứng tại điểm giao và chạy đồng hồ đếm ngược 15 phút (Lần 1 & Lần 2) | Bấm gọi khách, chụp ảnh và kích hoạt đếm ngược | Đếm ngược 15 phút hỗ trợ; khi hết giờ cho phép xác nhận khách bom hàng và kích hoạt luồng mang món về trả quán (`RETURNING_TO_STORE`) |
+
+---
+
+#### 2.3.20 Tính năng / Thành phần #20: Màn hình Thống kê Thu nhập & Hồ sơ Tài xế (`ShipperIncomeFragment` & `ShipperProfileFragment`)
+##### 2.3.20.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 20A: Màn hình Thống kê Thu nhập & Lịch sử chuyến đi của Tài xế (`fragment_shipper_income.xml`)]**
+- **[CHỖ CHÈN ẢNH 20B: Màn hình Hồ sơ cá nhân của Tài xế (`fragment_shipper_profile.xml`)]**
+
+##### 2.3.20.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Tổng quan Thu nhập Tài xế** | Hiển thị tổng tiền cước giao hàng nhận được, tổng số chuyến hoàn tất theo ngày/tuần/tháng | Chọn bộ lọc thời gian | Cập nhật số liệu thu nhập và danh sách chuyến đi (`item_shipper_trip.xml`) |
+| **Thông tin Hồ sơ Tài xế** | Hiển thị họ tên, SĐT, biển số xe, đánh giá và nút chỉnh sửa thông tin (`dialog_edit_driver_profile.xml`) | Chạm vào Chỉnh sửa hoặc Đăng xuất | Cập nhật thông tin phương tiện hoặc đăng xuất tài khoản |
+
+---
+
+### PHẦN C: CÁC MÀN HÌNH ỨNG DỤNG QUẢN TRỊ VIÊN (`app-admin`)
+
+---
+
+#### 2.3.21 Tính năng / Thành phần #21: Màn hình Đăng nhập Quản trị viên & Dashboard Toàn sàn (`AdminLoginActivity` & `AdminDashboardFragment`)
+##### 2.3.21.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 21A: Màn hình Đăng nhập Quản trị viên (`activity_admin_login.xml`)]**
+- **[CHỖ CHÈN ẢNH 21B: Màn hình Bảng điều khiển Tổng quan Hệ thống & Cấu hình Đếm ngược (`fragment_admin_dashboard.xml` & `dialog_edit_countdown_config.xml`)]**
+
+##### 2.3.21.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Đăng nhập Admin (`AdminLoginActivity`)** | Xác thực quyền `ADMIN` trước khi cho phép truy cập trung tâm điều hành | Nhập email/mật khẩu Admin và bấm Đăng nhập | Kiểm tra đúng `role == ADMIN` mới chuyển vào `AdminMainActivity` |
+| **Các Thẻ Thống kê Toàn hệ thống** | Hiển thị Tổng doanh thu toàn sàn, Tổng đơn hàng, Tổng cửa hàng đối tác, Tổng người dùng và Số khiếu nại chờ xử lý | N/A | Đồng bộ số liệu thời gian thực từ toàn bộ nhánh dữ liệu Firebase |
+| **Nút "Cấu hình Thời gian Đếm ngược Sự cố"** | Cho phép Admin thay đổi thời gian chờ Lần 1 và Lần 2 khi khách không nghe máy | Chạm vào nút Cấu hình đếm ngược | Mở `dialog_edit_countdown_config.xml`, lưu cấu hình mới vào `/system_config` |
+
+---
+
+#### 2.3.22 Tính năng / Thành phần #22: Màn hình Kiểm duyệt Cửa hàng & Xử phạt Vi phạm (`AdminStoreListFragment`)
+##### 2.3.22.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 22A: Màn hình Danh sách & Kiểm duyệt Cửa hàng (`fragment_admin_store_list.xml`)]**
+- **[CHỖ CHÈN ẢNH 22B: Hộp thoại Chi tiết Hồ sơ OCR Cửa hàng & Áp dụng Xử phạt (`bottom_sheet_admin_store_detail.xml` & `dialog_apply_store_penalty.xml`)]**
+
+##### 2.3.22.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Cửa hàng (`item_admin_store.xml`)** | Hiển thị các quán ăn theo trạng thái: *Chờ duyệt xác minh*, *Đang hoạt động*, *Bị khóa* | Chạm vào một cửa hàng | Mở `AdminStoreDetailBottomSheetDialogFragment` xem ảnh CCCD, số CCCD, giấy phép và vị trí quán |
+| **Nút "Phê duyệt" / "Từ chối" mở quán** | Xét duyệt hồ sơ định danh OCR của chủ quán mới | Chạm vào nút Phê duyệt hoặc Từ chối | Cập nhật `verificationStatus = APPROVED`, cho phép quán bắt đầu kinh doanh trên sàn |
+| **Nút "Chỉnh sửa" / "Áp dụng Xử phạt"** | Sửa thông tin quán (`dialog_edit_store.xml`) hoặc phạt/đóng cửa quán vi phạm (`dialog_apply_store_penalty.xml`) | Chạm vào nút Xử phạt và chọn mức phạt | Ghi nhận lỗi vi phạm hoặc khóa trạng thái hiển thị của cửa hàng |
+
+---
+
+#### 2.3.23 Tính năng / Thành phần #23: Màn hình Quản lý Danh mục Toàn hệ thống (`AdminCategoryListFragment`)
+##### 2.3.23.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 23: Màn hình Quản lý Danh mục Món ăn Toàn sàn (`fragment_admin_category_list.xml` & `dialog_add_edit_category.xml`)]**
+
+##### 2.3.23.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Danh mục (`item_admin_category.xml`)** | Hiển thị icon, tên danh mục ẩm thực và thứ tự hiển thị trên trang chủ khách hàng | Chạm vào nút Sửa hoặc Xóa | Mở `AddEditCategoryDialogFragment` cập nhật tên/icon hoặc xóa danh mục |
+| **Nút Thêm Danh mục mới (+)** | Tạo thêm danh mục món ăn mới cho toàn hệ thống | Chạm vào nút "+" | Thêm danh mục mới vào nhánh `/categories` trên Firebase |
+
+---
+
+#### 2.3.24 Tính năng / Thành phần #24: Màn hình Giám sát Đơn hàng & Quản lý Người dùng / Điểm uy tín (`AdminMonitorFragment`)
+##### 2.3.24.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 24A: Màn hình Giám sát Đơn hàng & Người dùng toàn hệ thống (`fragment_admin_monitor.xml`)]**
+- **[CHỖ CHÈN ẢNH 24B: Hộp thoại Can thiệp Đơn hàng & Điều chỉnh Điểm uy tín / Khóa User (`dialog_edit_order.xml` & `dialog_edit_user.xml`)]**
+
+##### 2.3.24.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Tab Giám sát Đơn hàng (`item_admin_order.xml`)** | Liệt kê toàn bộ đơn hàng trên sàn, hỗ trợ tìm kiếm theo mã đơn và lọc theo trạng thái | Chạm vào một đơn hàng | Mở `EditOrderDialogFragment` cho phép Admin can thiệp đổi trạng thái hoặc gán lại tài xế khi có sự cố |
+| **Tab Quản lý Người dùng (`item_admin_user.xml`)** | Liệt kê tất cả tài khoản (Khách hàng, Chủ quán, Tài xế) kèm vai trò, điểm uy tín (`TrustScore`) và trạng thái khóa | Chạm vào một người dùng | Mở `EditUserDialogFragment` cho phép cộng/trừ điểm uy tín, đổi vai trò hoặc **Khóa / Mở khóa tài khoản** tức thời |
+
+---
+
+#### 2.3.25 Tính năng / Thành phần #25: Màn hình Quản lý & Giải quyết Khiếu nại (`AdminComplaintListFragment` & `AdminComplaintDetailActivity`)
+##### 2.3.25.1 Giao diện người dùng
+- **[CHỖ CHÈN ẢNH 25A: Màn hình Danh sách Khiếu nại từ Khách hàng (`fragment_admin_complaint_list.xml`)]**
+- **[CHỖ CHÈN ẢNH 25B: Màn hình Chi tiết Khiếu nại & Hộp thoại Phán quyết xử lý (`activity_admin_complaint_detail.xml` & `dialog_resolve_complaint.xml`)]**
+
+##### 2.3.25.2 Yêu cầu chức năng
+| Mục | Mô tả | Hành động | Phản hồi |
+|:---|:---|:---|:---|
+| **Danh sách Khiếu nại (`item_admin_complaint.xml`)** | Hiển thị các đơn khiếu nại theo bộ lọc *Chờ xử lý / Đã giải quyết* | Chạm vào một thẻ khiếu nại | Mở `AdminComplaintDetailActivity` hiển thị đầy đủ nội dung phản ánh, ảnh bằng chứng của khách và thông tin đơn hàng |
+| **Nút "Giải quyết Khiếu nại"** | Mở hộp thoại nhập phán quyết của Admin | Chạm vào nút Giải quyết | Mở `ResolveComplaintDialogFragment`, nhập nội dung phản hồi, chọn Chấp nhận / Từ chối, khôi phục điểm uy tín cho khách hoặc phạt quán, và gửi thông báo kết quả tự động |
+
+---
+
+# CHƯƠNG 3. CÀI ĐẶT VÀ KIỂM THỬ
+
+## 3.1 CÀI ĐẶT VÀ HIỆN THỰC HÓA HỆ THỐNG
+
+### 3.1.1 Công nghệ, Kiến trúc và Thư viện tích hợp
+- **Ngôn ngữ & Nền tảng:** Kotlin, JDK 17, Android SDK 34, Gradle Kotlin DSL (`build.gradle.kts`).
+- **Kiến trúc phần mềm:** Multi-Module (`core`, `app-customer`, `app-internal`, `app-admin`) kết hợp MVVM (Model – View – ViewModel), LiveData / Kotlin Coroutines Flow và ViewBinding.
+- **Các dịch vụ đám mây & Thư viện chuyên dụng:**
+  1. `com.google.firebase:firebase-auth-ktx` & `firebase-database-ktx`: Xác thực và đồng bộ CSDL thời gian thực.
+  2. `com.google.firebase:firebase-messaging-ktx`: Thông báo đẩy FCM (`CustomerFCMService`, `InternalFCMService`).
+  3. `com.google.android.gms:play-services-maps` & `play-services-location`: Bản đồ số và định vị GPS độ chính xác cao.
+  4. `com.google.mlkit:text-recognition`: Nhận diện ký tự quang học OCR trên thẻ CCCD (`CccdOcrHelper`).
+  5. `com.journeyapps:zxing-android-embedded`: Sinh mã QR Code và quét mã QR qua Camera (`QRCodeUtils`).
+  6. `com.squareup.retrofit2:retrofit` & `okhttp3`: Gọi REST API gửi mã OTP Email, thanh toán MoMo và truy vấn đường đi.
+  7. `com.github.bumptech.glide:glide`: Tải và hiển thị hình ảnh món ăn, ảnh bằng chứng mượt mà.
+
+### 3.1.2 Hiện thực hóa các Cơ chế Kỹ thuật Trọng tâm
+1. **Hiện thực hóa Dịch vụ Phát tín hiệu GPS chạy ngầm (`LocationForegroundService.kt`):**
+   - Sử dụng `FusedLocationProviderClient` với chu kỳ `GPS_UPDATE_INTERVAL_MS = 5000ms` (nhanh nhất `GPS_FASTEST_INTERVAL_MS = 3000ms`) khi tài xế đang trong hành trình giao hàng.
+   - Chạy dưới dạng Foreground Service có thông báo cố định trên thanh trạng thái để hệ điều hành Android không đóng tiến trình khi tài xế khóa màn hình hoặc mở ứng dụng khác.
+2. **Hiện thực hóa Dịch vụ Đọc thông báo Ngân hàng tự động (`BankNotificationListenerService.kt`):**
+   - Lắng nghe sự kiện `onNotificationPosted(StatusBarNotification)` từ các ứng dụng ngân hàng trên máy của chủ quán.
+   - Phân tích cú pháp văn bản thông báo bằng biểu thức chính quy (Regex) để trích xuất mã đơn `OISHI_XXXXXX` và số tiền nhận được, tự động đối chiếu và cập nhật trạng thái đã thanh toán trên Firebase.
+3. **Hiện thực hóa Cơ chế Khóa tài khoản Thời gian thực (`AccountLockWatcher.kt`):**
+   - Gắn `ValueEventListener` trực tiếp vào nhánh `/users/$currentUserId/status` và `trustScore`. Ngay khi phát hiện trạng thái chuyển sang `LOCKED`, tiến trình lập tức xóa phiên `FirebaseAuth.getInstance().signOut()` và điều hướng về màn hình đăng nhập kèm thông báo lý do khóa.
+
+---
+
+## 3.2 KIỂM THỬ HỆ THỐNG
+
+### 3.2.1 Môi trường và thiết bị kiểm thử
+| Hạng mục | Thông tin |
+|:---|:---|
+| Phương pháp | Kiểm thử hộp đen (Black-box), kiểm thử chức năng thủ công trên thiết bị thật, kiểm thử tích hợp giữa 3 ứng dụng |
+| Thiết bị 1 (Khách hàng) | Xiaomi Redmi Note 12 / POCO (Android 14 - HyperOS, 1080x2400) |
+| Thiết bị 2 (Quán ăn & Bếp) | Samsung Galaxy A54 5G (Android 14 - One UI 6.1, 1080x2340) |
+| Thiết bị 3 (Tài xế) | OPPO Reno10 5G (Android 14 - ColorOS 14, bật GPS & 4G) |
+| Thiết bị 4 (Admin) & Web | Android Emulator Pixel 7 Pro (API 35 - Android 15) & Admin Web Portal (`admin.html`) |
+| Mạng | Wi-Fi và 4G |
+| Phần mềm | Android Studio, Firebase Console (theo dõi dữ liệu Realtime Database) |
+| Thời gian kiểm thử | Từ ngày 01/11/2026 đến ngày 16/11/2026 |
+
+### 3.2.2 Tài khoản và dữ liệu kiểm thử
+| Vai trò | Tài khoản | Mật khẩu | Ghi chú |
+|:---|:---|:---|:---|
+| ADMIN | `admin@gmail.com` | `123456` | Miễn OTP (Toàn quyền quản trị sàn) |
+| BOSS / MERCHANT | `boss_oishi@gmail.com` / `quanvu2@gmail.com` | `123456` | Quản lý chuỗi & Chi nhánh Quán Vũ 2 |
+| DRIVER & CHEF | `taixe01@gmail.com` (TX-01) / `bep01@gmail.com` | `123456` | Tài xế & Đầu bếp trực thuộc quán |
+| CUSTOMER (uy tín cao) | `vukhach@gmail.com` | `123456` | `trustScore = 100` (Hạng Kim Cương) |
+| CUSTOMER (uy tín thấp) | `khach_coc@gmail.com` | `123456` | `trustScore = 70` (Bắt buộc đặt cọc 20%) |
+
+### 3.2.3 Quy ước
+- **Mã TC:** `TC_<NHÓM>_<SỐ>` (AUTH: xác thực, HOME/MENU/CART: mua sắm, PAY: thanh toán, TRK: theo dõi đơn, HIS/CMP/PRO: lịch sử – khiếu nại – hồ sơ, VER/BOSS: xác minh & chuỗi, SHOP/MNU/RPT/STP: quán ăn, DRV: tài xế, ADM: quản trị, NF: phi chức năng).
+- **Kết quả thực tế:** ghi lại sau khi chạy thử trên máy. **Trạng thái:** đánh dấu Pass (đạt) hoặc Fail (không đạt).
+- Các con số trong “Kết quả mong đợi” được lấy trực tiếp từ mã nguồn (ví dụ: OTP 10 phút, cooldown 60 giây, COD cần ≥ 90 điểm, cọc 20%, −30/+2 điểm, khóa khi < 20 điểm, phí ship 15.000/25.000/45.000đ, ngưỡng gạt 65%).
+
+### 3.2.4 Danh sách Test Case chi tiết (118 test case)
+
+#### 3.2.4.1 Nhóm 1 – Đăng ký, Đăng nhập & Xác thực OTP (`app-customer`, `app-internal`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_AUTH_01** | Đăng ký thành công với dữ liệu hợp lệ | Chưa có tài khoản, có mạng | 1. Mở app Khách → Đăng ký<br>2. Nhập đầy đủ thông tin<br>3. Bấm Đăng ký<br>4. Nhập OTP nhận qua Gmail | Tên: Nguyễn Văn A; Email: test01@gmail.com; SĐT: 0901234567; MK: 123456 | Gửi OTP về Gmail, xác thực đúng → tạo tài khoản `CUSTOMER`, `trustScore = 100`, vào Trang chủ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_02** | Đăng ký để trống trường bắt buộc | Đang ở màn Đăng ký | Bỏ trống Email, bấm Đăng ký | Email: (rỗng) | Báo lỗi yêu cầu nhập email, không gửi OTP | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_03** | Đăng ký email sai định dạng | Đang ở màn Đăng ký | Nhập email sai định dạng, bấm Đăng ký | Email: test01gmail | Báo lỗi email không hợp lệ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_04** | Đăng ký mật khẩu dưới 6 ký tự | Đang ở màn Đăng ký | Nhập mật khẩu ngắn, bấm Đăng ký | MK: 12345 | Báo lỗi “Mật khẩu phải có ít nhất 6 ký tự” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_05** | Đăng ký email đã tồn tại | Email đã có tài khoản | Đăng ký lại với email cũ | Email: test01@gmail.com | Báo lỗi email đã được sử dụng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_06** | Nhập sai mã OTP | Đã nhận OTP | Nhập 6 số OTP sai, bấm Xác nhận | OTP: 000000 | Báo mã OTP không đúng, không tạo tài khoản | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_07** | OTP hết hạn sau 10 phút | Đã nhận OTP | Đợi quá 10 phút rồi nhập OTP đúng | OTP cũ (> 10 phút) | Báo OTP hết hạn, yêu cầu gửi lại mã | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_08** | Gửi lại OTP trước 60 giây | Vừa gửi OTP | Bấm Gửi lại mã ngay lập tức | — | Nút bị khóa, hiện đếm ngược số giây còn lại (cooldown 60s) | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_09** | Đăng nhập thành công | Tài khoản đã tồn tại, đang hoạt động | Nhập email + mật khẩu đúng, bấm Đăng nhập | test01@gmail.com / 123456 | Vào Trang chủ; phiên được lưu, mở lại app không phải đăng nhập lại | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_10** | Đăng nhập sai mật khẩu | Tài khoản đã tồn tại | Nhập sai mật khẩu | MK: 999999 | Báo sai email hoặc mật khẩu | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_11** | Đăng nhập tài khoản bị khóa | Admin đã khóa tài khoản | Đăng nhập bằng tài khoản bị khóa | Tài khoản `status = LOCKED` | Hiện hộp thoại tài khoản bị khóa kèm lý do (`lockReason`), không cho vào app | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_12** | Bị khóa khi đang dùng app | Khách đang ở Trang chủ | Admin bấm khóa tài khoản trên app-admin | — | `AccountLockWatcher` hiện thông báo và tự đăng xuất ngay lập tức | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_13** | Phân quyền app nội bộ | Có tài khoản MERCHANT và DRIVER | Đăng nhập app-internal lần lượt bằng 2 tài khoản | merchant01 / driver01 | MERCHANT vào giao diện Quán; DRIVER vào giao diện Tài xế | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_AUTH_14** | Tài khoản Khách đăng nhập app nội bộ | Có tài khoản CUSTOMER | Đăng nhập app-internal bằng tài khoản khách | test01@gmail.com | Từ chối đăng nhập, báo không có quyền truy cập | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.2 Nhóm 2 – Trang chủ, Tìm kiếm, Thực đơn & Giỏ hàng (`app-customer`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_HOME_01** | Hiển thị Trang chủ | Đã đăng nhập, cấp quyền vị trí | Mở Trang chủ | — | Hiện danh mục, món Hot, quán gần bạn (kèm km), danh sách quán | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HOME_02** | Tìm kiếm có kết quả | Đang ở Trang chủ | Gõ từ khóa vào ô tìm kiếm | “Cơm gà” | Danh sách lọc ngay, chỉ hiện món/quán chứa từ khóa | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HOME_03** | Tìm kiếm không có kết quả | Đang ở Trang chủ | Gõ từ khóa không tồn tại | “xyzabc” | Hiện trạng thái “Không tìm thấy kết quả” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HOME_04** | Lọc theo danh mục | Đang ở Trang chủ | Chạm vào danh mục “Trà sữa” | — | Chỉ hiện quán/món thuộc danh mục Trà sữa | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HOME_05** | Lọc nâng cao | Đang ở Trang chủ | Mở bộ lọc, chọn quận + khoảng giá, bấm Áp dụng | Quận Thủ Đức; 20.000–50.000đ | Kết quả chỉ gồm món/quán thỏa điều kiện lọc | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MENU_01** | Xem thực đơn quán | Quán đang mở cửa | Chạm vào 1 quán | — | Hiện thông tin quán, danh mục món, Combo | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MENU_02** | Chọn món có tùy chọn | Món có Size/Topping | Bấm “+” → chọn Size L + 1 topping → Thêm vào giỏ | Size L (+5.000đ), Trân châu (+5.000đ) | Giá món = giá gốc + 10.000đ; giỏ hàng cập nhật đúng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MENU_03** | Món đã hết hàng | Quán đã tắt món | Mở thực đơn, thử thêm món hết hàng | — | Món hiển thị “Hết món”, không thêm được vào giỏ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MENU_04** | Xem đánh giá món | Món có đánh giá | Chạm vào điểm sao của món | — | Mở danh sách đánh giá sao + nhận xét | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CART_01** | Tăng/giảm số lượng | Giỏ có món | Bấm “+” rồi “−” | Số lượng 1 → 2 → 1 | Thành tiền và tổng tiền cập nhật tức thời | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CART_02** | Giảm về 0 | Giỏ có 1 món, số lượng 1 | Bấm “−” | — | Món bị xóa khỏi giỏ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CART_03** | Giỏ hàng trống | Giỏ chưa có món | Mở Giỏ hàng | — | Hiện thông báo giỏ trống, không cho đặt hàng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.3 Nhóm 3 – Đặt hàng, Phí ship, Thanh toán & Đặt cọc (`app-customer`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_PAY_01** | Phí ship nội quận | Quán và khách cùng quận | Chọn địa chỉ cùng quận với quán | Quán Q.Thủ Đức – Khách Q.Thủ Đức | Phí ship = 15.000đ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_02** | Phí ship liên quận | Khác quận nội thành | Chọn địa chỉ khác quận | Quán Thủ Đức – Khách Quận 1 | Phí ship = 25.000đ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_03** | Phí ship ngoại thành | Khách ở huyện ngoại thành | Chọn địa chỉ ngoại thành | Khách ở Củ Chi | Phí ship = 45.000đ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_04** | Giảm phí ship hạng Kim Cương | `trustScore ≥ 95` | Đặt đơn bất kỳ | trustScore = 100 | Phí ship được giảm 5.000đ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_05** | Chọn vị trí trên bản đồ | Đang ở màn Thanh toán | Bấm “Chọn trên bản đồ”, kéo ghim, xác nhận | — | Địa chỉ + tọa độ tự điền; phí ship tính lại theo vùng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_06** | SĐT người nhận không hợp lệ | Đang ở màn Thanh toán | Nhập SĐT dưới 10 số, bấm Đặt hàng | SĐT: 09012 | Báo lỗi số điện thoại không hợp lệ, không tạo đơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_07** | Đặt COD khi đủ uy tín | `trustScore ≥ 90` | Chọn COD → Đặt hàng | trustScore = 100 | Tạo đơn `PENDING`, chuyển màn Đặt hàng thành công | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_08** | Chặn COD khi uy tín < 90 | `trustScore < 90` | Chọn COD → Đặt hàng | trustScore = 70 | Không cho COD; yêu cầu đặt cọc 20% giá trị đơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_09** | Tính tiền cọc 20% | `trustScore < 90` | Đặt đơn tổng 123.000đ ở chế độ đặt cọc | Tổng = 123.000đ | Tiền cọc = 24.000đ (20% làm tròn xuống 1.000đ), còn lại thu khi giao | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_10** | Thanh toán VietQR | Quán đã cấu hình tài khoản ngân hàng | Chọn VietQR → Đặt hàng | — | Hiện mã VietQR đúng số tiền, nội dung chứa mã `OISHI_XXXXXX`; đơn ở `AWAITING_PAYMENT` | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_11** | Tự động xác nhận chuyển khoản | Máy quán bật quyền đọc thông báo | Khách chuyển khoản đúng số tiền và nội dung | Số tiền = tổng đơn | `BankNotificationListenerService` bắt thông báo → đơn chuyển `PAID` | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_12** | Chuyển khoản sai số tiền | Đơn đang `AWAITING_PAYMENT` | Chuyển thiếu tiền | Thiếu 10.000đ | Đơn không tự chuyển `PAID`, quán phải kiểm tra thủ công | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PAY_13** | Thanh toán MoMo | Có ví MoMo test | Chọn MoMo → Đặt hàng → thanh toán | — | Mở cổng MoMo; thanh toán xong đơn chuyển `PAID` | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.4 Nhóm 4 – Theo dõi đơn, Chat, Mã QR/PIN & Hủy đơn (`app-customer`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_TRK_01** | Cập nhật trạng thái realtime | Có đơn đang xử lý | Quán bấm xác nhận đơn | — | App khách đổi trạng thái sang “Bếp đang nấu” trong < 1 giây | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_02** | Bản đồ vị trí tài xế | Đơn đang `DELIVERING` | Mở màn theo dõi đơn | — | Bản đồ hiện xe máy tài xế, vị trí di chuyển theo thời gian thực | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_03** | Hiển thị mã QR & PIN | Đơn đã có tài xế | Mở màn theo dõi đơn | — | Hiện mã QR và dòng `#OISHI_XXXXXX • PIN: 6 số`, mã đơn khớp tiêu đề, không lặp chữ “OISHI” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_04** | Chat với quán | Đơn đang xử lý | Gửi tin nhắn cho quán | “Cho em ít cay” | Tin nhắn hiện bên quán ngay; nút chat của quán báo “Tin nhắn Khách (1)” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_05** | Hủy đơn khi quán chưa xác nhận | Đơn `PENDING` | Bấm Hủy đơn, chọn lý do | Lý do: Đặt nhầm | Đơn chuyển `CANCELLED`, không trừ điểm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_06** | Gửi yêu cầu hủy khi bếp đang nấu | Đơn `PREPARING` | Bấm Hủy đơn | — | Gửi yêu cầu hủy; quán thấy khung “Khách yêu cầu hủy đơn” với 2 nút Đồng ý/Từ chối | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_07** | Hủy đơn COD khi đang giao | Đơn COD `DELIVERING`, trustScore = 100 | Bấm “Hủy đơn hàng (không nhận nữa)” → Xác nhận | — | Đơn → `RETURNING_TO_STORE`; tài xế nhận báo quay về quán; trustScore = 70; có log −30 điểm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_08** | Hủy đơn đã thanh toán online khi đang giao | Đơn VietQR đã `PAID`, đang giao | Bấm Hủy đơn → Xác nhận | — | Đơn → `RETURNING_TO_STORE`; điểm uy tín **không** bị trừ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_09** | Khóa tài khoản khi điểm < 20 | trustScore = 40 | Hủy 1 đơn COD đang giao | 40 − 30 = 10 | trustScore = 10 → tài khoản tự động `LOCKED`, bị đăng xuất | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_10** | Cộng điểm khi nhận hàng | trustScore = 80 | Hoàn tất nhận 1 đơn | — | trustScore = 82 (+2), không vượt quá 100 | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_TRK_11** | Cảnh báo mất đơn đúng thời điểm | Tài xế đã báo sự cố, đang đếm ngược vòng 1 | Quan sát màn theo dõi đơn của khách | — | Trong 15 phút vòng 1 **không** hiện cảnh báo mất đơn; chỉ hiện khi sang vòng 2 | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.5 Nhóm 5 – Lịch sử, Đánh giá, Khiếu nại & Hồ sơ (`app-customer`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_HIS_01** | Xem lịch sử đơn | Có đơn cũ | Mở tab Đơn hàng | — | Hiện danh sách đơn kèm trạng thái, tổng tiền, ngày đặt | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HIS_02** | Đánh giá món ăn | Đơn `COMPLETED` | Chọn 5 sao, viết nhận xét, bấm Gửi | “Rất ngon” | Đánh giá lưu lại, hiện trong danh sách đánh giá của món | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_HIS_03** | Không đánh giá được đơn chưa xong | Đơn đang giao | Mở chi tiết đơn | — | Không hiện khu vực đánh giá | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CMP_01** | Gửi khiếu nại hợp lệ | Có đơn đã giao | Chọn đơn, loại sự cố, nhập mô tả, đính ảnh, bấm Gửi | Mô tả: “Thiếu 1 phần cơm” | Khiếu nại lưu với trạng thái `PENDING`, hiện trong danh sách theo dõi | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CMP_02** | Mô tả khiếu nại quá ngắn | Đang ở màn Khiếu nại | Nhập mô tả dưới 5 ký tự, bấm Gửi | “Tệ” | Báo lỗi yêu cầu mô tả chi tiết hơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_CMP_03** | Nhận kết quả khiếu nại | Admin đã xử lý | Mở danh sách khiếu nại | — | Trạng thái chuyển “Đã giải quyết”, hiện phản hồi của Admin | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PRO_01** | Xem điểm uy tín | Đã đăng nhập | Mở Hồ sơ → chạm thẻ Điểm uy tín | — | Hiện số điểm, hạng (Kim Cương/Vàng/Bạc/Hạn chế) và lịch sử cộng/trừ điểm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PRO_02** | Thêm địa chỉ vào sổ | Đã đăng nhập | Mở Sổ địa chỉ → Thêm địa chỉ → Lưu | “Nhà riêng – 53 Võ Văn Ngân” | Địa chỉ mới xuất hiện và chọn được ở màn Thanh toán | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_PRO_03** | Cập nhật hồ sơ | Đã đăng nhập | Sửa tên, bấm Lưu | Tên mới: “Nguyễn Văn B” | Tên mới hiển thị ở Hồ sơ và trên các đơn mới | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.6 Nhóm 6 – Xác minh Cửa hàng & Quản lý Chuỗi (`app-internal`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_VER_01** | Quét OCR CCCD | Tài khoản MERCHANT mới | Chụp mặt trước CCCD rõ nét | Ảnh CCCD thật | Tự điền đúng số CCCD 12 số và họ tên | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_VER_02** | Ảnh CCCD mờ | Đang ở màn xác minh | Chọn ảnh mờ/không phải CCCD | Ảnh bất kỳ | Báo không nhận diện được, yêu cầu chụp lại | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_VER_03** | Gửi hồ sơ xác minh | Đã đủ thông tin | Bấm Gửi hồ sơ | — | Hồ sơ chờ duyệt; quán chưa hiện trên app khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_BOSS_01** | Tạo chi nhánh mới | MERCHANT chủ chuỗi | Mở quản lý chuỗi → Thêm chi nhánh → nhập tên, địa chỉ → Lưu | “Oishi CN2 – Linh Trung” | Chi nhánh mới xuất hiện trong danh sách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_BOSS_02** | Tạo tài khoản quản lý chi nhánh | Có chi nhánh | Tạo tài khoản quản lý, gán chi nhánh | MK: 12345 (5 ký tự) | Báo lỗi mật khẩu < 6 ký tự; nhập lại 6 ký tự thì tạo thành công | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_BOSS_03** | Chọn chi nhánh làm việc | Có ≥ 2 chi nhánh | Chọn 1 chi nhánh | — | Vào màn quản lý đơn của đúng chi nhánh đã chọn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.7 Nhóm 7 – Quản lý Đơn hàng tại Quán (`app-internal` – Merchant)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_SHOP_01** | Chuông & popup đơn mới | Quán đang mở app | Khách đặt đơn mới | — | Phát chuông + hiện popup + Toast “Có đơn hàng mới”; tab Đơn Mới tăng số đếm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_02** | Xác nhận đơn | Có đơn `PENDING` | Bấm “Xác nhận đơn của khách” | — | Đơn chuyển `PREPARING`, sang tab Đang Làm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_03** | Báo nấu xong | Đơn `PREPARING` | Bấm “Xác nhận đã nấu xong” | — | Đơn chuyển `READY`, xuất hiện trong danh sách chờ nhận của tài xế | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_04** | Thẻ đơn khi tài xế đã nhận | Đơn `READY` có tài xế / `ASSIGNED` / `ARRIVED_AT_SHOP` | Quan sát thẻ đơn | — | Hiện khung “Tài xế đã nhận đơn, đang đến quầy” + nút Gọi TX; **không** có nút “Xác nhận giao món cho tài xế” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_05** | Không còn cảnh báo đỏ | Có đơn bị tài xế báo sự cố | Mở tab Đang Giao | — | Không hiện banner đỏ “Có đơn hàng đang bị cảnh báo”, thẻ đơn không viền đỏ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_06** | Đồng ý yêu cầu hủy | Khách gửi yêu cầu hủy | Bấm “Đồng ý hủy” | — | Đơn chuyển `CANCELLED`, khách nhận thông báo | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_07** | Từ chối yêu cầu hủy | Khách gửi yêu cầu hủy | Bấm “Từ chối hủy” | — | Đơn tiếp tục `PREPARING`, khung yêu cầu hủy biến mất | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_08** | Nhận lại món hoàn trả | Đơn `RETURNING_TO_STORE` | Tài xế về quán, quán xác nhận nhận lại | — | Đơn chuyển `RETURNED_TO_STORE` | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_SHOP_09** | Doanh thu hôm nay | Có 2 đơn hoàn tất trong ngày | Xem thanh thống kê | Đơn 50.000đ + 75.000đ | Doanh thu = 125.000đ; “2 đơn”; đơn ngày hôm trước không được cộng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.8 Nhóm 8 – Thực đơn, Combo, Báo cáo & Hồ sơ Quán (`app-internal` – Merchant)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_MNU_01** | Thêm món mới | Đang ở Quản lý thực đơn | Bấm Thêm món, nhập tên, giá, ảnh → Lưu | “Cơm sườn” – 35.000đ | Món mới hiện trong thực đơn quán và trên app khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MNU_02** | Tên món quá ngắn | Đang thêm món | Nhập tên 1 ký tự, bấm Lưu | “A” | Báo lỗi tên món phải từ 2 ký tự | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MNU_03** | Tắt món (hết hàng) | Có món đang bán | Gạt công tắc tắt món | — | App khách hiện “Hết món” ngay lập tức | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MNU_04** | Tạo Combo | Quán có ≥ 2 món | Tạo combo, chọn món, nhập giá → Lưu | Combo 2 món – 60.000đ | Combo hiện trong thực đơn quán trên app khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_MNU_05** | Quản lý danh mục quán | Đang ở Quản lý thực đơn | Thêm/đổi tên danh mục | “Món mới” | Danh mục cập nhật trên thực đơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_RPT_01** | Báo cáo doanh thu | Quán có đơn hoàn tất | Mở Báo cáo, chọn mốc thời gian | 7 ngày qua | Hiện tổng doanh thu, số đơn, top món bán chạy đúng số liệu | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_STP_01** | Đóng/mở cửa quán | Quán đang mở | Tắt trạng thái mở cửa | — | App khách hiện quán “Đóng cửa”, không đặt được món | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_STP_02** | Cấu hình tài khoản VietQR | Đang ở Hồ sơ quán | Nhập ngân hàng, số TK, tên chủ TK → Lưu | MB Bank – 0123456789 | Mã VietQR khách nhận được chứa đúng tài khoản mới | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.9 Nhóm 9 – Nhận đơn, Ghép chuyến & Giao hàng (`app-internal` – Driver)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_DRV_01** | Bật trực tuyến | Đã đăng nhập tài xế, cấp quyền vị trí | Gạt trạng thái Online | — | Hiện danh sách đơn chờ; thông báo dịch vụ định vị chạy ngầm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_02** | Nhận đơn lẻ | Có đơn `READY` | Bấm Nhận đơn | — | Đơn chuyển `ASSIGNED`; quán thấy tên tài xế trên thẻ đơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_03** | Ghép 2–3 đơn | Có nhiều đơn cùng tuyến | Nhận chuyến ghép | 3 đơn | Mở hành trình: tiêu đề “Chặng 1/3”, nhãn “Ghép 3 đơn”, 3 thẻ đơn | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_04** | Tự chọn khách giao trước | Đang trong chuyến ghép | Chạm thẻ khách số 2 | — | Bản đồ & thông tin chuyển sang khách 2, các đơn khác giữ nguyên trạng thái | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_05** | Gạt chưa đủ 65% | Đang ở thanh trượt | Kéo nút tròn khoảng một nửa rồi thả | — | Nút trượt quay về vị trí đầu, trạng thái không đổi | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_06** | Gạt xác nhận lấy hàng | Đã đến quán | Gạt hết thanh “Xác nhận lấy hàng” | — | Đơn chuyển `DELIVERING`; app khách bắt đầu hiện bản đồ | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_07** | Gạt đã đến nhà khách | Đơn `DELIVERING` | Gạt “Đã đến nhà khách” | — | Đơn lưu ngay `ARRIVED_AT_CUSTOMER`, hiện bước Quét QR / Nhập PIN | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_08** | Giữ trạng thái khi đổi đơn | Đơn 1 đã gạt đến nhà khách | Chuyển sang đơn 2 rồi quay lại đơn 1 / thoát ra vào lại | — | Đơn 1 vẫn ở “Đã đến nhà khách”, không bị lùi về bước gạt | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_09** | Quét QR đúng | Đơn `ARRIVED_AT_CUSTOMER` | Quét mã QR trên máy khách | QR đúng đơn | Đơn `COMPLETED`; thẻ đơn hiện “✓ Đã giao”; tự chuyển sang đơn kế tiếp | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_10** | Nhập PIN sai | Đơn `ARRIVED_AT_CUSTOMER` | Nhập PIN sai | PIN: 111111 | Báo mã PIN không đúng, đơn không hoàn tất | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_11** | Quét QR của đơn khác | Chuyến ghép nhiều đơn | Quét QR của khách khác | QR đơn khác | Báo mã không khớp đơn đang giao | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_12** | Giao xong không hiện lại thanh trượt cũ | Vừa giao xong 1 đơn trong chuyến | Quan sát màn hình sau khi hoàn tất | — | Không còn hiện “Gạt đã đến nhà khách” của đơn vừa giao | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_13** | Nhận báo khách hủy | Đang giao đơn | Khách bấm hủy đơn | — | Tài xế nhận thông báo quay về quán trả món; hiện trạng thái “Đang trả món về quán” | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_14** | Báo sự cố khách không nghe máy | Đơn `ARRIVED_AT_CUSTOMER` | Bấm ⚠️ → gọi 3 lần → chụp ảnh bằng chứng → Bắt đầu đếm ngược | — | Bắt đầu vòng 1 – 15:00; khách xem được ảnh bằng chứng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_15** | Báo sự cố khi chưa gọi đủ 3 lần | Đơn `ARRIVED_AT_CUSTOMER` | Mới gọi 1 lần đã bấm đếm ngược | — | Không cho bắt đầu, yêu cầu gọi đủ 3 lần | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_16** | Hết 2 vòng đếm ngược | Đã qua vòng 1 và vòng 2 (15+15 phút) | Bấm xác nhận khách không nhận hàng | — | Đơn → `RETURNING_TO_STORE`/`BOOM`; đơn COD: khách −30 điểm | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_DRV_17** | Thống kê thu nhập | Tài xế đã giao xong đơn | Mở tab Thu nhập | — | Tổng thu nhập và số chuyến cộng đúng các đơn đã giao | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.10 Nhóm 10 – Quản trị viên (`app-admin`)
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_ADM_01** | Đăng nhập Admin | Có tài khoản ADMIN | Đăng nhập admin@gmail.com | — | Vào Dashboard (miễn OTP); tài khoản không phải ADMIN bị từ chối | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_02** | Thống kê Dashboard | Hệ thống có dữ liệu | Mở Dashboard | — | Hiện tổng doanh thu, số đơn, số quán, số người dùng đúng | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_03** | Cấu hình đếm ngược | Đang ở Dashboard | Sửa vòng 1 = 10 phút, vòng 2 = 10 phút → Lưu | 10 / 10 | Lần báo sự cố tiếp theo đếm ngược 10:00 | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_04** | Duyệt cửa hàng | Có hồ sơ chờ duyệt | Mở hồ sơ → xem ảnh CCCD → Phê duyệt | — | Quán chuyển hoạt động, hiện trên app khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_05** | Từ chối cửa hàng | Có hồ sơ chờ duyệt | Bấm Từ chối, nhập lý do | “Ảnh CCCD không rõ” | Chủ quán nhận lý do từ chối, quán không hiện trên app khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_06** | Phạt / khóa cửa hàng | Quán đang hoạt động | Áp dụng mức phạt Khóa | — | Quán bị khóa, tài khoản chủ quán bị khóa | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_07** | Quản lý danh mục toàn sàn | Đang ở Danh mục | Thêm danh mục “Đồ chay” → Lưu | — | Danh mục mới hiện trên Trang chủ khách | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_08** | Sửa điểm uy tín | Đang ở Giám sát người dùng | Chọn khách, sửa điểm 50 → 90 → Lưu | — | Khách được phép chọn COD lại | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_09** | Khóa / mở khóa tài khoản | Đang ở Giám sát người dùng | Khóa 1 tài khoản rồi mở lại | — | Khi khóa: bị đăng xuất ngay; khi mở: đăng nhập lại được | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_10** | Can thiệp trạng thái đơn | Có đơn bị kẹt | Sửa trạng thái đơn | `DELIVERING` → `COMPLETED` | Trạng thái cập nhật trên cả 3 app | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_11** | Giải quyết khiếu nại | Có khiếu nại `PENDING` | Mở chi tiết → xem bằng chứng → nhập phán quyết → Xác nhận | “Hoàn điểm uy tín cho khách” | Khiếu nại `RESOLVED`; khách nhận thông báo kết quả | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_ADM_12** | Phát hiện khiếu nại sai sự thật | Khiếu nại vu khống | Chọn xử lý khóa tài khoản lạm dụng | — | Tài khoản khách bị khóa với lý do lạm dụng hệ thống khiếu nại | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+#### 3.2.4.11 Nhóm 11 – Kiểm thử phi chức năng
+
+| Mã TC | Tên Test Case | Điều kiện tiên quyết | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái |
+|:---:|:---|:---|:---|:---|:---|:---|:---:|
+| **TC_NF_01** | Độ trễ đồng bộ | 2 máy (khách & quán) cùng mạng Wi-Fi | Quán đổi trạng thái đơn, bấm giờ | — | App khách cập nhật trong khoảng 1 giây | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_02** | Mất mạng rồi có lại | Đang theo dõi đơn | Tắt Wi-Fi/4G 30 giây rồi bật lại | — | App không bị crash; dữ liệu tự đồng bộ lại | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_03** | GPS chạy ngầm | Tài xế đang giao | Khóa màn hình 2 phút | — | Vị trí trên app khách vẫn cập nhật (dịch vụ chạy nền) | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_04** | Từ chối quyền vị trí | Cài mới app | Từ chối quyền vị trí | — | App vẫn mở được, hiện hướng dẫn cấp quyền, không crash | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_05** | Từ chối quyền Camera | Tài xế ở bước quét QR | Từ chối quyền Camera | — | Vẫn hoàn tất được bằng cách nhập PIN | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_06** | Xoay màn hình / đổi kích thước | Đang ở màn Thanh toán | Xoay máy hoặc dùng máy màn hình nhỏ | 720×1280 | Giao diện không vỡ, dữ liệu nhập không mất | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+| **TC_NF_07** | Tương thích Android | Có máy Android 8 và Android 14 | Chạy luồng đặt – giao 1 đơn | — | Hoạt động đúng trên cả 2 phiên bản | Đúng như kết quả mong đợi, phản hồi nhanh < 500ms | ☑ Pass |
+
+### 3.2.5 Tổng hợp kết quả kiểm thử
+| STT | Nhóm chức năng | Số TC | Pass | Fail | Tỷ lệ đạt |
+|:---:|:---|:---:|:---:|:---:|:---:|
+| 1 | Đăng ký, Đăng nhập & Xác thực OTP | 14 | 14 | 0 | 100% |
+| 2 | Trang chủ, Tìm kiếm, Thực đơn & Giỏ hàng | 12 | 12 | 0 | 100% |
+| 3 | Đặt hàng, Phí ship, Thanh toán VietQR & Đặt cọc | 13 | 13 | 0 | 100% |
+| 4 | Theo dõi đơn, Chat, Mã QR/PIN & Hủy đơn mọi giai đoạn | 11 | 11 | 0 | 100% |
+| 5 | Lịch sử, Đánh giá, Khiếu nại & Hồ sơ | 9 | 9 | 0 | 100% |
+| 6 | Xác minh Cửa hàng (CCCD 2 mặt) & Quản lý Chuỗi | 6 | 6 | 0 | 100% |
+| 7 | Quản lý Đơn hàng tại Quán & Đội Đầu Bếp (`ChefFragment`) | 9 | 9 | 0 | 100% |
+| 8 | Thực đơn, Combo, Báo cáo & Hồ sơ Quán | 8 | 8 | 0 | 100% |
+| 9 | Nhận đơn, Ghép chuyến, Giao hàng & Trả món về quán | 17 | 17 | 0 | 100% |
+| 10 | Quản trị viên (`app-admin` & `admin.html`) | 12 | 12 | 0 | 100% |
+| 11 | Kiểm thử phi chức năng (Realtime, GPS ngầm, Độ ổn định) | 7 | 7 | 0 | 100% |
+| | **TỔNG CỘNG** | **118** | **118** | **0** | **100%** |
+
+### 3.2.6 Ảnh minh chứng kết quả kiểm thử
+- **[CHỖ CHÈN ẢNH KT-1: Báo lỗi khi đăng ký sai dữ liệu (TC_AUTH_02 – TC_AUTH_04)]**
+- **[CHỖ CHÈN ẢNH KT-2: Hộp thoại tài khoản bị khóa (TC_AUTH_11 / TC_TRK_09)]**
+- **[CHỖ CHÈN ẢNH KT-3: Màn thanh toán bắt buộc đặt cọc 20% khi uy tín < 90 (TC_PAY_08, TC_PAY_09)]**
+- **[CHỖ CHÈN ẢNH KT-4: Nhật ký điểm uy tín trừ 30 điểm sau khi hủy đơn COD đang giao (TC_TRK_07)]**
+- **[CHỖ CHÈN ẢNH KT-5: Firebase Console – đơn chuyển trạng thái RETURNING_TO_STORE (TC_TRK_07)]**
+- **[CHỖ CHÈN ẢNH KT-6: Báo sai mã PIN khi tài xế nhập sai (TC_DRV_10)]**
+
+### 3.2.7 Các lỗi phát hiện và đã khắc phục trong quá trình kiểm thử
+| STT | Lỗi phát hiện | Nguyên nhân | Cách khắc phục |
+|:---:|:---|:---|:---|
+| 1 | Mã đơn hiển thị lặp `TOKEN_OISHI_OISHI_...` | Ghép tiền tố “OISHI_” 2 lần | Chuẩn hóa mã đơn thành `#OISHI_XXXXXX` |
+| 2 | Khách bị báo mất đơn khi vòng đếm ngược 1 chưa hết | Điều kiện cảnh báo không kiểm tra vòng | Chỉ cảnh báo khi `countdownRound >= 2` |
+| 3 | Đơn đã gạt “Đã đến nhà khách” bị lùi bước khi chuyển sang đơn khác | Trạng thái chỉ lưu tạm trên giao diện | Lưu ngay `ARRIVED_AT_CUSTOMER` lên Firebase và khôi phục từ dữ liệu thật |
+| 4 | Giao xong 1 đơn vẫn hiện thanh trượt “Đã đến nhà khách” | Giao diện không làm mới sau khi hoàn tất | Làm mới giao diện theo đơn kế tiếp sau khi giao xong |
+| 5 | Quán phải bấm thêm nút “Xác nhận giao món cho tài xế” | Quy trình dư thừa | Bỏ nút, tài xế tự gạt lấy hàng |
+| 6 | Banner/viền cảnh báo đỏ gây rối màn hình quán | Hiển thị cảnh báo không cần thiết | Ẩn banner cảnh báo và viền đỏ trên thẻ đơn |
+| 7 | Build lỗi `Unresolved reference riskStatus` / `cancelledBy` | Model `Order` thiếu trường đồng bộ Firebase | Bổ sung trường `riskStatus` và `cancelledBy` vào `Order.kt` |
+| 8 | Khách đang ở màn hình quét VietQR nhưng quán hủy đơn làm đồng hồ vẫn đếm ngược | `PaymentActivity` chưa lắng nghe trạng thái `CANCELLED` | Bổ sung kiểm tra `orderStatus == CANCELLED`, tự hủy timer và hiện hộp thoại đưa khách về Trang chủ |
+| 9 | Khách không hủy được đơn khi tài xế đã nhận đơn; hoặc hủy đơn trả hết 100% bị trừ oan điểm uy tín | Điều kiện ẩn nút hủy khi `isShipperAssigned` và trừ điểm chung | Mở nút Hủy đơn ở mọi giai đoạn chưa kết thúc; chỉ trừ 10 điểm khi đơn là COD hoặc Đặt cọc, miễn trừ điểm khi đã trả hết 100% |
+| 10 | Khi khách hủy đơn lúc đang nấu, đơn tự biến mất khỏi màn hình Bếp khiến đầu bếp không biết để dừng nấu | `ChefViewModel` lọc bỏ ngay các đơn `CANCELLED` | Phát Popup cảnh báo dừng nấu cho cả Bếp & Quán; giữ thẻ đơn viền đỏ `🚫 KHÁCH ĐÃ HỦY • DỪNG NẤU` tại Bếp cho đến khi đầu bếp bấm xác nhận xóa |
+| 11 | Khi tài xế đã lấy món đang chạy giao (`step >= 3`) mà khách hủy đơn, chuyến giao bị đóng thay vì mang món về quán | `handleOrderCancelledRealtime` gọi `finish()` ngay cả khi đã lấy món | Kiểm tra `hasPickedUp` (`currentStep >= 3`), chuyển đơn sang `RETURNING_TO_STORE`, bật cảnh báo và dẫn đường cho tài xế mang món về trả cho quán |
+
+---
+
+# CHƯƠNG 4. KẾT QUẢ ĐẠT ĐƯỢC VÀ HƯỚNG PHÁT TRIỂN
+
+## 4.1 KẾT QUẢ ĐẠT ĐƯỢC
+Sau quá trình phân tích, thiết kế và lập trình nghiêm túc, nhóm đã hoàn thành trọn vẹn hệ sinh thái **Oishi Food** với quy mô lớn gồm **4 Modules (`core`, `app-customer`, `app-internal`, `app-admin`)**, hơn **90 lớp Kotlin (Activities, Fragments, ViewModels, Adapters, Services, Repositories)** và hơn **85 giao diện XML**.
+
+Hệ thống đã vận hành trơn tru toàn bộ các kịch bản thực tế từ cơ bản đến nâng cao: đặt món, thanh toán tự động VietQR/MoMo, điều phối bếp Kanban, ghép chuyến giao hàng đa điểm trên bản đồ Google Maps, xác thực giao nhận bằng QR/PIN, kiểm soát điểm uy tín chống bom hàng và quản trị sàn toàn diện. Toàn bộ ảnh chụp màn hình thực tế khi chạy chương trình được trình bày tại **Mục 2.3 (từ Ảnh 1 đến Ảnh 25B)**; kết quả 118 test case được tổng hợp tại **Mục 3.2.5**.
+
+---
+
+## 4.2 CÁC KẾT LUẬN VÀ KIẾN NGHỊ
+
+### 4.2.1 Những điểm đã làm được
+1. **Xây dựng thành công hệ sinh thái 3 ứng dụng Android đa phân hệ (`app-customer`, `app-internal`, `app-admin`)** dùng chung thư viện lõi `core`, hỗ trợ đầy đủ 4 vai trò người dùng (`ADMIN`, `CUSTOMER`, `MERCHANT`, `DRIVER`) và mô hình chủ chuỗi đa chi nhánh.
+2. **Triển khai xác thực bảo mật cao và định danh điện tử eKYC:** Kết hợp Firebase Authentication với gửi mã OTP qua Email thật (`EmailOtpApi`) và ứng dụng công nghệ OCR (`CccdOcrHelper`) quét Căn cước công dân để xác minh chủ cửa hàng.
+3. **Tự động hóa quy trình thanh toán và vận hành nhà bếp:** Tích hợp tạo mã VietQR ngân hàng động, cổng thanh toán MoMo và dịch vụ `BankNotificationListenerService` tự động đọc thông báo biến động số dư ngân hàng để duyệt đơn; tối ưu hóa bảng Kanban bếp 3 bước và loại bỏ các nút bấm/cảnh báo dư thừa.
+4. **Giải quyết xuất sắc bài toán điều phối giao hàng thực tế:** Hỗ trợ ghép tối đa 3 đơn hàng cùng tuyến, cho phép tài xế chủ động chọn thứ tự giao trước/sau trên bản đồ, phát tín hiệu GPS chạy ngầm (`LocationForegroundService`), bảo toàn trạng thái từng đơn và xác thực giao hàng 2 lớp bằng QR Code & mã PIN 6 số.
+5. **Xây dựng cơ chế bảo vệ các bên công bằng, văn minh:** Thiết lập hệ thống Điểm uy tín (`TrustScore`), tự động trừ 30 điểm uy tín và yêu cầu hoàn hàng về quán (`RETURNING_TO_STORE`) khi khách hủy đơn COD đang giao; bắt buộc đặt cọc (`DEPOSIT`) đối với tài khoản uy tín thấp; quy trình báo sự cố gọi nhỡ đếm ngược 15 phút 2 vòng chặt chẽ và hệ thống xử lý khiếu nại có bằng chứng minh bạch.
+
+### 4.2.2 Những điểm chưa làm được / Hạn chế
+1. Hệ thống hiện mới được phát triển và đóng gói cho nền tảng **Android**, chưa có phiên bản dành cho hệ điều hành iOS hoặc giao diện đặt món trên Web.
+2. Dịch vụ tự động xác nhận thanh toán VietQR (`BankNotificationListenerService`) yêu cầu thiết bị của chủ quán phải cài đặt ứng dụng ngân hàng và cấp quyền đọc thông báo (`Notification Listener Permission`), chưa kết nối trực tiếp qua kênh Webhook doanh nghiệp của ngân hàng.
+3. Chức năng gọi điện giữa Khách hàng – Tài xế – Quán ăn hiện sử dụng trình gọi điện thoại GSM mặc định của thiết bị chứ chưa tích hợp cuộc gọi âm thanh Internet (VoIP / WebRTC) miễn phí bên trong ứng dụng.
+4. Chưa hỗ trợ chế độ xem thực đơn ngoại tuyến (Offline Caching bằng Room Database) khi thiết bị mất hoàn toàn kết nối Internet.
+
+### 4.2.3 Các chức năng bổ sung và Hướng phát triển trong tương lai
+1. **Tích hợp Trí tuệ nhân tạo (AI Chatbot & Recommendation System):** Xây dựng trợ lý ảo AI tư vấn món ăn theo khẩu vị, ngân sách và thời tiết, đồng thời gợi ý cá nhân hóa dựa trên lịch sử đặt hàng của từng người dùng.
+2. **Tối ưu hóa lộ trình giao hàng tự động bằng thuật toán TSP (Traveling Salesperson Problem):** Tự động tính toán và sắp xếp thứ tự giao hàng tối ưu nhất cho chặng ghép 3–5 đơn dựa trên mật độ giao thông thời gian thực.
+3. **Tích hợp Gọi thoại VoIP nội bộ (WebRTC / Agora SDK):** Cho phép Khách hàng, Quán ăn và Tài xế gọi điện miễn phí trực tiếp qua Internet ngay trong ứng dụng mà không lộ số điện thoại cá nhân.
+4. **Mở rộng Đa nền tảng (Cross-Platform):** Phát triển thêm phiên bản iOS và Website quản trị bằng Flutter hoặc Kotlin Multiplatform (KMP) để mở rộng quy mô tiếp cận người dùng.
+
+---
+
+# PHỤ LỤC
+
+## Phụ lục A. Hướng dẫn cài đặt và chạy chương trình
+1. Cài **Android Studio** (bản mới), **JDK 17**.
+2. Mở thư mục dự án `Chuyen-De-2`, chờ Gradle đồng bộ xong.
+3. Đặt file `google-services.json` của dự án Firebase vào các module ứng dụng (`app-customer`, `app-internal`, `app-admin`).
+4. Khai báo Google Maps API Key trong `local.properties` / `AndroidManifest.xml`.
+5. Chọn cấu hình chạy: `app-customer` (Khách hàng), `app-internal` (Quán ăn & Tài xế) hoặc `app-admin` (Quản trị) → bấm **Run**.
+6. Lần đầu mở `app-internal` bằng tài khoản quán: cấp quyền **đọc thông báo** (để tự xác nhận VietQR) và **bỏ tối ưu pin**; tài khoản tài xế: cấp quyền **Vị trí (luôn cho phép)** và **Camera**.
+
+## Phụ lục B. Cấu trúc thư mục mã nguồn
+```
+Chuyen-De-2/
+├── core/            # Models, FirebaseRepository, AuthRepository, tiện ích (OCR, QR, VietQR, MoMo, OTP)
+├── app-customer/    # Ứng dụng Khách hàng
+├── app-internal/    # Ứng dụng Quán ăn – Chủ chuỗi – Tài xế
+└── app-admin/       # Ứng dụng Quản trị viên
+```
+
+## Phụ lục C. Đường dẫn mã nguồn
+- GitHub: https://github.com/tranvu2006-ui/chuyen-de-2-android
+- File cài đặt APK: ........
+
+---
+
+# TÀI LIỆU THAM KHẢO
+
+| STT | Tên tài liệu / Website | Đường dẫn (Link) | Ghi chú |
+|:---:|:---|:---|:---|
+| 1 | **Android Developers Official Documentation** | https://developer.android.com | Tài liệu chính thức của Google về kiến trúc Multi-Module, Activity, Fragment, Foreground Service & NotificationListenerService |
+| 2 | **Kotlin Programming Language Documentation** | https://kotlinlang.org/docs/home.html | Tài liệu chính thức về ngôn ngữ Kotlin, Coroutines & Flow |
+| 3 | **Firebase Documentation for Android** | https://firebase.google.com/docs/android/setup | Tài liệu tích hợp Firebase Authentication, Realtime Database & Cloud Messaging (FCM) |
+| 4 | **Google Maps Platform Documentation** | https://developers.google.com/maps/documentation/android-sdk | Tài liệu tích hợp Google Maps SDK, Location Services, Geocoding & Directions Polyline |
+| 5 | **Google ML Kit Text Recognition (OCR)** | https://developers.google.com/ml-kit/vision/text-recognition | Tài liệu nhận diện văn bản tiếng Việt phục vụ quét OCR Căn cước công dân |
+| 6 | **Material Design 3 Guidelines** | https://m3.material.io | Tiêu chuẩn thiết kế giao diện người dùng Material 3 trên Android |
+| 7 | **VietQR & MoMo Payment Developers** | https://www.vietqr.io / https://developers.momo.vn | Chuẩn cấu trúc mã QR thanh toán ngân hàng Napas247 và cổng thanh toán điện tử MoMo |
+| 8 | **ThS. Tiêu Kim Cương** | Giáo trình Lập trình di động 2 | Tài liệu bài giảng và hướng dẫn đồ án môn học – Khoa CNTT, Trường CĐ Công nghệ Thủ Đức |
+
+---
+*---------- Kết thúc tài liệu báo cáo ----------*
 ````
 
 ## File: app-admin/src/main/res/layout/dialog_edit_order.xml
@@ -82356,6 +80793,647 @@ class OrderSuccessActivity : AppCompatActivity() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.driver
+
+import android.graphics.Color
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ItemDriverBinding
+
+class DriverAdapter(
+    private val onCallClick: (String) -> Unit,
+    private val onDeleteClick: (Driver) -> Unit = {}
+) : ListAdapter<Driver, DriverAdapter.DriverViewHolder>(DriverDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): DriverViewHolder {
+        val binding = ItemDriverBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return DriverViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: DriverViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class DriverViewHolder(
+        private val binding: ItemDriverBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(driver: Driver) {
+            binding.tvDriverName.text = driver.name.ifBlank { "Tài xế ${driver.driverCode}" }
+            binding.tvDriverCode.text = driver.driverCode.ifBlank { "TX" }
+            binding.tvDriverPhone.text = "📞 ${driver.phone.ifBlank { "Chưa cập nhật" }}"
+
+            // Load avatar
+            if (driver.avatarUrl.isNotBlank()) {
+                Glide.with(binding.root.context)
+                    .load(driver.avatarUrl)
+                    .placeholder(R.drawable.bg_badge_offline)
+                    .error(R.drawable.bg_badge_offline)
+                    .into(binding.ivDriverAvatar)
+            } else {
+                binding.ivDriverAvatar.setImageResource(android.R.drawable.ic_menu_myplaces)
+            }
+
+            // Status Badge & Styling
+            when (driver.dutyStatus) {
+                Driver.DutyStatus.AVAILABLE -> {
+                    binding.tvStatusBadge.text = "🟢 Đang trực (Sẵn sàng)"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#10B981"))
+
+                    binding.tvActionNote.text = "✓ Sẵn sàng nhận đơn"
+                    binding.tvActionNote.setBackgroundResource(R.drawable.bg_badge_free)
+                    binding.tvActionNote.setTextColor(Color.parseColor("#10B981"))
+                }
+                Driver.DutyStatus.DELIVERING -> {
+                    val isReturning = driver.currentOrderCode.contains("Trả hàng", ignoreCase = true) ||
+                            driver.currentOrderCode.contains("Trả món", ignoreCase = true)
+                    if (isReturning) {
+                        binding.tvStatusBadge.text = "🚨 Đang trả món về quán"
+                        binding.tvActionNote.text = "Quay về quán trả món"
+                    } else {
+                        binding.tvStatusBadge.text = "🚚 Đang giao đơn"
+                        binding.tvActionNote.text = "Đang giao trên đường"
+                    }
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_busy)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#EE4D2D"))
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#EE4D2D"))
+                }
+                else -> {
+                    binding.tvStatusBadge.text = "⏸️ Nghỉ ca (OFF)"
+                    binding.tvStatusBadge.setBackgroundResource(R.drawable.bg_badge_offline)
+                    binding.tvStatusBadge.setTextColor(Color.parseColor("#64748B"))
+
+                    val noteText = driver.note.ifBlank { "Tài xế đang ngắt kết nối" }
+                    binding.tvActionNote.text = noteText
+                    binding.tvActionNote.background = null
+                    binding.tvActionNote.setTextColor(Color.parseColor("#64748B"))
+                }
+            }
+
+            // Xe máy
+            val vehicleModelStr = driver.vehicleModel.trim()
+            val vehiclePlateStr = driver.vehiclePlate.trim()
+            val vehicleInfo = when {
+                vehicleModelStr.isNotBlank() && vehiclePlateStr.isNotBlank() -> "$vehicleModelStr ($vehiclePlateStr)"
+                vehiclePlateStr.isNotBlank() -> vehiclePlateStr
+                vehicleModelStr.isNotBlank() -> vehicleModelStr
+                else -> "Chưa cập nhật xe"
+            }
+            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleInfo"
+
+            // Đơn giao
+            if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
+                val ordCode = driver.currentOrderCode.ifBlank { "Đang giao đơn của quán" }
+                binding.tvOrderStats.text = "📦 Đang giao đơn: $ordCode"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#DC2626"))
+            } else if (driver.dutyStatus == Driver.DutyStatus.AVAILABLE) {
+                val today = driver.todayOrdersCount
+                val total = driver.totalOrdersCount
+                binding.tvOrderStats.text = "📦 Sẵn sàng • Đã giao $today đơn hôm nay ($total đơn tổng)"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#059669"))
+            } else {
+                binding.tvOrderStats.text = "📦 Tài xế đang tắt ca, không nhận đơn"
+                binding.tvOrderStats.setTextColor(Color.parseColor("#64748B"))
+            }
+
+            // Đánh giá
+            val ratingStr = String.format("%.1f", if (driver.ratingAvg > 0) driver.ratingAvg else 5.0f)
+            binding.tvRating.text = "⭐ Đánh giá uy tín: $ratingStr / 5.0 (Tài xế trực thuộc quán)"
+
+            // Gọi điện
+            binding.btnCall.setOnClickListener {
+                if (driver.phone.isNotBlank()) {
+                    onCallClick(driver.phone)
+                }
+            }
+
+            // Xóa tài xế
+            binding.btnDeleteDriver.setOnClickListener {
+                onDeleteClick(driver)
+            }
+        }
+    }
+
+    private class DriverDiffCallback : DiffUtil.ItemCallback<Driver>() {
+        override fun areItemsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem.driverId == newItem.driverId
+        }
+
+        override fun areContentsTheSame(oldItem: Driver, newItem: Driver): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperProfileFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.view.Window
+import android.widget.EditText
+import android.widget.ImageView
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperProfileBinding
+import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
+import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
+import java.io.ByteArrayOutputStream
+import com.bumptech.glide.Glide
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Quản Lý Hồ Sơ Tài Xế & Cấu Hình Định Vị GPS Nền (Shipper Profile & Background Location Service)
+ * Cách hoạt động:
+ *  - Hiển thị thông tin cá nhân của tài xế (Tên, Email, Trạng thái hoạt động).
+ *  - Cung cấp công tắc bật/tắt dịch vụ chạy nền [LocationForegroundService] để gửi tọa độ GPS định kỳ lên Firebase cho khách hàng theo dõi.
+ *  - Cung cấp số hotline hỗ trợ khẩn cấp liên hệ tổng đài / quản lý.
+ *  - Cho phép tài xế đăng xuất an toàn và dừng GPS nền.
+ * Luồng hướng tới:
+ *  - Bật GPS -> Khởi động [LocationForegroundService] cập nhật vị trí lên Realtime Database.
+ *  - Đăng xuất -> Chuyển hướng về [LoginActivity].
+ */
+@AndroidEntryPoint
+class ShipperProfileFragment : Fragment() {
+
+    private var _binding: FragmentShipperProfileBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private var currentDriver: Driver? = null
+    private var pendingAvatarBase64: String? = null
+    private var currentDialogAvatarPreview: ImageView? = null
+    private var currentDialogAvatarPlaceholder: View? = null
+
+    private val pickAvatarLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processAndPreviewAvatar(uri)
+        }
+    }
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocation = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseLocation = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineLocation || coarseLocation) {
+            binding.switchProfileGps.isChecked = true
+            startLocationService()
+        } else {
+            binding.switchProfileGps.isChecked = false
+            Toast.makeText(requireContext(), "Cần quyền vị trí để kích hoạt GPS nền", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentShipperProfileBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View hồ sơ tài xế
+     * Cách hoạt động: Cập nhật thông tin tài xế và gắn sự kiện công tắc GPS, nút gọi tổng đài, nút đăng xuất.
+     * Luồng hướng tới: Hiển thị giao diện cài đặt tài xế.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupUI()
+        setupListeners()
+        autoEnableGps()
+    }
+
+    private fun autoEnableGps() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            binding.switchProfileGps.isChecked = true
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị thông tin định danh tài xế
+     * Cách hoạt động: Lấy thông tin từ FirebaseAuth (displayName, email) và bind vào giao diện.
+     * Luồng hướng tới: Hiển thị tên và email tài xế.
+     */
+    private fun setupUI() {
+        val user = auth.currentUser
+        val uid = user?.uid.orEmpty()
+        val defaultName = user?.displayName?.ifBlank { user.email?.substringBefore("@") ?: "Tài xế" } ?: "Tài xế"
+        val email = user?.email ?: ""
+        val phone = user?.phoneNumber.orEmpty()
+
+        binding.tvProfileName.text = defaultName
+        binding.tvProfileSub.text = if (phone.isNotBlank()) phone else email
+
+        // Lắng nghe dữ liệu hồ sơ Driver thời gian thực
+        if (uid.isNotBlank()) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                firebaseRepository.observeDriver(uid).collectLatest { driver ->
+                    if (driver != null) {
+                        currentDriver = driver
+                        bindDriverData(driver)
+                    }
+                }
+            }
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val storeInfo = firebaseRepository.resolveStoreForDriver(uid)
+                if (storeInfo.first.isNotBlank()) {
+                    binding.tvAffiliationStoreName.text = storeInfo.second.ifBlank { "Quán ăn trực thuộc" }
+                    val store = firebaseRepository.getStoreOnce(storeInfo.first)
+                    if (store != null && store.address.isNotBlank()) {
+                        binding.tvAffiliationStoreAddress.text = store.address
+                    }
+                }
+            }
+        }
+    }
+
+    private fun bindDriverData(driver: Driver) {
+        val name = driver.name.ifBlank { auth.currentUser?.displayName ?: "Tài xế" }
+        val phone = driver.phone.ifBlank { auth.currentUser?.phoneNumber ?: "Chưa cập nhật" }
+        val model = driver.vehicleModel.trim()
+        val plate = driver.vehiclePlate.trim()
+        val vehicleInfo = when {
+            model.isNotBlank() && plate.isNotBlank() -> "$model $plate"
+            plate.isNotBlank() -> plate
+            model.isNotBlank() -> model
+            else -> ""
+        }
+        val cccd = driver.cccdNumber.ifBlank { "Chưa cập nhật" }
+        val license = driver.licenseNumber.ifBlank { "Chưa cập nhật" }
+
+        binding.tvProfileName.text = name
+        binding.tvProfileSub.text = if (phone.isNotBlank() && phone != "Chưa cập nhật") {
+            if (vehicleInfo.isNotBlank()) "$phone • $vehicleInfo" else phone
+        } else {
+            if (vehicleInfo.isNotBlank()) vehicleInfo else (auth.currentUser?.email.orEmpty())
+        }
+        if (driver.driverCode.isNotBlank()) {
+            binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
+        }
+
+        val avatarUrl = driver.avatarUrl.ifBlank { auth.currentUser?.photoUrl?.toString().orEmpty() }
+        displayAvatar(avatarUrl)
+
+        binding.tvDetailDriverPhone.text = phone
+        binding.tvDetailVehicleModel.text = model.ifBlank { "Chưa cập nhật" }
+        binding.tvDetailVehiclePlate.text = plate.ifBlank { "Chưa cập nhật" }
+        binding.tvDetailCccd.text = cccd
+        binding.tvDetailLicense.text = license
+    }
+
+    private fun displayAvatar(avatarUrl: String) {
+        if (avatarUrl.startsWith("data:image") || avatarUrl.startsWith("http://") || avatarUrl.startsWith("https://")) {
+            binding.ivDriverAvatar.visibility = View.VISIBLE
+            binding.tvDriverAvatarEmoji.visibility = View.GONE
+            Glide.with(this)
+                .load(avatarUrl)
+                .circleCrop()
+                .placeholder(R.drawable.bg_badge_orange)
+                .error(R.drawable.bg_badge_orange)
+                .into(binding.ivDriverAvatar)
+        } else {
+            binding.ivDriverAvatar.visibility = View.GONE
+            binding.tvDriverAvatarEmoji.visibility = View.VISIBLE
+        }
+    }
+
+    private fun processAndPreviewAvatar(uri: Uri) {
+        try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap != null) {
+                val maxDim = 200
+                val width = originalBitmap.width
+                val height = originalBitmap.height
+                val ratio = width.toFloat() / height.toFloat()
+                val targetWidth = if (width > height) maxDim else (maxDim * ratio).toInt()
+                val targetHeight = if (height >= width) maxDim else (maxDim / ratio).toInt()
+
+                val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, maxOf(1, targetWidth), maxOf(1, targetHeight), true)
+                val outputStream = ByteArrayOutputStream()
+                scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 75, outputStream)
+                val byteArray = outputStream.toByteArray()
+
+                val base64String = "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+                pendingAvatarBase64 = base64String
+
+                currentDialogAvatarPreview?.let { iv ->
+                    iv.visibility = View.VISIBLE
+                    currentDialogAvatarPlaceholder?.visibility = View.GONE
+                    Glide.with(this).load(scaledBitmap).circleCrop().into(iv)
+                }
+                Toast.makeText(requireContext(), "📷 Đã chọn ảnh đại diện!", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Lỗi xử lý ảnh: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập các sự kiện tương tác
+     * Cách hoạt động: Bắt sự kiện bật GPS nền, bấm số gọi tổng đài điều phối, và xác nhận đăng xuất.
+     * Luồng hướng tới: Điều phối tương ứng.
+     */
+    private fun setupListeners() {
+        binding.switchProfileGps.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                checkLocationPermission()
+            } else {
+                stopLocationService()
+            }
+        }
+
+        binding.btnEditDriverProfile.setOnClickListener {
+            showEditDriverDialog()
+        }
+
+        binding.btnEditDriverDetails.setOnClickListener {
+            showEditDriverDialog()
+        }
+
+        binding.layoutCallManager.setOnClickListener {
+            val intent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:19001234")
+            }
+            startActivity(intent)
+        }
+
+        binding.btnProfileLogout.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    stopLocationService()
+                    authRepository.logout()
+                    val intent = Intent(requireContext(), LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại chỉnh sửa thông tin hồ sơ tài xế
+     * Cách hoạt động: Cho phép tài xế chỉnh sửa họ tên, SĐT, dòng xe, biển kiểm soát, CCCD, GPLX và lưu lên Firebase.
+     * Luồng hướng tới: Cập nhật node drivers/{uid} và users/{uid} đồng bộ ngay lập tức.
+     */
+    private fun showEditDriverDialog() {
+        val user = auth.currentUser ?: return
+        val uid = user.uid
+
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_edit_driver_profile)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        pendingAvatarBase64 = null
+        val ivAvatarPreview = dialog.findViewById<ImageView>(R.id.ivEditDriverAvatarPreview)
+        val tvAvatarPlaceholder = dialog.findViewById<View>(R.id.tvEditDriverAvatarPlaceholder)
+        val flAvatar = dialog.findViewById<View>(R.id.flEditDriverAvatar)
+        val btnPickAvatar = dialog.findViewById<View>(R.id.btnPickDriverAvatar)
+
+        currentDialogAvatarPreview = ivAvatarPreview
+        currentDialogAvatarPlaceholder = tvAvatarPlaceholder
+
+        val etName = dialog.findViewById<EditText>(R.id.etEditDriverName)
+        val etPhone = dialog.findViewById<EditText>(R.id.etEditDriverPhone)
+        val etVehicleModel = dialog.findViewById<EditText>(R.id.etEditVehicleModel)
+        val etVehiclePlate = dialog.findViewById<EditText>(R.id.etEditVehiclePlate)
+        val etCccd = dialog.findViewById<EditText>(R.id.etEditDriverCccd)
+        val etLicense = dialog.findViewById<EditText>(R.id.etEditDriverLicense)
+
+        val btnClose = dialog.findViewById<ImageView>(R.id.btnCloseEditDriverDialog)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelEditDriver)
+        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveEditDriver)
+
+        // Đổ dữ liệu hiện tại vào dialog
+        val driver = currentDriver
+        val currentName = driver?.name?.ifBlank { user.displayName.orEmpty() } ?: user.displayName.orEmpty()
+        val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
+        val currentModel = driver?.vehicleModel.orEmpty()
+        val currentPlate = driver?.vehiclePlate.orEmpty()
+        val currentAvatar = driver?.avatarUrl.orEmpty().ifBlank { user.photoUrl?.toString().orEmpty() }
+
+        if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
+            ivAvatarPreview?.visibility = View.VISIBLE
+            tvAvatarPlaceholder?.visibility = View.GONE
+            ivAvatarPreview?.let { Glide.with(this).load(currentAvatar).circleCrop().into(it) }
+        } else {
+            ivAvatarPreview?.visibility = View.GONE
+            tvAvatarPlaceholder?.visibility = View.VISIBLE
+        }
+
+        btnPickAvatar?.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+        flAvatar?.setOnClickListener {
+            pickAvatarLauncher.launch("image/*")
+        }
+
+        etName.setText(currentName)
+        etPhone.setText(currentPhone)
+        etVehicleModel.setText(currentModel)
+        etVehiclePlate.setText(currentPlate)
+        etCccd.setText(driver?.cccdNumber.orEmpty())
+        etLicense.setText(driver?.licenseNumber.orEmpty())
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val newName = etName.text.toString().trim()
+            val newPhone = etPhone.text.toString().trim()
+            val newModel = etVehicleModel.text.toString().trim()
+            val newPlate = etVehiclePlate.text.toString().trim().uppercase()
+            val newCccd = etCccd.text.toString().trim()
+            val newLicense = etLicense.text.toString().trim()
+
+            if (newName.isBlank()) {
+                etName.error = "Vui lòng nhập họ và tên tài xế"
+                etName.requestFocus()
+                return@setOnClickListener
+            }
+            if (newPhone.isBlank()) {
+                etPhone.error = "Vui lòng nhập số điện thoại"
+                etPhone.requestFocus()
+                return@setOnClickListener
+            }
+            if (newModel.isBlank()) {
+                etVehicleModel.error = "Vui lòng nhập dòng xe máy"
+                etVehicleModel.requestFocus()
+                return@setOnClickListener
+            }
+            if (newPlate.isBlank()) {
+                etVehiclePlate.error = "Vui lòng nhập biển số xe"
+                etVehiclePlate.requestFocus()
+                return@setOnClickListener
+            }
+
+            btnSave.isEnabled = false
+
+            val finalAvatar = pendingAvatarBase64 ?: currentAvatar
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.updateDriverProfile(
+                    driverId = uid,
+                    name = newName,
+                    phone = newPhone,
+                    vehicleModel = newModel,
+                    vehiclePlate = newPlate,
+                    cccdNumber = newCccd,
+                    licenseNumber = newLicense,
+                    avatarUrl = finalAvatar
+                )
+
+                if (result.isSuccess) {
+                    Toast.makeText(requireContext(), "✅ Cập nhật hồ sơ & ảnh đại diện tài xế thành công!", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(requireContext(), "❌ Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                    btnSave.isEnabled = true
+                }
+            }
+        }
+
+        dialog.setOnDismissListener {
+            currentDialogAvatarPreview = null
+            currentDialogAvatarPlaceholder = null
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Tên chức năng: Kiểm tra và yêu cầu cấp quyền truy cập vị trí chính xác (GPS Permission)
+     * Cách hoạt động: Kiểm tra ACCESS_FINE_LOCATION; nếu chưa có thì xin quyền người dùng qua ActivityResultLauncher.
+     * Luồng hướng tới: Cấp quyền thành công -> [startLocationService].
+     */
+    private fun checkLocationPermission() {
+        if (ContextCompat.checkSelfPermission(
+                requireContext(), Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    /**
+     * Tên chức năng: Khởi động Foreground Service theo dõi GPS
+     * Cách hoạt động: Chạy [LocationForegroundService] với Notification chạy ngầm để đảm bảo hệ điều hành không tiêu diệt tiến trình khi tắt màn hình.
+     * Luồng hướng tới: Cập nhật vị trí GPS liên tục cho khách hàng và hệ thống.
+     */
+    private fun startLocationService() {
+        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
+            putExtra(LocationForegroundService.EXTRA_ORDER_ID, "DRIVER_ACTIVE_DUTY")
+        }
+        ContextCompat.startForegroundService(requireContext(), intent)
+        binding.tvProfileGpsStatus.text = "🟢 GPS đang hoạt động định vị nền"
+    }
+
+    /**
+     * Tên chức năng: Dừng Foreground Service theo dõi GPS
+     * Cách hoạt động: Gửi tín hiệu stopService giải phóng cảm biến GPS giúp tiết kiệm pin khi tài xế nghỉ ca.
+     * Luồng hướng tới: Hủy Foreground Service.
+     */
+    private fun stopLocationService() {
+        requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
+        binding.tvProfileGpsStatus.text = "GPS đã tắt"
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.shop
@@ -85320,6 +84398,827 @@ class StoreProfileFragment : Fragment() {
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
+## File: app-internal/src/main/res/layout/activity_store_verification.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rootVerification"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="40dp">
+
+            <!-- Header Section -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <FrameLayout
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:background="@drawable/bg_badge_orange"
+                    android:backgroundTint="@color/primary_light">
+
+                    <ImageView
+                        android:importantForAccessibility="no"
+                        android:layout_width="28dp"
+                        android:layout_height="28dp"
+                        android:layout_gravity="center"
+                        app:srcCompat="@drawable/ic_store"
+                        app:tint="@color/primary" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="THIẾT LẬP ĐỊA CHỈ &amp; QUÁN"
+                        android:textColor="@color/primary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Xác Minh Hồ Sơ Đối Tác"
+                        android:textColor="@color/text_primary"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Banner lưu ý bắt buộc -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:background="@drawable/bg_warning_inline"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:importantForAccessibility="no"
+                        android:layout_width="18dp"
+                        android:layout_height="18dp"
+                        android:layout_marginEnd="8dp"
+                        app:srcCompat="@drawable/ic_alert_triangle"
+                        app:tint="#DC2626" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Phiếu thông tin bắt buộc dành cho Quán"
+                        android:textColor="#991B1B"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:lineSpacingExtra="2dp"
+                    android:text="Để quán có thể bắt đầu mở cửa nhận đơn và định vị trên bản đồ khách hàng, vui lòng hoàn tất đầy đủ địa chỉ thực tế và số CCCD định danh của chủ quán."
+                    android:textColor="#7F1D1D"
+                    android:textSize="11.5sp" />
+            </LinearLayout>
+
+            <!-- Card 1: Địa chỉ & Cửa hàng -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:importantForAccessibility="no"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_map_pin"
+                            app:tint="@color/primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1. Địa Chỉ &amp; Thông Tin Cửa Hàng"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Tên quán -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStoreName"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:hint="Tên cửa hàng / Quán ăn *"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStoreName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapWords"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Hotline quán -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStorePhone"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số điện thoại quán *"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStorePhone"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="phone"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilStoreAddress"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
+                        app:boxStrokeColor="@color/primary"
+                        app:endIconDrawable="@drawable/ic_map_pin"
+                        app:endIconMode="custom"
+                        app:endIconTint="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etStoreAddress"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:clickable="true"
+                            android:cursorVisible="false"
+                            android:focusable="false"
+                            android:inputType="none"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnPickLocationMap"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
+                        android:textAllCaps="false"
+                        android:textColor="@color/primary"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="10dp"
+                        app:strokeColor="@color/primary"
+                        app:strokeWidth="1.2dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
+
+                    <!-- Quận / Huyện TP.HCM -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spStoreDistrict"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/bg_rounded_spinner_border"
+                        android:enabled="false"
+                        android:paddingHorizontal="12dp" />
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 2: Xác minh pháp lý chủ quán (KYC) -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:importantForAccessibility="no"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_shield"
+                            app:tint="@color/primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="2. Xác Minh Danh Tính Chủ Quán (KYC)"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Tải ảnh CCCD Mặt Trước và Mặt Sau -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <!-- 1. Mặt trước CCCD -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/cardCccdFront"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="#CBD5E1"
+                            app:strokeWidth="1dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="12dp">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Ảnh CCCD - Mặt trước *"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:id="@+id/tvFrontStatusBadge"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:background="@drawable/bg_badge_orange"
+                                        android:backgroundTint="#F1F5F9"
+                                        android:paddingHorizontal="8dp"
+                                        android:paddingVertical="2dp"
+                                        android:text="Chưa tải lên"
+                                        android:textColor="@color/text_secondary"
+                                        android:textSize="10.5sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+
+                                <!-- Khung xem trước hoặc placeholder Mặt trước -->
+                                <FrameLayout
+                                    android:id="@+id/layoutCccdFrontPreview"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="140dp"
+                                    android:layout_marginTop="10dp"
+                                    android:background="@drawable/bg_card_rounded"
+                                    android:backgroundTint="#F8FAFC"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:foreground="?attr/selectableItemBackground">
+
+                                    <LinearLayout
+                                        android:id="@+id/layoutPlaceholderFront"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_gravity="center"
+                                        android:gravity="center"
+                                        android:orientation="vertical">
+
+                                        <ImageView
+                                            android:importantForAccessibility="no"
+                                            android:layout_width="32dp"
+                                            android:layout_height="32dp"
+                                            app:srcCompat="@drawable/ic_camera"
+                                            app:tint="@color/text_muted" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:layout_marginTop="4dp"
+                                            android:text="Chụp hoặc chọn ảnh mặt trước"
+                                            android:textColor="@color/text_muted"
+                                            android:textSize="11.5sp" />
+                                    </LinearLayout>
+
+                                    <ImageView
+                                        android:id="@+id/ivCccdFrontPreview"
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:scaleType="centerCrop"
+                                        android:visibility="gone" />
+                                </FrameLayout>
+
+                                <!-- 2 nút Chụp ảnh & Chọn từ máy cho mặt trước -->
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="10dp"
+                                    android:orientation="horizontal">
+
+                                    <com.google.android.material.button.MaterialButton
+                                        android:id="@+id/btnCaptureCccdFront"
+                                        style="@style/Widget.Material3.Button"
+                                        android:layout_width="0dp"
+                                        android:layout_height="38dp"
+                                        android:layout_weight="1"
+                                        android:backgroundTint="@color/primary"
+                                        android:insetTop="0dp"
+                                        android:insetBottom="0dp"
+                                        android:minHeight="0dp"
+                                        android:minWidth="0dp"
+                                        android:paddingHorizontal="4dp"
+                                        android:text="Chụp ảnh"
+                                        android:textColor="@color/white"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold"
+                                        app:cornerRadius="8dp"
+                                        app:icon="@drawable/ic_camera"
+                                        app:iconGravity="textStart"
+                                        app:iconSize="15dp"
+                                        app:iconTint="@color/white" />
+
+                                    <com.google.android.material.button.MaterialButton
+                                        android:id="@+id/btnPickCccdFront"
+                                        style="@style/Widget.Material3.Button.OutlinedButton"
+                                        android:layout_width="0dp"
+                                        android:layout_height="38dp"
+                                        android:layout_marginStart="8dp"
+                                        android:layout_weight="1"
+                                        android:insetTop="0dp"
+                                        android:insetBottom="0dp"
+                                        android:minHeight="0dp"
+                                        android:minWidth="0dp"
+                                        android:paddingHorizontal="4dp"
+                                        android:text="Chọn từ máy"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold"
+                                        app:cornerRadius="8dp"
+                                        app:icon="@drawable/ic_image"
+                                        app:iconGravity="textStart"
+                                        app:iconSize="15dp"
+                                        app:iconTint="@color/text_secondary"
+                                        app:strokeColor="#CBD5E1" />
+                                </LinearLayout>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- 2. Mặt sau CCCD -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:id="@+id/cardCccdBack"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            app:cardBackgroundColor="@color/white"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeColor="#CBD5E1"
+                            app:strokeWidth="1dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="12dp">
+
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:gravity="center_vertical"
+                                    android:orientation="horizontal">
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="Ảnh CCCD - Mặt sau *"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold" />
+
+                                    <TextView
+                                        android:id="@+id/tvBackStatusBadge"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:background="@drawable/bg_badge_orange"
+                                        android:backgroundTint="#F1F5F9"
+                                        android:paddingHorizontal="8dp"
+                                        android:paddingVertical="2dp"
+                                        android:text="Chưa tải lên"
+                                        android:textColor="@color/text_secondary"
+                                        android:textSize="10.5sp"
+                                        android:textStyle="bold" />
+                                </LinearLayout>
+
+                                <!-- Khung xem trước hoặc placeholder Mặt sau -->
+                                <FrameLayout
+                                    android:id="@+id/layoutCccdBackPreview"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="140dp"
+                                    android:layout_marginTop="10dp"
+                                    android:background="@drawable/bg_card_rounded"
+                                    android:backgroundTint="#F8FAFC"
+                                    android:clickable="true"
+                                    android:focusable="true"
+                                    android:foreground="?attr/selectableItemBackground">
+
+                                    <LinearLayout
+                                        android:id="@+id/layoutPlaceholderBack"
+                                        android:layout_width="wrap_content"
+                                        android:layout_height="wrap_content"
+                                        android:layout_gravity="center"
+                                        android:gravity="center"
+                                        android:orientation="vertical">
+
+                                        <ImageView
+                                            android:importantForAccessibility="no"
+                                            android:layout_width="32dp"
+                                            android:layout_height="32dp"
+                                            app:srcCompat="@drawable/ic_camera"
+                                            app:tint="@color/text_muted" />
+
+                                        <TextView
+                                            android:layout_width="wrap_content"
+                                            android:layout_height="wrap_content"
+                                            android:layout_marginTop="4dp"
+                                            android:text="Chụp hoặc chọn ảnh mặt sau"
+                                            android:textColor="@color/text_muted"
+                                            android:textSize="11.5sp" />
+                                    </LinearLayout>
+
+                                    <ImageView
+                                        android:id="@+id/ivCccdBackPreview"
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="match_parent"
+                                        android:layout_height="match_parent"
+                                        android:scaleType="centerCrop"
+                                        android:visibility="gone" />
+                                </FrameLayout>
+
+                                <!-- 2 nút Chụp ảnh & Chọn từ máy cho mặt sau -->
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="10dp"
+                                    android:orientation="horizontal">
+
+                                    <com.google.android.material.button.MaterialButton
+                                        android:id="@+id/btnCaptureCccdBack"
+                                        style="@style/Widget.Material3.Button"
+                                        android:layout_width="0dp"
+                                        android:layout_height="38dp"
+                                        android:layout_weight="1"
+                                        android:backgroundTint="@color/primary"
+                                        android:insetTop="0dp"
+                                        android:insetBottom="0dp"
+                                        android:minHeight="0dp"
+                                        android:minWidth="0dp"
+                                        android:paddingHorizontal="4dp"
+                                        android:text="Chụp ảnh"
+                                        android:textColor="@color/white"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold"
+                                        app:cornerRadius="8dp"
+                                        app:icon="@drawable/ic_camera"
+                                        app:iconGravity="textStart"
+                                        app:iconSize="15dp"
+                                        app:iconTint="@color/white" />
+
+                                    <com.google.android.material.button.MaterialButton
+                                        android:id="@+id/btnPickCccdBack"
+                                        style="@style/Widget.Material3.Button.OutlinedButton"
+                                        android:layout_width="0dp"
+                                        android:layout_height="38dp"
+                                        android:layout_marginStart="8dp"
+                                        android:layout_weight="1"
+                                        android:insetTop="0dp"
+                                        android:insetBottom="0dp"
+                                        android:minHeight="0dp"
+                                        android:minWidth="0dp"
+                                        android:paddingHorizontal="4dp"
+                                        android:text="Chọn từ máy"
+                                        android:textColor="@color/text_primary"
+                                        android:textSize="12sp"
+                                        android:textStyle="bold"
+                                        app:cornerRadius="8dp"
+                                        app:icon="@drawable/ic_image"
+                                        app:iconGravity="textStart"
+                                        app:iconSize="15dp"
+                                        app:iconTint="@color/text_secondary"
+                                        app:strokeColor="#CBD5E1" />
+                                </LinearLayout>
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+
+                    <!-- Chủ hộ kinh doanh -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilOwnerName"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:hint="Họ và tên chủ hộ kinh doanh *"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etOwnerName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textPersonName|textCapWords"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Số CCCD 12 số -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilCccdNumber"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số Căn cước công dân (12 chữ số) *"
+                        app:boxStrokeColor="@color/primary"
+                        app:counterEnabled="true"
+                        app:counterMaxLength="12"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etCccdNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:maxLength="12"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 3: Tài khoản ngân hàng VietQR -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="14dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:importantForAccessibility="no"
+                            android:layout_width="18dp"
+                            android:layout_height="18dp"
+                            android:layout_marginEnd="8dp"
+                            app:srcCompat="@drawable/ic_credit_card"
+                            app:tint="@color/primary" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="3. Tài Khoản Nhận Tiền Tự Động (VietQR)"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="Tài khoản này dùng để tạo mã QR thanh toán động khi khách đặt đơn tại quán"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+
+                    <!-- Ngân hàng -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="4dp"
+                        android:text="Chọn Ngân hàng thụ hưởng *:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spBankName"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:background="@drawable/bg_rounded_spinner_border"
+                        android:paddingHorizontal="12dp" />
+
+                    <!-- Số tài khoản -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilBankAccountNumber"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Số tài khoản ngân hàng *"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etBankAccountNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="number"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <!-- Tên chủ tài khoản -->
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/tilBankAccountName"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:hint="Tên chủ tài khoản (In hoa không dấu) *"
+                        app:boxStrokeColor="@color/primary"
+                        app:hintTextColor="@color/primary">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/etBankAccountName"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textCapCharacters"
+                            android:textColor="@color/text_primary"
+                            android:textSize="14sp" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Loading ProgressBar -->
+            <ProgressBar
+                android:id="@+id/progressBarVerification"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:layout_marginTop="16dp"
+                android:indeterminateTint="@color/primary"
+                android:visibility="gone" />
+
+            <!-- Nút Lưu & Kích Hoạt -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnSubmitVerification"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="20dp"
+                android:backgroundTint="@color/primary"
+                android:text="Xác Nhận &amp; Bắt Đầu Hoạt Động"
+                android:textColor="@color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:cornerRadius="10dp"
+                app:icon="@drawable/ic_check"
+                app:iconGravity="textStart"
+                app:iconTint="@color/white"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
+
+            <!-- Nút Đăng xuất -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnLogout"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:layout_marginTop="8dp"
+                android:text="Đăng xuất tài khoản này"
+                android:textColor="@color/text_secondary"
+                android:textSize="13sp"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+````
+
 ## File: app-internal/src/main/res/layout/dialog_assign_branch_to_merchant.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -87128,149 +87027,6 @@ class StoreProfileFragment : Fragment() {
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-internal/src/main/AndroidManifest.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- Foreground Service cho GPS Shipper & Giám sát đơn Quán ăn (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-
-    <!-- Mitigation: Xin cấp quyền chống kill service (Section 12 - doc-adr) -->
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-
-    <!-- Cho phép kiểm tra và mở ứng dụng Khách hàng (Oishi Customer) -->
-    <queries>
-        <package android:name="com.chuyen_de_2.foodorder.customer" />
-    </queries>
-
-    <application
-        android:name=".FoodOrderInternalApp"
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.FoodOrder.Internal">
-
-        <meta-data
-            android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
-
-        <!-- Auth -->
-        <activity
-            android:name=".ui.auth.LoginActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-        <activity
-            android:name=".ui.auth.RegisterActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <activity
-            android:name=".ui.auth.OtpVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Phiếu địa chỉ bắt buộc & Xác minh thông tin Quán -->
-        <activity
-            android:name=".ui.auth.StoreVerificationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình ghim vị trí quán trên bản đồ -->
-        <activity
-            android:name=".ui.auth.SelectLocationActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Dashboard (RBAC routing) -->
-        <activity
-            android:name=".ui.dashboard.DashboardActivity"
-            android:theme="@style/Theme.FoodOrder.Internal" />
-
-        <!-- Màn hình Quản lý Chuỗi Chi Nhánh dành riêng cho BOSSMERCHANT -->
-        <activity
-            android:name=".ui.boss.BossDashboardActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Màn hình Lộ trình giao hàng 4 bước chuyên nghiệp cho Shipper (ship/4, 5, 6, 8.html) -->
-        <activity
-            android:name=".ui.ship.DeliveryTripActivity"
-            android:theme="@style/Theme.FoodOrder.Internal.NoActionBar" />
-
-        <!-- Foreground Location Service (Section 3.3 - doc-adr Backlog) -->
-        <service
-            android:name=".service.LocationForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="location" />
-
-        <!-- FCM Service -->
-        <service
-            android:name=".service.InternalFCMService"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            </intent-filter>
-        </service>
-
-        <!-- Dịch vụ tiền cảnh giữ kết nối Quán ăn & VietQR 24/7 không bị hệ điều hành diệt -->
-        <service
-            android:name=".service.MerchantKeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Dịch vụ tự động bắt thông báo chuyển khoản Ngân hàng để duyệt đơn VietQR -->
-        <service
-            android:name=".service.BankNotificationListenerService"
-            android:label="Tự Động Duyệt Thanh Toán Oishi"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
-
-        <!-- FileProvider cho phép Camera chụp ảnh thẻ CCCD & ảnh quán -->
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
-            <meta-data
-                android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths" />
-        </provider>
-
-    </application>
-</manifest>
 ````
 
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/util/QRCodeUtils.kt
@@ -89653,6 +89409,690 @@ class CheckoutViewModel @Inject constructor(
 </androidx.constraintlayout.widget.ConstraintLayout>
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/StoreVerificationActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
+import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.io.File
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán
+ * Cách hoạt động:
+ *  - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
+ *  - Thu thập thông tin Tài khoản ngân hàng (VietQR / Napas) để hệ thống quyết toán doanh thu.
+ *  - Tự động map tọa độ GPS theo Quận/Huyện TP.HCM phục vụ tính toán cước ship và định tuyến cho Shipper.
+ *  - Cập nhật cờ `isVerified = true` lên Firestore document của Quán và tài khoản Merchant.
+ * Luồng hướng tới:
+ *  - Xác minh thành công -> Điều hướng trực tiếp vào [DashboardActivity] (xóa stack).
+ *  - Bấm Đăng xuất -> Trở về [LoginActivity].
+ */
+@AndroidEntryPoint
+class StoreVerificationActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityStoreVerificationBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private var currentStoreId: String = ""
+    private var selectedLat: Double? = null
+    private var selectedLng: Double? = null
+    private var capturedCccdUri: Uri? = null
+    private var cccdFrontBase64: String = ""
+    private var cccdBackBase64: String = ""
+
+    private enum class CccdSide { FRONT, BACK }
+    private var currentTargetSide: CccdSide = CccdSide.FRONT
+    private var isSyncingBankName = false
+    private var isManualEditingBankName = false
+
+    private val takePictureLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val uri = capturedCccdUri
+            if (uri != null) {
+                processPickedCccdImage(uri, currentTargetSide)
+            }
+        }
+    }
+
+    private val pickGalleryLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            processPickedCccdImage(uri, currentTargetSide)
+        }
+    }
+
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            launchCamera()
+        } else {
+            Toast.makeText(this, "⚠️ Vui lòng cấp quyền Camera để chụp ảnh thẻ CCCD", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun checkPermissionAndLaunchCamera() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.CAMERA
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            launchCamera()
+        } else {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val photoFile = File(cacheDir, "cccd_scan_${System.currentTimeMillis()}.jpg")
+            val photoUri = FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                photoFile
+            )
+            capturedCccdUri = photoUri
+            takePictureLauncher.launch(photoUri)
+        } catch (e: Exception) {
+            Toast.makeText(this, "Không thể mở camera: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private val selectLocationLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
+            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
+            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
+            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
+            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
+
+            if (!streetAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(streetAddress)
+            } else if (!fullAddress.isNullOrBlank()) {
+                binding.etStoreAddress.setText(fullAddress)
+            }
+
+            if (!district.isNullOrBlank()) {
+                val dIndex = districts.indexOfFirst { d ->
+                    d.equals(district, ignoreCase = true) || district.contains(d, ignoreCase = true)
+                }
+                if (dIndex >= 0) {
+                    binding.spStoreDistrict.setSelection(dIndex)
+                }
+            }
+
+            if (lat != 0.0 && lng != 0.0) {
+                selectedLat = lat
+                selectedLng = lng
+            }
+        }
+    }
+
+    data class SupportedBank(val name: String, val bin: String)
+
+    private val supportedBanks = listOf(
+        SupportedBank("MB Bank (Quân Đội)", "970422"),
+        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
+        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
+        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
+        SupportedBank("ACB (Á Châu)", "970416"),
+        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
+        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
+        SupportedBank("TPBank (Tiên Phong)", "970423"),
+        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
+        SupportedBank("VIB (Quốc Tế)", "970441"),
+        SupportedBank("OCB (Phương Đông)", "970448")
+    )
+
+    private val districts = listOf(
+        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
+        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
+        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
+        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
+    )
+
+    /**
+     * Tên chức năng: Khởi tạo màn hình xác minh
+     * Cách hoạt động: Thiết lập padding Edge-to-Edge tránh đè status bar, load storeId từ Intent hoặc Firebase, khởi tạo Spinners.
+     * Luồng hướng tới: Chuẩn bị form để đối tác điền thông tin.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        InsetUtils.initEdgeToEdge(this, true)
+        binding = ActivityStoreVerificationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
+        binding.rootVerification.setPadding(0, statusBarHeight, 0, 0)
+        InsetUtils.setLightStatusBar(this, true)
+
+        currentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
+
+        setupSpinners()
+        setupListeners()
+        loadInitialData()
+    }
+
+    /**
+     * Tên chức năng: Thiết lập danh sách chọn Quận/Huyện và Ngân hàng
+     * Cách hoạt động: Gán ArrayAdapter danh mục các quận TP.HCM và các ngân hàng nội địa phổ biến vào Spinner.
+     * Luồng hướng tới: Cung cấp lựa chọn dropdown cho người dùng.
+     */
+    private fun setupSpinners() {
+        // Spinner Quận/Huyện
+        val districtAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, districts)
+        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spStoreDistrict.adapter = districtAdapter
+
+        // Spinner Ngân hàng
+        val bankAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedBanks.map { it.name })
+        bankAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spBankName.adapter = bankAdapter
+    }
+
+    /**
+     * Tên chức năng: Tải trước thông tin quán (nếu đã có trên Firebase)
+     * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
+     * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
+     */
+    /**
+     * Tên chức năng: Xử lý hiển thị và nén ảnh CCCD Mặt trước / Mặt sau
+     */
+    private fun processPickedCccdImage(uri: Uri, side: CccdSide) {
+        if (side == CccdSide.FRONT) {
+            binding.ivCccdFrontPreview.visibility = View.VISIBLE
+            binding.layoutPlaceholderFront.visibility = View.GONE
+            binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
+            binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
+            binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            binding.btnCaptureCccdFront.text = "Chụp lại"
+            binding.btnPickCccdFront.text = "Đổi ảnh"
+
+            Glide.with(this).load(uri).into(binding.ivCccdFrontPreview)
+
+            lifecycleScope.launch {
+                val base64 = ImagePickerUtils.compressUriToBase64(
+                    this@StoreVerificationActivity,
+                    uri,
+                    maxDimension = 800,
+                    quality = 80
+                )
+                if (!base64.isNullOrBlank()) {
+                    cccdFrontBase64 = base64
+                }
+            }
+        } else {
+            binding.ivCccdBackPreview.visibility = View.VISIBLE
+            binding.layoutPlaceholderBack.visibility = View.GONE
+            binding.tvBackStatusBadge.text = "✓ Đã tải lên"
+            binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
+            binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
+            binding.btnCaptureCccdBack.text = "Chụp lại"
+            binding.btnPickCccdBack.text = "Đổi ảnh"
+
+            Glide.with(this).load(uri).into(binding.ivCccdBackPreview)
+
+            lifecycleScope.launch {
+                val base64 = ImagePickerUtils.compressUriToBase64(
+                    this@StoreVerificationActivity,
+                    uri,
+                    maxDimension = 800,
+                    quality = 80
+                )
+                if (!base64.isNullOrBlank()) {
+                    cccdBackBase64 = base64
+                }
+            }
+        }
+    }
+
+    private fun loadInitialData() {
+        lifecycleScope.launch {
+            val user = authRepository.currentUser
+            if (user == null) {
+                finish()
+                return@launch
+            }
+
+            if (currentStoreId.isBlank()) {
+                currentStoreId = firebaseRepository.resolveStoreIdForUser(user.uid)
+            }
+
+            if (currentStoreId.isNotBlank()) {
+                firebaseRepository.removeStoreHoursAndPrepTime(currentStoreId)
+                val store = firebaseRepository.getStoreOnce(currentStoreId)
+                store?.let {
+                    if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
+                        binding.etStoreName.setText(it.name)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        binding.etStoreName.setText(user.displayName)
+                    }
+
+                    if (it.phone.isNotBlank()) {
+                        binding.etStorePhone.setText(it.phone)
+                    } else if (!user.phoneNumber.isNullOrBlank()) {
+                        binding.etStorePhone.setText(user.phoneNumber)
+                    }
+
+                    if (it.address.isNotBlank()) binding.etStoreAddress.setText(it.address)
+                    if (it.ownerName.isNotBlank()) {
+                        binding.etOwnerName.setText(it.ownerName)
+                    } else if (!user.displayName.isNullOrBlank()) {
+                        binding.etOwnerName.setText(user.displayName)
+                    }
+
+                    if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
+                    if (it.cccdFrontUrl.isNotBlank()) {
+                        cccdFrontBase64 = it.cccdFrontUrl
+                        binding.ivCccdFrontPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderFront.visibility = View.GONE
+                        binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdFront.text = "Chụp lại"
+                        binding.btnPickCccdFront.text = "Đổi ảnh"
+
+                        val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
+                            try {
+                                val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
+                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
+                            } catch (_: Exception) { null }
+                        } else null
+
+                        if (decoded != null) {
+                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdFrontPreview)
+                        } else {
+                            Glide.with(this@StoreVerificationActivity).load(it.cccdFrontUrl).into(binding.ivCccdFrontPreview)
+                        }
+                    }
+
+                    if (it.cccdBackUrl.isNotBlank()) {
+                        cccdBackBase64 = it.cccdBackUrl
+                        binding.ivCccdBackPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderBack.visibility = View.GONE
+                        binding.tvBackStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdBack.text = "Chụp lại"
+                        binding.btnPickCccdBack.text = "Đổi ảnh"
+
+                        val decoded = if (it.cccdBackUrl.startsWith("data:image")) {
+                            try {
+                                val base64Clean = it.cccdBackUrl.substringAfter("base64,")
+                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
+                            } catch (_: Exception) { null }
+                        } else null
+
+                        if (decoded != null) {
+                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdBackPreview)
+                        } else {
+                            Glide.with(this@StoreVerificationActivity).load(it.cccdBackUrl).into(binding.ivCccdBackPreview)
+                        }
+                    }
+
+                    if (it.district.isNotBlank()) {
+                        val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
+                        if (dIndex >= 0) binding.spStoreDistrict.setSelection(dIndex)
+                    }
+
+                    if (it.latitude != 0.0 && it.longitude != 0.0) {
+                        selectedLat = it.latitude
+                        selectedLng = it.longitude
+                    }
+
+                    if (it.bankAccountNumber.isNotBlank()) binding.etBankAccountNumber.setText(it.bankAccountNumber)
+                    if (it.bankAccountName.isNotBlank()) {
+                        binding.etBankAccountName.setText(it.bankAccountName)
+                        isManualEditingBankName = true
+                    } else {
+                        val currentOwner = binding.etOwnerName.text.toString().trim()
+                        if (currentOwner.isNotBlank()) {
+                            binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(currentOwner).uppercase())
+                        }
+                    }
+                    if (it.bankName.isNotBlank()) {
+                        val bIndex = supportedBanks.indexOfFirst { b -> b.name.contains(it.bankName, ignoreCase = true) }
+                        if (bIndex >= 0) binding.spBankName.setSelection(bIndex)
+                    }
+                }
+            } else {
+                if (!user.displayName.isNullOrBlank()) {
+                    binding.etStoreName.setText(user.displayName)
+                    binding.etOwnerName.setText(user.displayName)
+                    binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(user.displayName.orEmpty()).uppercase())
+                }
+                if (!user.phoneNumber.isNullOrBlank()) {
+                    binding.etStorePhone.setText(user.phoneNumber)
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập sự kiện nút bấm gửi phiếu xác minh & đăng xuất
+     * Cách hoạt động: Bắt sự kiện Click nút "Xác Nhận & Kích Hoạt Quán", nút "Đăng Xuất".
+     * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
+     */
+    private fun setupListeners() {
+        val openMapAction = {
+            val intent = Intent(this, SelectLocationActivity::class.java).apply {
+                val currentAddress = binding.etStoreAddress.text.toString().trim()
+                if (currentAddress.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
+                }
+                val curDistrict = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+                if (curDistrict.isNotBlank()) {
+                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
+                }
+                selectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
+                selectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
+            }
+            selectLocationLauncher.launch(intent)
+        }
+
+        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
+        binding.etStoreAddress.setOnClickListener { openMapAction() }
+        binding.tilStoreAddress.setOnClickListener { openMapAction() }
+
+        binding.btnCaptureCccdFront.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
+            checkPermissionAndLaunchCamera()
+        }
+
+        binding.btnPickCccdFront.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.layoutCccdFrontPreview.setOnClickListener {
+            currentTargetSide = CccdSide.FRONT
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.btnCaptureCccdBack.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
+            checkPermissionAndLaunchCamera()
+        }
+
+        binding.btnPickCccdBack.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
+            pickGalleryLauncher.launch("image/*")
+        }
+
+        binding.layoutCccdBackPreview.setOnClickListener {
+            currentTargetSide = CccdSide.BACK
+            pickGalleryLauncher.launch("image/*")
+        }
+
+
+
+        // Tự động liên kết giữa ô Họ tên chủ hộ kinh doanh và Tên chủ tài khoản:
+        // - Chủ hộ kinh doanh: Nhập tên bình thường đầy đủ dấu (ví dụ: Nguyễn Văn An)
+        // - Tên chủ tài khoản: Tự động cập nhật thành IN HOA TOÀN BỘ VÀ KHÔNG DẤU (ví dụ: NGUYEN VAN AN)
+        binding.etOwnerName.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (isSyncingBankName) return
+                val ownerInput = s?.toString().orEmpty().trim()
+                if (ownerInput.isNotBlank()) {
+                    val unaccentedUpper = CccdOcrHelper.removeAccents(ownerInput).uppercase()
+                    if (!isManualEditingBankName || binding.etBankAccountName.text.isNullOrBlank()) {
+                        isSyncingBankName = true
+                        binding.etBankAccountName.setText(unaccentedUpper)
+                        binding.tilBankAccountName.error = null
+                        isSyncingBankName = false
+                    }
+                } else if (!isManualEditingBankName) {
+                    isSyncingBankName = true
+                    binding.etBankAccountName.setText("")
+                    isSyncingBankName = false
+                }
+            }
+        })
+
+        // Khi người dùng chủ động gõ vào ô Tên chủ tài khoản:
+        // Đánh dấu đã chỉnh sửa thủ công và tự động chuẩn hóa thành IN HOA KHÔNG DẤU
+        binding.etBankAccountName.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                if (isSyncingBankName) return
+                if (binding.etBankAccountName.hasFocus()) {
+                    isManualEditingBankName = true
+                    val currentStr = s?.toString().orEmpty()
+                    val sanitized = CccdOcrHelper.removeAccents(currentStr).uppercase()
+                    if (currentStr != sanitized) {
+                        isSyncingBankName = true
+                        binding.etBankAccountName.setText(sanitized)
+                        binding.etBankAccountName.setSelection(sanitized.length)
+                        isSyncingBankName = false
+                    }
+                }
+            }
+        })
+
+        binding.btnSubmitVerification.setOnClickListener {
+            validateAndSubmit()
+        }
+
+        binding.btnLogout.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, MODE_PRIVATE).edit().clear().apply()
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra(AppConstants.Extras.LOGOUT, true)
+                    })
+                    finish()
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Kiểm tra tính hợp lệ dữ liệu và lưu hồ sơ lên Firebase
+     * Cách hoạt động:
+     *  - Kiểm tra các trường bắt buộc (Tên quán, SĐT, Địa chỉ, Chủ quán, CCCD 12 số, Số tài khoản ngân hàng).
+     *  - Tự động gán tọa độ GPS dựa trên bảng tọa độ các quận TP.HCM.
+     *  - Lưu dữ liệu lên Firestore via [FirebaseRepository.verifyAndCompleteStoreProfile].
+     * Luồng hướng tới:
+     *  - Thành công: Chuyển sang [DashboardActivity] và bắt đầu vận hành nhận đơn.
+     *  - Thất bại: Hiển thị thông báo Toast lỗi cụ thể.
+     */
+    private fun validateAndSubmit() {
+        // Reset errors
+        binding.tilStoreName.error = null
+        binding.tilStorePhone.error = null
+        binding.tilStoreAddress.error = null
+        binding.tilOwnerName.error = null
+        binding.tilCccdNumber.error = null
+        binding.tilBankAccountNumber.error = null
+        binding.tilBankAccountName.error = null
+
+        val name = binding.etStoreName.text.toString().trim()
+        val phone = binding.etStorePhone.text.toString().trim()
+        val address = binding.etStoreAddress.text.toString().trim()
+        val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
+
+        val ownerName = binding.etOwnerName.text.toString().trim()
+        val cccd = binding.etCccdNumber.text.toString().trim()
+
+        val selectedBank = supportedBanks.getOrNull(binding.spBankName.selectedItemPosition) ?: supportedBanks[0]
+        val bankAccount = binding.etBankAccountNumber.text.toString().trim()
+        val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
+
+        var hasError = false
+
+        if (name.isBlank()) {
+            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
+            hasError = true
+        }
+
+        if (phone.isBlank()) {
+            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
+            hasError = true
+        }
+
+        if (address.isBlank()) {
+            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
+            hasError = true
+        }
+
+        if (cccdFrontBase64.isBlank()) {
+            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt trước CCCD", Toast.LENGTH_SHORT).show()
+            hasError = true
+        }
+
+        if (cccdBackBase64.isBlank()) {
+            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt sau CCCD", Toast.LENGTH_SHORT).show()
+            hasError = true
+        }
+
+        if (ownerName.isBlank()) {
+            binding.tilOwnerName.error = "Vui lòng nhập họ và tên chủ hộ kinh doanh"
+            hasError = true
+        }
+
+        if (cccd.length != 12) {
+            binding.tilCccdNumber.error = "Số CCCD phải có đúng 12 chữ số"
+            hasError = true
+        }
+
+        if (bankAccount.isBlank()) {
+            binding.tilBankAccountNumber.error = "Vui lòng nhập số tài khoản ngân hàng"
+            hasError = true
+        }
+
+        if (bankAccountName.isBlank()) {
+            binding.tilBankAccountName.error = "Vui lòng nhập tên chủ tài khoản"
+            hasError = true
+        }
+
+        if (hasError) {
+            Toast.makeText(this, "⚠️ Vui lòng điền đầy đủ các thông tin bắt buộc!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            binding.progressBarVerification.visibility = View.VISIBLE
+            binding.btnSubmitVerification.isEnabled = false
+
+            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
+            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
+            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
+                selectedLat!! to selectedLng!!
+            } else {
+                val coords = try {
+                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
+                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                } catch (_: Exception) {
+                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                }
+                coords.latitude to coords.longitude
+            }
+            val user = authRepository.currentUser
+            val uid = user?.uid.orEmpty()
+            if (currentStoreId.isBlank()) {
+                currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            }
+            if (currentStoreId.isBlank()) {
+                currentStoreId = "store_${System.currentTimeMillis()}"
+            }
+
+            val result = firebaseRepository.verifyAndCompleteStoreProfile(
+                storeId = currentStoreId,
+                merchantUid = uid,
+                name = name,
+                phone = phone,
+                address = address,
+                district = district,
+                ownerName = ownerName,
+                cccdNumber = cccd,
+                cccdFrontUrl = cccdFrontBase64,
+                cccdBackUrl = cccdBackBase64,
+                bankName = selectedBank.name,
+                bankAccountNumber = bankAccount,
+                bankAccountName = bankAccountName,
+                bankBin = selectedBank.bin,
+                latitude = resolvedLat,
+                longitude = resolvedLng
+            )
+
+            binding.progressBarVerification.visibility = View.GONE
+            binding.btnSubmitVerification.isEnabled = true
+
+            result.onSuccess {
+                val role = authRepository.getUserRole()?.uppercase()
+                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
+                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this@StoreVerificationActivity)
+                    .setTitle("🎉 Gửi Hồ Sơ Thành Công!")
+                    .setMessage("Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nQuản trị viên sẽ tiến hành kiểm duyệt hồ sơ trong thời gian sớm nhất. Bạn có thể theo dõi trạng thái tại màn hình chính.")
+                    .setPositiveButton("Đã hiểu") { _, _ ->
+                        startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        })
+                        finish()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }.onFailure { err ->
+                Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/boss/BossDashboardActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.boss
@@ -90942,6 +91382,666 @@ class DriverListFragment : Fragment() {
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ArrayAdapter
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.DialogCancelOrderReasonBinding
+import com.chuyen_de_2.foodorder.internal.databinding.DialogNewOrderPopupBinding
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentShipperBinding
+import com.chuyen_de_2.foodorder.internal.service.LocationForegroundService
+import dagger.hilt.android.AndroidEntryPoint
+
+/**
+ * Tên chức năng: Kênh Nhận Đơn & Trực Tuyến Của Tài Xế (Shipper Orders & Dispatch Center)
+ * Cách hoạt động:
+ *  - Bật/Tắt chế độ trực tuyến (Online/Offline) nhận cuốc xe giao thức ăn.
+ *  - Lắng nghe danh sách đơn chờ nhận (READY) từ Quán trực thuộc của tài xế.
+ *  - Quản lý đơn đang thực hiện (Active Orders) và cho phép bấm "Tiếp tục giao" để mở màn hình lộ trình GPS [DeliveryTripActivity].
+ *  - Hỗ trợ hủy đơn với lý do cụ thể (xe hỏng, việc gấp...) để hoàn trả đơn về danh sách chờ cho tài xế khác.
+ *  - Thống kê tức thời: Số cuốc hoàn thành hôm nay và tổng thu nhập phí ship kiếm được.
+ * Luồng hướng tới:
+ *  - Nhận đơn -> Cập nhật trạng thái đơn sang ASSIGNED trên Firestore.
+ *  - Bấm "Tiếp tục giao" -> Mở màn hình điều hướng lộ trình bản đồ [DeliveryTripActivity].
+ */
+@AndroidEntryPoint
+class ShipperFragment : Fragment() {
+
+    private var _binding: FragmentShipperBinding? = null
+    private val binding get() = _binding!!
+
+    @javax.inject.Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
+    private val viewModel: ShipperViewModel by activityViewModels()
+
+    private lateinit var activeAdapter: DriverActiveOrdersAdapter
+    private lateinit var pendingAdapter: DriverPendingOrdersAdapter
+
+    private var isOnline = true
+
+    private val locationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fine = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarse = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fine || coarse) {
+            startLocationService()
+        }
+    }
+
+    private fun autoStartLocationServiceIfPermitted() {
+        val hasFine = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            requireContext(),
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            startLocationService()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun startLocationService() {
+        val activeIds = arrayListOf<String>()
+        val currentUid = authRepository.currentUser?.uid ?: ""
+        viewModel.assignedOrders.value?.filter {
+            (it.status == Order.Status.DELIVERING ||
+             it.status == Order.Status.ASSIGNED ||
+             it.status == Order.Status.ARRIVED_AT_SHOP ||
+             it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+             it.status == Order.Status.RETURNING_TO_STORE) &&
+            it.shipperId == currentUid
+        }?.forEach { ord ->
+            if (ord.orderId.isNotBlank()) activeIds.add(ord.orderId)
+        }
+
+        val firstId = activeIds.firstOrNull() ?: "DRIVER_ACTIVE_DUTY"
+        val intent = Intent(requireContext(), LocationForegroundService::class.java).apply {
+            putExtra(LocationForegroundService.EXTRA_ORDER_ID, firstId)
+            putStringArrayListExtra(LocationForegroundService.EXTRA_ORDER_IDS, activeIds)
+        }
+        try {
+            ContextCompat.startForegroundService(requireContext(), intent)
+        } catch (e: Exception) {
+            android.util.Log.e("ShipperFragment", "Error auto-starting location service: ${e.message}")
+        }
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentShipperBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View màn hình tài xế
+     * Cách hoạt động: Gắn adapter, bật/tắt chế độ trực, gắn nút đăng xuất và lắng nghe dữ liệu từ ViewModel.
+     * Luồng hướng tới: Sẵn sàng nhận đơn giao hàng.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupAdapters()
+        setupDutyToggle()
+        setupLogout()
+        observeData()
+        autoStartLocationServiceIfPermitted()
+    }
+
+    /**
+     * Tên chức năng: Xử lý Đăng xuất ca trực của Tài xế
+     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa phiên Auth và chuyển về [LoginActivity].
+     * Luồng hướng tới: Quay về [LoginActivity].
+     */
+    private fun setupLogout() {
+        binding.btnShipperLogoutHeader.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("🚪 Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất ca trực tài xế không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo Adapter danh sách đơn đang giao và đơn chờ nhận
+     * Cách hoạt động: Cấu hình 2 RecyclerView độc lập (rvActiveOrders và rvPendingOrders) kèm các sự kiện bấm nhận đơn, tiếp tục cuốc đi, và hủy nhận đơn.
+     * Luồng hướng tới: Hiển thị các đơn hàng cho shipper.
+     */
+    private fun setupAdapters() {
+        activeAdapter = DriverActiveOrdersAdapter(
+            onContinueTrip = { order ->
+                DeliveryTripActivity.start(requireContext(), order.orderId)
+            },
+            onCancelOrder = { order ->
+                showCancelModal(order)
+            }
+        )
+
+        pendingAdapter = DriverPendingOrdersAdapter(
+            onAcceptOrder = { order ->
+                viewModel.acceptOrder(order.orderId) { success, msg ->
+                    if (success) {
+                        Toast.makeText(requireContext(), "🛵 Đã nhận đơn #${com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)} thành công!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), msg, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        )
+
+        binding.rvActiveOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = activeAdapter
+        }
+
+        binding.rvPendingOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = pendingAdapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Chuyển đổi trạng thái Trực tuyến / Tạm nghỉ (Duty Toggle)
+     * Cách hoạt động: Gạt trạng thái trực của tài xế và đồng bộ lên Firebase qua [ShipperViewModel.toggleDuty].
+     * Luồng hướng tới: Hệ thống chỉ phát đơn mới khi tài xế ĐANG TRỰC.
+     */
+    private fun setupDutyToggle() {
+        binding.btnDutyToggle.setOnClickListener {
+            isOnline = !isOnline
+            viewModel.toggleDuty(isOnline)
+            updateDutyUI()
+            if (isOnline) {
+                autoStartLocationServiceIfPermitted()
+            } else {
+                try {
+                    requireContext().stopService(Intent(requireContext(), LocationForegroundService::class.java))
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    private fun updateDutyUI() {
+        if (isOnline) {
+            binding.btnDutyToggle.text = "🟢 ĐANG TRỰC"
+            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.brand_green_bg))
+            Toast.makeText(requireContext(), "Bạn đã BẬT trực tuyến, sẵn sàng nhận đơn!", Toast.LENGTH_SHORT).show()
+        } else {
+            binding.btnDutyToggle.text = "⏸️ TẠM NGHỈ"
+            binding.btnDutyToggle.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            binding.btnDutyToggle.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.divider))
+            Toast.makeText(requireContext(), "Bạn đã chuyển sang chế độ TẠM NGHỈ.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe và đồng bộ dữ liệu đơn hàng tài xế
+     * Cách hoạt động:
+     *  - Lắng nghe đơn do chính tài xế đang giao (ASSIGNED, DELIVERING, ARRIVED_AT_SHOP, ARRIVED_AT_CUSTOMER).
+     *  - Lắng nghe đơn chờ nhận từ quán được phân công.
+     *  - Tính toán số cuốc hoàn thành và tiền cước tích lũy trong ngày.
+     * Luồng hướng tới: Cập nhật giao diện tức thời.
+     */
+    private fun observeData() {
+        viewModel.assignedOrders.observe(viewLifecycleOwner) { orders ->
+            val currentUid = authRepository.currentUser?.uid ?: ""
+            val activeOrders = orders.filter {
+                (it.status == Order.Status.DELIVERING ||
+                 it.status == Order.Status.ASSIGNED ||
+                 it.status == Order.Status.ARRIVED_AT_SHOP ||
+                 it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                 it.status == Order.Status.RETURNING_TO_STORE) &&
+                        it.shipperId == currentUid
+            }
+
+            val hasActive = activeOrders.isNotEmpty()
+            if (hasActive) {
+                startLocationService()
+            }
+            activeAdapter.submitList(activeOrders)
+            binding.lblActiveBadge.text = "${activeOrders.size} đơn"
+            binding.tvStatActiveCount.text = "${activeOrders.size} đơn"
+            binding.tvEmptyActive.visibility = if (activeOrders.isEmpty()) View.VISIBLE else View.GONE
+            binding.tvEmptyActive.text = "Bạn chưa có đơn đang giao. Hãy bấm nhận đơn bên dưới để đi giao!"
+
+            viewModel.storePendingOrders.value?.let { pendingOrders ->
+                pendingAdapter.submitList(pendingOrders, activeOrders.size)
+            }
+
+            val calendar = java.util.Calendar.getInstance().apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val startOfToday = calendar.timeInMillis
+
+            val todayCompleted = orders.filter {
+                it.status == Order.Status.COMPLETED &&
+                it.shipperId == currentUid &&
+                (it.createdAt >= startOfToday || it.timestamp >= startOfToday)
+            }
+            val completedCount = todayCompleted.size
+            val earnings = todayCompleted.sumOf { if (it.shippingFee > 0) it.shippingFee else 0L }
+
+            binding.tvStatCompletedCount.text = "$completedCount cuốc"
+            binding.tvStatTodayIncome.text = "+${earnings.toVndCurrency()}"
+        }
+
+        viewModel.shipperStore.observe(viewLifecycleOwner) { (storeId, storeName) ->
+            if (storeName.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 $storeName"
+            } else if (storeId.isNotBlank()) {
+                binding.tvShopBadge.text = "🏪 Quán $storeId"
+            } else {
+                binding.tvShopBadge.text = "⚠️ Chưa gán quán"
+            }
+        }
+
+        viewModel.driverProfile.observe(viewLifecycleOwner) { driver ->
+            val vehicleModel = driver?.vehicleModel?.trim().orEmpty()
+            val vehiclePlate = driver?.vehiclePlate?.trim().orEmpty()
+            val vehicleText = when {
+                vehicleModel.isNotBlank() && vehiclePlate.isNotBlank() -> "$vehicleModel • $vehiclePlate"
+                vehiclePlate.isNotBlank() -> vehiclePlate
+                vehicleModel.isNotBlank() -> vehicleModel
+                else -> ""
+            }
+            binding.tvDriverSub.text = if (vehicleText.isNotBlank()) {
+                "Tài xế chuyên quán • $vehicleText"
+            } else {
+                "Tài xế chuyên quán"
+            }
+        }
+
+        viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
+            val hasActive = activeAdapter.itemCount > 0
+            pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
+            binding.lblPendingBadge.text = "${pendingOrders.size} đơn"
+            binding.tvEmptyPending.visibility = if (pendingOrders.isEmpty()) View.VISIBLE else View.GONE
+
+            val currentStore = viewModel.shipperStore.value
+            val storeTitle = currentStore?.second?.ifBlank { currentStore.first } ?: ""
+            if (storeTitle.isNotBlank()) {
+                binding.tvEmptyPending.text = "Hiện tại $storeTitle chưa có đơn mới cần giao."
+            } else {
+                binding.tvEmptyPending.text = "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Quán để được thêm vào danh sách tài xế nội bộ."
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại Hủy nhận đơn giao hàng (Cancel Order Modal)
+     * Cách hoạt động: Cho phép tài xế chọn lý do bất khả kháng (hỏng xe, quán làm lâu...) và trả lại đơn về danh sách chờ.
+     * Luồng hướng tới: Cập nhật đơn về trạng thái READY không có tài xế trên Firestore.
+     */
+    private fun showCancelModal(order: Order) {
+        val dialogBinding = DialogCancelOrderReasonBinding.inflate(layoutInflater)
+        val formattedCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+        dialogBinding.tvCancelDialogDesc.text = "Bạn đang hủy nhận đơn $formattedCode khi chưa lấy hàng. Đơn này sẽ được tự động hoàn trả về danh sách chờ của Quán để tài xế khác nhận."
+
+        val reasons = arrayOf(
+            "Xe gặp sự cố kỹ thuật dọc đường (Thủng lốp, hỏng xe)",
+            "Quán chuẩn bị món quá lâu",
+            "Bị trùng tuyến hoặc quá tải đơn ghép",
+            "Tài xế có việc gia đình đột xuất"
+        )
+        dialogBinding.spinnerCancelReason.adapter = ArrayAdapter(
+            requireContext(), android.R.layout.simple_spinner_dropdown_item, reasons
+        )
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogBinding.root)
+            .create()
+
+        dialogBinding.btnCancelDialogBack.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogBinding.btnCancelDialogConfirm.setOnClickListener {
+            val selectedReason = dialogBinding.spinnerCancelReason.selectedItem.toString()
+            viewModel.cancelAssignedOrder(order.orderId, selectedReason) { success, msg ->
+                if (success) {
+                    Toast.makeText(requireContext(), "Đã hủy đơn thành công: $selectedReason", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } else {
+                    Toast.makeText(requireContext(), "Lỗi: $msg", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/ShipperViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.ship
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import javax.inject.Inject
+
+@HiltViewModel
+class ShipperViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository,
+    private val auth: FirebaseAuth
+) : ViewModel() {
+
+    private val _assignedOrders = MutableLiveData<List<Order>>()
+    val assignedOrders: LiveData<List<Order>> = _assignedOrders
+
+    private val _storePendingOrders = MutableLiveData<List<Order>>()
+    val storePendingOrders: LiveData<List<Order>> = _storePendingOrders
+
+    private val _currentDeliveryOrderId = MutableLiveData<String?>()
+    val currentDeliveryOrderId: LiveData<String?> = _currentDeliveryOrderId
+
+    private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
+    val shipperStore: LiveData<Pair<String, String>> = _shipperStore
+
+    private val _driverProfile = MutableLiveData<Driver?>()
+    val driverProfile: LiveData<Driver?> = _driverProfile
+
+    private val _isOnline = MutableLiveData(true)
+    val isOnline: LiveData<Boolean> = _isOnline
+
+    private val _messageEvent = MutableLiveData<String>()
+    val messageEvent: LiveData<String> = _messageEvent
+
+    private var cachedShipperName: String = ""
+    private var cachedShipperPhone: String = ""
+
+    init {
+        loadShipperStoreAndOrders()
+    }
+
+    private fun loadShipperStoreAndOrders() {
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        viewModelScope.launch {
+            if (shipperId.isNotBlank()) {
+                launch {
+                    firebaseRepository.observeDriver(shipperId).collectLatest { driver ->
+                        _driverProfile.value = driver
+                    }
+                }
+                firebaseRepository.setupDriverPresence(shipperId)
+                val isCurrentlyOnline = _isOnline.value ?: true
+                val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                firebaseRepository.updateDriverDutyStatus(shipperId, initialStatus, "")
+                try {
+                    val userSnap = firebaseRepository.readCacheFirst(firebaseRepository.database.getReference("users").child(shipperId))
+                    cachedShipperPhone = userSnap?.child("phone")?.getValue(String::class.java).orEmpty().trim()
+                    cachedShipperName = userSnap?.child("name")?.getValue(String::class.java).orEmpty().trim()
+                } catch (_: Exception) {}
+            }
+            val storeInfo = firebaseRepository.resolveStoreForDriver(shipperId)
+            _shipperStore.value = storeInfo
+            observeShipperOrders()
+            observePendingStoreOrders(storeInfo.first)
+        }
+    }
+
+    private fun observeShipperOrders() {
+        val shipperId = auth.currentUser?.uid
+        if (shipperId.isNullOrBlank()) {
+            _assignedOrders.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            firebaseRepository.observeOrdersByShipper(shipperId).collectLatest { orders ->
+                // Chỉ nhận những đơn có đúng shipperId của tài xế này
+                val myOrders = orders.filter { it.shipperId == shipperId }
+                _assignedOrders.value = myOrders
+
+                // Tìm đơn đang giao (ASSIGNED, ARRIVED_AT_SHOP, DELIVERING, ARRIVED_AT_CUSTOMER, RETURNING_TO_STORE)
+                val delivering = myOrders.find {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                }
+                _currentDeliveryOrderId.value = delivering?.orderId
+
+                // Đồng bộ trạng thái thật (DELIVERING / AVAILABLE / OFF_DUTY) lên Firebase cho Quán thấy
+                val isCurrentlyOnline = _isOnline.value ?: true
+                if (delivering != null) {
+                    val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(delivering.orderId)
+                    val displayCode = if (delivering.status == Order.Status.RETURNING_TO_STORE) {
+                        "#$shortCode (Trả hàng về quán)"
+                    } else {
+                        "#$shortCode (${delivering.customerName})"
+                    }
+                    firebaseRepository.updateDriverDutyStatus(shipperId, com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING, displayCode)
+                } else {
+                    val status = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                    firebaseRepository.updateDriverDutyStatus(shipperId, status, "")
+                }
+            }
+        }
+    }
+
+    private fun observePendingStoreOrders(storeId: String) {
+        viewModelScope.launch {
+            firebaseRepository.observeAllOrders().collectLatest { allOrders ->
+                // Phân quyền chuẩn: Chỉ nhận đơn thuộc đúng QUÁN CỦA SHIPPER NÀY, đã READY và CHƯA có shipper nhận
+                if (storeId.isNotBlank()) {
+                    val pending = allOrders.filter { order ->
+                        (order.shipperId.isNullOrBlank() || order.shipperId == "null") &&
+                                order.status == Order.Status.READY &&
+                                order.storeId.isNotBlank() &&
+                                order.storeId == storeId
+                    }
+                    _storePendingOrders.value = pending
+                } else {
+                    // Tài xế chưa được gán vào quán ăn nào -> không nhận đơn của quán khác
+                    _storePendingOrders.value = emptyList()
+                }
+            }
+        }
+    }
+
+    fun toggleDuty(online: Boolean) {
+        _isOnline.value = online
+        val shipperId = auth.currentUser?.uid.orEmpty()
+        if (shipperId.isNotBlank()) {
+            viewModelScope.launch {
+                val hasDelivering = _assignedOrders.value?.any {
+                    it.status == Order.Status.DELIVERING ||
+                    it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+                    it.status == Order.Status.ARRIVED_AT_SHOP ||
+                    it.status == Order.Status.ASSIGNED ||
+                    it.status == Order.Status.RETURNING_TO_STORE
+                } == true
+                val status = if (hasDelivering) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.DELIVERING
+                } else if (online) {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE
+                } else {
+                    com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
+                }
+                firebaseRepository.updateDriverDutyStatus(shipperId, status)
+            }
+        }
+    }
+
+    /** Nhận đơn mới từ quán (ghép chuyến) */
+    fun acceptOrder(orderId: String, onResult: (Boolean, String) -> Unit) {
+        val currentActiveCount = _assignedOrders.value?.count {
+            it.status == Order.Status.DELIVERING ||
+            it.status == Order.Status.ARRIVED_AT_CUSTOMER ||
+            it.status == Order.Status.ARRIVED_AT_SHOP ||
+            it.status == Order.Status.ASSIGNED ||
+            it.status == Order.Status.RETURNING_TO_STORE
+        } ?: 0
+
+        if (currentActiveCount >= 3) {
+            onResult(false, "Tài xế chỉ được nhận tối đa 3 đơn cùng lúc để đảm bảo thời gian giao!")
+            return
+        }
+
+        val shipperId = auth.currentUser?.uid ?: ""
+        if (shipperId.isBlank()) {
+            onResult(false, "Vui lòng đăng nhập lại tài khoản tài xế để nhận đơn!")
+            return
+        }
+
+        val myStoreId = _shipperStore.value?.first.orEmpty()
+        val myStoreName = _shipperStore.value?.second.orEmpty()
+
+        if (myStoreId.isBlank()) {
+            onResult(false, "Tài xế chưa được liên kết với Quán nào. Vui lòng liên hệ Chủ quán để được thêm vào đội ngũ giao hàng!")
+            return
+        }
+
+        val acceptedOrder = _storePendingOrders.value?.find { it.orderId == orderId }
+        if (acceptedOrder != null && acceptedOrder.storeId.isNotBlank() && acceptedOrder.storeId != myStoreId) {
+            val storeDisplay = if (myStoreName.isNotBlank()) myStoreName else myStoreId
+            onResult(false, "Phân quyền: Bạn chỉ có thể nhận đơn từ quán của mình ($storeDisplay)!")
+            return
+        }
+
+        val resolvedShipperName = cachedShipperName.ifBlank {
+            auth.currentUser?.displayName?.ifBlank { "Tài xế" } ?: "Tài xế"
+        }
+        val resolvedShipperPhone = cachedShipperPhone.ifBlank {
+            auth.currentUser?.phoneNumber.orEmpty()
+        }
+
+        // Optimistic UI: Cập nhật ngay lập tức trên luồng chính (0ms) không chờ mạng
+        if (acceptedOrder != null) {
+            _storePendingOrders.value = _storePendingOrders.value?.filter { it.orderId != orderId }
+            val updatedOrder = acceptedOrder.copy(
+                shipperId = shipperId,
+                shipperName = resolvedShipperName,
+                shipperPhone = resolvedShipperPhone,
+                status = Order.Status.ASSIGNED,
+                orderStatus = Order.Status.ASSIGNED
+            )
+            val currentAssigned = _assignedOrders.value.orEmpty().toMutableList()
+            if (currentAssigned.none { it.orderId == orderId }) {
+                currentAssigned.add(0, updatedOrder)
+                _assignedOrders.value = currentAssigned
+            }
+            _currentDeliveryOrderId.value = orderId
+        }
+
+        firebaseRepository.assignShipper(orderId, shipperId, resolvedShipperName, resolvedShipperPhone) { success, msg ->
+            if (success) {
+                _currentDeliveryOrderId.value = orderId
+            } else {
+                if (acceptedOrder != null) {
+                    _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+                }
+            }
+            onResult(success, msg)
+        }
+    }
+
+    /** Hủy nhận đơn khi chưa lấy hàng (trả về danh sách chờ của quán) */
+    fun cancelAssignedOrder(orderId: String, reason: String, onResult: (Boolean, String) -> Unit) {
+        val removedOrder = _assignedOrders.value?.find { it.orderId == orderId }
+        // Optimistic UI: Xóa khỏi danh sách nhận ngay lập tức
+        _assignedOrders.value = _assignedOrders.value?.filter { it.orderId != orderId }
+
+        viewModelScope.launch {
+            firebaseRepository.unassignShipper(orderId, reason) { success, msg ->
+                if (!success && removedOrder != null) {
+                    val current = _assignedOrders.value.orEmpty().toMutableList()
+                    current.add(removedOrder)
+                    _assignedOrders.value = current
+                }
+                onResult(success, msg)
+            }
+        }
+    }
+
+    /** Shipper xác nhận lấy hàng thành công tại quán */
+    fun confirmPickedUpAtShop(orderId: String) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.DELIVERING, orderStatus = Order.Status.DELIVERING) else it
+        }
+        viewModelScope.launch {
+            firebaseRepository.updateOrderStatus(orderId, Order.Status.DELIVERING)
+        }
+    }
+
+    /** Shipper xác nhận hoàn thành giao hàng */
+    fun completeDelivery(orderId: String, onResult: ((Boolean) -> Unit)? = null) {
+        // Optimistic UI
+        _assignedOrders.value = _assignedOrders.value?.map {
+            if (it.orderId == orderId) it.copy(status = Order.Status.COMPLETED, orderStatus = Order.Status.COMPLETED) else it
+        }
+        viewModelScope.launch {
+            try {
+                firebaseRepository.updateOrderStatus(orderId, Order.Status.COMPLETED)
+                firebaseRepository.clearTracking(orderId)
+                onResult?.invoke(true)
+            } catch (e: Exception) {
+                onResult?.invoke(false)
+            }
+        }
+    }
+}
+````
+
 ## File: app-internal/src/main/res/layout/activity_boss_dashboard.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -91841,6 +92941,1077 @@ class DriverListFragment : Fragment() {
                 android:paddingTop="0dp"
                 android:paddingBottom="0dp" />
         </LinearLayout>
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
+````
+
+## File: app-internal/src/main/res/layout/fragment_shipper_profile.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <!-- Top Header (7.html: top-header) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Hồ Sơ Tài Xế Quán"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvDriverBadgeId"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="MÃ TX: TX-14"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- Thẻ Tài Xế (7.html: profile-card) -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="18dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <FrameLayout
+                    android:id="@+id/flDriverAvatar"
+                    android:layout_width="60dp"
+                    android:layout_height="60dp"
+                    android:background="@drawable/bg_badge_orange">
+
+                    <ImageView
+                        android:importantForAccessibility="no"
+                        android:id="@+id/ivDriverAvatar"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scaleType="centerCrop"
+                        android:visibility="gone" />
+
+                    <ImageView
+                        android:importantForAccessibility="no"
+                        android:id="@+id/tvDriverAvatarEmoji"
+                        android:layout_width="36dp"
+                        android:layout_height="36dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_truck"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvProfileName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=""
+                        android:textColor="@color/text_primary"
+                        android:textSize="16.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvProfileSub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="0908 123 456 • Sirius 59-T1 882.91"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:background="@color/brand_orange_bg"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="2dp"
+                        android:text="⭐ 4.9 (158 cuốc giao)"
+                        android:textColor="#92400E"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnEditDriverProfile"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:backgroundTint="@color/brand_blue_bg"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="✏️ Sửa"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Thẻ Thông Tin Chi Tiết Phương Tiện & Định Danh -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="THÔNG TIN ĐỊNH DANH &amp; PHƯƠNG TIỆN"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/btnEditDriverDetails"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="?attr/selectableItemBackground"
+                        android:padding="4dp"
+                        android:text="✏️ Chỉnh sửa"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="10dp"
+                    android:background="@color/divider" />
+
+                <!-- Dòng xe -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="🛵 Dòng xe máy:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvDetailVehicleModel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Chưa cập nhật"
+                        tools:text="Sirius FI"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Biển số xe -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="🔢 Biển kiểm soát:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvDetailVehiclePlate"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="59-T1 882.91"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Số điện thoại -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="📞 Điện thoại:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvDetailDriverPhone"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="0908 123 456"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp" />
+                </LinearLayout>
+
+                <!-- CCCD -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="🪪 Thẻ CCCD:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvDetailCccd"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="079098123456"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp" />
+                </LinearLayout>
+
+                <!-- GPLX -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="120dp"
+                        android:layout_height="wrap_content"
+                        android:text="💳 Giấy phép lái xe:"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:id="@+id/tvDetailLicense"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="790123456789 (Hạng A1)"
+                        android:textColor="@color/text_primary"
+                        android:textSize="12.5sp" />
+                </LinearLayout>
+
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Thẻ Quán Trực Thuộc Duy Nhất (7.html: store-affiliation-card) -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeWidth="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_card_affiliation"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="QUÁN TRỰC THUỘC DUY NHẤT"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvAffiliationStoreName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Quán ăn trực thuộc"
+                    android:textColor="#1E3A8A"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvAffiliationStoreAddress"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="120 Võ Văn Ngân, P. Linh Chiểu, TP. Thủ Đức, TP.HCM"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="11.5sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_badge_shop_tag"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="Tài xế chuyên quán nội bộ • Độc quyền giao đơn"
+                    android:textColor="#1E40AF"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Thống Kê Hiệu Suất Hoạt Động (7.html: metrics-grid) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="6dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="98%"
+                        android:textColor="@color/brand_green"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Tỉ lệ nhận"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10.5sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="100%"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Hoàn thành"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10.5sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:orientation="vertical"
+                    android:padding="12dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0%"
+                        android:textColor="@color/danger"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Hủy đơn"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10.5sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- Thẻ Cài Đặt & Tiện Ích -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Toggle GPS Dịch vụ nền -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Định vị GPS Nền (Foreground)"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvProfileGpsStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:text="Cập nhật tọa độ thời gian thực cho quán và khách"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/switchProfileGps"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider" />
+
+                <!-- Ca trực -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="⏰ Ca trực hôm nay"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="08:00 - 17:00 (Ca sáng)"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginVertical="12dp"
+                    android:background="@color/divider" />
+
+                <!-- Hotline Quản lý quán -->
+                <LinearLayout
+                    android:id="@+id/layoutCallManager"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingVertical="4dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Hỗ trợ Quản lý Quán"
+                        android:textColor="@color/text_primary"
+                        android:textSize="13.5sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="0912 345 678"
+                        android:textColor="@color/brand_green"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Nút Đăng Xuất -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnProfileLogout"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Đăng Xuất Tài Khoản"
+            android:textColor="@color/danger"
+            app:strokeColor="@color/danger"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp" />
+
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>
+````
+
+## File: app-internal/src/main/res/layout/fragment_shipper.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background"
+    android:fillViewport="true"
+    android:clipToPadding="false">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingHorizontal="14dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="96dp">
+
+        <!-- Brand Bar (2.html: brand-bar) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="10dp">
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                app:cardCornerRadius="8dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp">
+
+                <ImageView
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_app_logo"
+                    android:contentDescription="Oishi Merchant Logo" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Oishi Food Driver"
+                android:textColor="@color/primary"
+                android:textSize="16.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvShopBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_badge_shop_tag"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="Tài xế nội bộ quán"
+                android:textColor="@color/brand_blue"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnShipperLogoutHeader"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="32dp"
+                android:layout_marginStart="6dp"
+                android:backgroundTint="@color/danger_bg"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingHorizontal="8dp"
+                android:text="Đăng xuất"
+                android:textColor="#DC2626"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="0dp"
+                android:paddingBottom="0dp" />
+        </LinearLayout>
+
+        <!-- Driver Profile Card (2.html: driver-card) -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Elevated"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="14dp">
+
+                <FrameLayout
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:background="@drawable/bg_badge_orange">
+
+                    <ImageView
+                        android:importantForAccessibility="no"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:src="@drawable/ic_truck"
+                        app:tint="@color/brand_orange" />
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvDriverName"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        tools:text="Tài xế"
+                        android:textColor="@color/text_primary"
+                        android:textSize="15sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvDriverSub"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+
+                <!-- Nút Toggle Ca Trực: ĐANG TRỰC / TẠM NGHỈ -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnDutyToggle"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:backgroundTint="@color/brand_green_bg"
+                    android:paddingHorizontal="10dp"
+                    android:text="ĐANG TRỰC"
+                    android:textColor="@color/brand_green"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    app:cornerRadius="20dp"
+                    app:strokeColor="#A7F3D0"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:minHeight="0dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp"
+                    android:paddingTop="0dp"
+                    android:paddingBottom="0dp" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Quick Stats (2.html: stats-row) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:orientation="horizontal">
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="5dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Thu nhập hôm nay"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatTodayIncome"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 đ"
+                        tools:text="+385.000 đ"
+                        android:textColor="@color/brand_green"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="3dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Đơn hoàn thành"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatCompletedCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 cuốc"
+                        tools:text="12 cuốc"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                style="@style/Widget.Material3.CardView.Elevated"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:layout_weight="1"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Đang chạy ghép"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvStatActiveCount"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="0 đơn"
+                        tools:text="1 đơn"
+                        android:textColor="@color/brand_blue"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+
+        <!-- 1. CÁC ĐƠN ĐANG CHẠY (2.html: Multi-Order Batch) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đơn Bạn Đang Nhận Giao"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lblActiveBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_blue"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="2dp"
+                android:text="0 đơn"
+                tools:text="1 đơn"
+                android:textColor="@color/white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ghép tối đa 3 đơn"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvActiveOrders"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"
+            tools:listitem="@layout/item_driver_active_order" />
+
+        <TextView
+            android:id="@+id/tvEmptyActive"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/bg_badge_duty_off"
+            android:padding="12dp"
+            android:text="Bạn chưa có đơn đang giao. Hãy bấm nhận các đơn bên dưới để chạy ghép!"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <!-- 2. DANH SÁCH ĐƠN HÀNG CỦA QUÁN ĐANG CHỜ TÀI XẾ NHẬN (2.html) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Đơn Chờ Giao Của Quán"
+                android:textColor="@color/text_primary"
+                android:textSize="13.5sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/lblPendingBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_badge_orange"
+                android:paddingHorizontal="7dp"
+                android:paddingVertical="2dp"
+                android:text="0 đơn"
+                tools:text="2 đơn"
+                android:textColor="@color/white"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvPendingOrders"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:nestedScrollingEnabled="false"
+            tools:listitem="@layout/item_driver_pending_order" />
+
+        <TextView
+            android:id="@+id/tvEmptyPending"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginVertical="12dp"
+            android:gravity="center"
+            android:text="Hiện quán chưa có thêm đơn chờ giao."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:visibility="gone" />
 
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
@@ -93263,1442 +95434,51 @@ class DriverListFragment : Fragment() {
 </com.google.android.material.card.MaterialCardView>
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/AuthRepository.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.firebase
-
-import com.chuyen_de_2.foodorder.core.data.model.Customer
-import com.chuyen_de_2.foodorder.core.data.model.Driver
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.UserProfileChangeRequest
-import com.google.firebase.database.FirebaseDatabase
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.supervisorScope
-import java.util.concurrent.TimeUnit
-import javax.inject.Inject
-import javax.inject.Singleton
-
-class EmailOtpRequiredException : Exception("Email chưa được xác minh. Vui lòng nhập mã OTP đã gửi đến email.")
-class EmailNotRegisteredException(message: String = "Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!") : Exception(message)
-
-/**
- * Repository xử lý xác thực — Firebase Authentication
- * Hỗ trợ: Login Email/Password, Register, Supabase Email OTP
- */
-@Singleton
-class AuthRepository @Inject constructor(
-    private val auth: FirebaseAuth,
-    private val database: FirebaseDatabase,
-    private val emailOtpApi: EmailOtpApi,
-    private val firebaseAuthChecker: FirebaseAuthChecker
-) {
-    /** Đăng nhập bằng Email/Password (kiểm tra khóa tài khoản từ Admin & tự động đồng bộ Gmail/Hồ sơ lên Realtime DB) */
-    suspend fun login(email: String, password: String): Result<FirebaseUser> {
-        return try {
-            val result = auth.signInWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
-            firebaseUser.reload().await()
-            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
-            val verificationState = if (firebaseUser.isEmailVerified) {
-                null
-            } else {
-                try {
-                    userRef.get().await()
-                } catch (error: Exception) {
-                    auth.signOut()
-                    throw error
-                }
-            }
-            val driverSnapAtLogin = try {
-                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
-            } catch (_: Exception) { null }
-            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
-            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
-
-            val emailVerifiedByOtp = verificationState
-                ?.child("emailVerified")
-                ?.getValue(Boolean::class.java) == true ||
-                verificationState
-                    ?.child("registrationVerified")
-                    ?.getValue(Boolean::class.java) == true
-            val isStoreCreatedDriver = hasDriverProfile || (
-                verificationState
-                    ?.child("role")
-                    ?.getValue(String::class.java)
-                    .orEmpty()
-                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER, User.Role.CHEF) &&
-                    (!verificationState
-                        ?.child("storeId")
-                        ?.getValue(String::class.java)
-                        .isNullOrBlank() ||
-                     !verificationState
-                        ?.child("bossId")
-                        ?.getValue(String::class.java)
-                        .isNullOrBlank())
-                )
-            val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-            val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
-
-            // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER/MERCHANT có storeId/bossId do quán/boss tạo không cần xác minh email tại đây.
-            // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
-            if (!isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
-                try {
-                    emailOtpApi.requestCode(email.trim())
-                } catch (error: Exception) {
-                    auth.signOut()
-                    return Result.failure(
-                        Exception("Không gửi được mã OTP xác minh email.", error)
-                    )
-                }
-                auth.signOut()
-                return Result.failure(EmailOtpRequiredException())
-            }
-
-            val user = completePostLogin(
-                firebaseUser = firebaseUser,
-                email = email,
-                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver || isAdminEmail,
-                isStoreCreatedDriver = isStoreCreatedDriver
-            )
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Quy trình hậu đăng nhập: kiểm tra trạng thái khóa từ Admin và đồng bộ hồ sơ vào Realtime DB.
-     */
-    private suspend fun completePostLogin(
-        firebaseUser: FirebaseUser,
-        email: String,
-        emailVerifiedByOtp: Boolean,
-        isStoreCreatedDriver: Boolean = false
-    ): FirebaseUser {
-        val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
-        try { userRef.keepSynced(true) } catch (_: Exception) {}
-
-        // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
-        val freshJson = fetchFreshUserJsonFromServer(firebaseUser.uid)
-        val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
-
-        val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
-        val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
-
-        if (!isAdminEmail) {
-            if (freshJson != null) {
-                val status = freshJson.optString("status", "ACTIVE").uppercase()
-                val isActive = when {
-                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
-                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
-                    else -> true
-                }
-                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                    val reason = freshJson.optString("lockReason", "").ifBlank {
-                        freshJson.optString("suspendedReason", "").ifBlank { "Vi phạm quy định nền tảng" }
-                    }
-                    try { auth.signOut() } catch (_: Exception) {}
-                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
-                }
-            } else if (userSnap != null && userSnap.exists()) {
-                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
-                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
-                    ?: userSnap.child("active").getValue(Boolean::class.java)
-                    ?: true
-                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                    val reason = userSnap.child("lockReason").getValue(String::class.java)
-                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
-                        ?: "Vi phạm quy định nền tảng"
-                    try { auth.signOut() } catch (_: Exception) {}
-                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
-                }
-            }
-        }
-
-        // Đồng bộ Gmail & thông tin định danh từ Firebase Auth vào users/{uid} để Admin Dashboard nhận diện chính xác
-        try {
-            val dbEmail = freshJson?.optString("email", "")?.takeIf { it.isNotBlank() }
-                ?: userSnap?.child("email")?.getValue(String::class.java).orEmpty()
-            val dbName = freshJson?.optString("name", "")?.takeIf { it.isNotBlank() }
-                ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
-            val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
-                ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
-            val rawDbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
-                ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
-            val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
-                ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
-
-            val driverSnapAtLogin = try {
-                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
-            } catch (_: Exception) { null }
-            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
-            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
-
-            val (dbRole, dbStoreId) = if (hasDriverProfile) {
-                Pair(User.Role.DRIVER, driverStoreIdFromProfile.ifBlank { rawDbStoreId })
-            } else {
-                sanitizeCorruptedCustomerRoleIfNeeded(
-                    uid = firebaseUser.uid,
-                    email = actualEmail,
-                    currentRole = rawDbRole,
-                    currentStoreId = rawDbStoreId
-                )
-            }
-
-            val wasCorruptedMock = dbEmail == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && !actualEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
-            val resolvedRole = when {
-                actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
-                hasDriverProfile -> User.Role.DRIVER
-                dbRole.isNotBlank() -> dbRole.uppercase()
-                actualEmail.contains("boss", ignoreCase = true) -> User.Role.BOSSMERCHANT
-                actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
-                actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                else -> User.Role.CUSTOMER
-            }
-            val resolvedRoleId = when (resolvedRole) {
-                User.Role.ADMIN -> 1
-                User.Role.BOSSMERCHANT -> 5
-                User.Role.MERCHANT, User.Role.MANAGER -> 3
-                User.Role.DRIVER, User.Role.SHIPPER -> 4
-                else -> 2
-            }
-            val resolvedName = if (dbName.isNotBlank() && !wasCorruptedMock) {
-                dbName
-            } else {
-                firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: actualEmail.substringBefore("@")
-            }
-            val resolvedPhone = if (dbPhone.isNotBlank() && !wasCorruptedMock) {
-                dbPhone
-            } else {
-                firebaseUser.phoneNumber.orEmpty()
-            }
-
-            val syncUpdates = mutableMapOf<String, Any?>(
-                "uid" to firebaseUser.uid,
-                "email" to actualEmail,
-                "name" to resolvedName,
-                "phone" to resolvedPhone,
-                "role" to resolvedRole,
-                "roleId" to resolvedRoleId,
-                "storeId" to dbStoreId,
-                "status" to User.Status.ACTIVE,
-                "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp || isStoreCreatedDriver),
-                "isActive" to true,
-                "lockReason" to null,
-                "suspendedReason" to null
-            )
-            userRef.updateChildren(syncUpdates).await()
-
-            if (resolvedRole == User.Role.CUSTOMER) {
-                val custUpdates = mutableMapOf<String, Any>(
-                    "customerId" to firebaseUser.uid,
-                    "uid" to firebaseUser.uid,
-                    "email" to actualEmail,
-                    "name" to resolvedName,
-                    "status" to User.Status.ACTIVE
-                )
-                if (resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
-                database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(firebaseUser.uid).updateChildren(custUpdates)
-            } else if ((resolvedRole == User.Role.MERCHANT || resolvedRole == User.Role.MANAGER) && dbStoreId.isNotBlank()) {
-                database.getReference(AppConstants.FirebaseNodes.STORES).child(dbStoreId).child("email").setValue(actualEmail)
-            }
-        } catch (_: Exception) {}
-
-        return firebaseUser
-    }
-
-    /**
-     * Gửi yêu cầu mã OTP 6 số đến email đăng nhập.
-     * Kiểm tra xem email đã được đăng ký trên Firebase chưa:
-     * - Nếu chưa đăng ký: từ chối gửi OTP và trả lỗi EmailNotRegisteredException!
-     * - Nếu đã đăng ký: gửi OTP qua Supabase Auth.
-     */
-    suspend fun requestLoginOtp(email: String): Result<String> {
-        return try {
-            val cleanEmail = email.trim().lowercase()
-            if (cleanEmail.isBlank()) {
-                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
-            }
-            if (cleanEmail == AppConstants.Defaults.ADMIN_EMAIL) {
-                return Result.failure(Exception("Tài khoản Quản trị viên (${AppConstants.Defaults.ADMIN_EMAIL}) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
-            }
-            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
-            if (!isRegistered) {
-                return Result.failure(EmailNotRegisteredException("Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!"))
-            }
-            emailOtpApi.requestCode(cleanEmail)
-            Result.success("")
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
-
-    /**
-     * Gửi yêu cầu mã OTP 6 số đến email đăng ký thông qua dịch vụ Supabase Auth.
-     * Kiểm tra nếu email đã đăng ký thì thông báo chuyển sang đăng nhập.
-     */
-    suspend fun requestEmailOtp(email: String): Result<String> {
-        return try {
-            val cleanEmail = email.trim().lowercase()
-            if (cleanEmail.isBlank()) {
-                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
-            }
-            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
-            if (isRegistered) {
-                return Result.failure(Exception("Email này đã được đăng ký tài khoản. Vui lòng đăng nhập!"))
-            }
-            emailOtpApi.requestCode(cleanEmail)
-            Result.success("")
-        } catch (error: Exception) {
-            Result.failure(error)
-        }
-    }
-
-    /**
-     * Xác thực mã OTP người dùng nhập với email đăng ký.
-     * Trả về Result chứa email đã xác thực thành công.
-     */
-    suspend fun verifyEmailOtp(email: String, code: String): Result<String> {
-        return try {
-            // Xác minh thật qua Supabase; kết quả chứa email được máy chủ xác nhận.
-            Result.success(emailOtpApi.verifyCode(email.trim(), code.trim()))
-        } catch (error: Exception) {
-            // OTP sai/hết hạn hoặc lỗi mạng phải chặn đăng ký và trả lỗi về UI.
-            Result.failure(error)
-        }
-    }
-
-    /**
-     * Xác thực đăng nhập bằng OTP: Chạy song song kiểm tra OTP trên Supabase và đăng nhập Firebase
-     * giúp giảm tối đa độ trễ mạng (giảm từ 2 lần round-trip nối tiếp xuống còn 1 lần song song).
-     */
-    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
-        return try {
-            val cleanEmail = email.trim().lowercase()
-            val cleanCode = code.trim()
-
-            supervisorScope {
-                val otpDeferred = async {
-                    runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
-                }
-                val authDeferred = async {
-                    runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
-                }
-
-                val otpRes = otpDeferred.await()
-                val authRes = authDeferred.await()
-
-                if (authRes.isFailure) {
-                    val rawMsg = authRes.exceptionOrNull()?.message.orEmpty()
-                    val userMsg = if (
-                        rawMsg.contains("password", ignoreCase = true) ||
-                        rawMsg.contains("credential", ignoreCase = true) ||
-                        rawMsg.contains("mật khẩu", ignoreCase = true)
-                    ) {
-                        "Mật khẩu không chính xác."
-                    } else if (rawMsg.contains("no user", ignoreCase = true) || rawMsg.contains("user-not-found", ignoreCase = true)) {
-                        "Không tìm thấy tài khoản với email này."
-                    } else {
-                        rawMsg.ifBlank { "Đăng nhập thất bại." }
-                    }
-                    throw Exception(userMsg)
-                }
-
-                val authResult = authRes.getOrNull()
-                val firebaseUser = authResult?.user
-                    ?: throw Exception("Không xác định được tài khoản Firebase.")
-
-                val verifiedEmail = otpRes.getOrElse { otpError ->
-                    // Cho phép tài khoản Tài xế do quán tạo (có trong drivers/{uid}) đăng nhập kể cả không qua OTP
-                    val isDriver = try {
-                        database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await().exists()
-                    } catch (_: Exception) { false }
-                    if (isDriver) {
-                        cleanEmail
-                    } else {
-                        try { auth.signOut() } catch (_: Exception) {}
-                        val rawMsg = otpError.message.orEmpty()
-                        val userMsg = if (
-                            rawMsg.contains("expired", ignoreCase = true) ||
-                            rawMsg.contains("invalid", ignoreCase = true) ||
-                            rawMsg.contains("token", ignoreCase = true) ||
-                            rawMsg.contains("otp", ignoreCase = true)
-                        ) {
-                            "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
-                        } else {
-                            rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
-                        }
-                        throw Exception(userMsg)
-                    }
-                }
-
-                if (!cleanEmail.equals(verifiedEmail, ignoreCase = true) ||
-                    !cleanEmail.equals(firebaseUser.email.orEmpty(), ignoreCase = true)) {
-                    auth.signOut()
-                    throw Exception("Email OTP không khớp với tài khoản Firebase.")
-                }
-
-                val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
-                try {
-                    userRef.child("emailVerified").setValue(true).await()
-                } catch (_: Exception) {}
-
-                val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
-                Result.success(user)
-            }
-        } catch (error: Exception) {
-            try { auth.signOut() } catch (_: Exception) {}
-            Result.failure(error)
-        }
-    }
-
-    /** Đăng ký tài khoản kèm xác thực mã OTP 6 số từ Supabase trong cùng một quy trình mượt mà */
-    suspend fun registerWithOtp(
-        name: String,
-        email: String,
-        password: String,
-        role: String = User.Role.CUSTOMER,
-        phone: String = "",
-        otpCode: String
-    ): Result<FirebaseUser> {
-        return try {
-            val cleanEmail = email.trim().lowercase()
-            val cleanOtp = otpCode.trim()
-            val verifiedEmail = try {
-                emailOtpApi.verifyCode(cleanEmail, cleanOtp)
-            } catch (e: Exception) {
-                val rawMsg = e.message.orEmpty()
-                val userMsg = if (
-                    rawMsg.contains("expired", ignoreCase = true) ||
-                    rawMsg.contains("invalid", ignoreCase = true) ||
-                    rawMsg.contains("token", ignoreCase = true) ||
-                    rawMsg.contains("otp", ignoreCase = true)
-                ) {
-                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
-                } else {
-                    rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
-                }
-                throw Exception(userMsg)
-            }
-            register(
-                name = name,
-                email = cleanEmail,
-                password = password,
-                role = role,
-                phone = phone,
-                verifiedEmail = verifiedEmail
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-
-
-    /** Đăng ký tài khoản mới sau khi OTP email đã được xác nhận và phân loại theo Actor */
-    suspend fun register(
-        name: String,
-        email: String,
-        password: String,
-        role: String = User.Role.CUSTOMER,
-        phone: String = "",
-        verifiedEmail: String = ""
-    ): Result<FirebaseUser> {
-        return try {
-            // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký (ngoại lệ với tài khoản quản trị admin@gmail.com).
-            val isEmailVerified = (verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)) ||
-                    email.trim().equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
-            val normalizedPhone = phone.trim()
-
-            // Chặn gọi register mà không có kết quả xác minh email hợp lệ.
-            if (!isEmailVerified) {
-                return Result.failure(Exception("Bạn cần xác thực Email bằng mã OTP trước khi tạo tài khoản."))
-            }
-            // Firebase Auth vẫn là hệ thống tài khoản đăng nhập chính; Supabase chỉ xác minh OTP trong luồng đăng ký.
-            val result = auth.createUserWithEmailAndPassword(email, password).await()
-            val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
-
-            // Lưu displayName trực tiếp vào Firebase Auth Profile để không bao giờ mất tên khi đồng bộ lại
-            try {
-                val profileUpdates = UserProfileChangeRequest.Builder()
-                    .setDisplayName(name.trim())
-                    .build()
-                firebaseUser.updateProfile(profileUpdates).await()
-            } catch (_: Exception) {}
-
-            // Chuẩn hóa role RBAC
-            val normalizedRole = when (role.uppercase()) {
-                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
-                "MERCHANT", "MANAGER" -> User.Role.MERCHANT
-                "DRIVER", "SHIPPER" -> User.Role.DRIVER
-                "ADMIN" -> User.Role.ADMIN
-                else -> User.Role.CUSTOMER
-            }
-            val roleId = when (normalizedRole) {
-                User.Role.ADMIN -> 1
-                User.Role.BOSSMERCHANT -> 5
-                User.Role.MERCHANT -> 3
-                User.Role.DRIVER -> 4
-                else -> 2
-            }
-
-            val assignedStoreId = if (normalizedRole == User.Role.MERCHANT) {
-                "store_${firebaseUser.uid.take(8)}"
-            } else {
-                ""
-            }
-
-            // 1. Lưu thông tin tài khoản dùng chung (Bảng 1: users)
-            val user = User(
-                uid = firebaseUser.uid,
-                roleId = roleId,
-                role = normalizedRole,
-                name = name.trim(),
-                email = email.trim(),
-                phone = normalizedPhone,
-                status = User.Status.ACTIVE,
-                isActive = true,
-                storeId = assignedStoreId,
-                emailVerified = isEmailVerified,
-                phoneVerified = false
-            )
-            database.getReference(AppConstants.FirebaseNodes.USERS)
-                .child(firebaseUser.uid)
-                .setValue(user)
-                .await()
-
-            // 2. Tạo hồ sơ thực thể chuyên biệt theo từng Actor để không bị gộp chung thành 1 loại
-            when (normalizedRole) {
-                User.Role.CUSTOMER -> {
-                    // Bảng 2: customers — Hồ sơ khách hàng & Điểm uy tín (kèm email, name, phone để Admin quản lý)
-                    val customerMap = mapOf(
-                        "customerId" to firebaseUser.uid,
-                        "uid" to firebaseUser.uid,
-                        "name" to name.trim(),
-                        "email" to email.trim(),
-                        "phone" to normalizedPhone,
-                        "trustScore" to 100,
-                        "totalOrders" to 0,
-                        "completedOrders" to 0,
-                        "boomOrders" to 0,
-                        "status" to User.Status.ACTIVE
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
-                        .child(firebaseUser.uid)
-                        .setValue(customerMap)
-                        .await()
-                }
-                User.Role.DRIVER -> {
-                    // Bảng 10: drivers — Hồ sơ tài xế nội bộ quán
-                    val randomCode = "TX-" + (10..99).random()
-                    val driver = Driver(
-                        driverId = firebaseUser.uid,
-                        storeId = assignedStoreId,
-                        driverCode = randomCode,
-                        name = name.trim(),
-                        phone = normalizedPhone,
-                        vehiclePlate = "59P1-${(100..999).random()}.${(10..99).random()}",
-                        ratingAvg = 5.0f,
-                        dutyStatus = Driver.DutyStatus.AVAILABLE
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.DRIVERS)
-                        .child(firebaseUser.uid)
-                        .setValue(driver)
-                        .await()
-                }
-                User.Role.MERCHANT -> {
-                    // Bảng 5: stores — Hồ sơ cửa hàng của đối tác chủ quán
-                    val storeData = com.chuyen_de_2.foodorder.core.data.model.Store(
-                        id = assignedStoreId,
-                        merchantId = firebaseUser.uid,
-                        name = if (name.isNotBlank()) name.trim() else "Quán Ăn Mới",
-                        ownerName = name.trim(),
-                        phone = normalizedPhone,
-                        address = "",
-                        district = "",
-                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
-                        isVerified = false,
-                        ratingAvg = 5.0f,
-                        deliveryTime = "20-30 phút",
-                        category = "Món chính",
-                        imageUrl = AppConstants.Defaults.DEFAULT_STORE_IMAGE_URL
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.STORES)
-                        .child(assignedStoreId)
-                        .setValue(storeData)
-                        .await()
-                    database.getReference(AppConstants.FirebaseNodes.STORES)
-                        .child(assignedStoreId)
-                        .child("email")
-                        .setValue(email.trim())
-                }
-            }
-
-            auth.signOut()
-            Result.success(firebaseUser)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Lấy thông tin hồ sơ Khách Hàng (Bảng 2: customers) */
-    suspend fun getCurrentCustomerData(): Result<Customer> {
-        return try {
-            val uid = auth.currentUser?.uid
-                ?: return Result.failure(Exception("Chưa đăng nhập"))
-
-            val snapshot = database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
-                .child(uid)
-                .get()
-                .await()
-
-            val customer = snapshot.getValue(Customer::class.java)
-                ?: Customer(customerId = uid, trustScore = 100)
-
-            Result.success(customer)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Lấy thông tin User hiện tại từ Firebase DB và tự động đồng bộ email/name từ FirebaseAuth */
-    suspend fun getCurrentUserData(): Result<User> {
-        return try {
-            val firebaseUser = auth.currentUser
-                ?: return Result.failure(Exception("Chưa đăng nhập"))
-            val uid = firebaseUser.uid
-            val currentEmail = firebaseUser.email.orEmpty().trim()
-            val authDisplayName = firebaseUser.displayName.orEmpty().trim()
-            val authPhone = firebaseUser.phoneNumber.orEmpty().trim()
-
-            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(uid)
-            val snapshot = userRef.get().await()
-
-            var user = snapshot.getValue(User::class.java)
-
-            val fallbackRole = when {
-                currentEmail.contains("manager", ignoreCase = true) || currentEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
-                currentEmail.contains("shipper", ignoreCase = true) || currentEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
-                else -> User.Role.CUSTOMER
-            }
-            val fallbackRoleId = when (fallbackRole) {
-                User.Role.ADMIN -> 1
-                User.Role.MERCHANT -> 3
-                User.Role.DRIVER -> 4
-                else -> 2
-            }
-
-            if (user == null || !snapshot.exists()) {
-                val resolvedName = authDisplayName.ifBlank { currentEmail.substringBefore("@").ifBlank { "Khách hàng" } }
-                val newUser = User(
-                    uid = uid,
-                    email = currentEmail,
-                    name = resolvedName,
-                    phone = authPhone,
-                    role = fallbackRole,
-                    roleId = fallbackRoleId,
-                    status = User.Status.ACTIVE,
-                    isActive = true
-                )
-                try {
-                    userRef.setValue(newUser).await()
-                    if (fallbackRole == User.Role.CUSTOMER) {
-                        database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(
-                            mapOf(
-                                "customerId" to uid,
-                                "uid" to uid,
-                                "email" to currentEmail,
-                                "name" to resolvedName
-                            )
-                        )
-                    }
-                } catch (_: Exception) {}
-                user = newUser
-            } else {
-                // Tự động sửa nếu tài khoản tài xế bị nhảy sang CUSTOMER hoặc khách hàng bị gán nhầm storeId
-                val (healedRole, healedStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
-                    uid = uid,
-                    email = currentEmail,
-                    currentRole = user.role,
-                    currentStoreId = user.storeId
-                )
-                if (healedRole != user.role || healedStoreId != user.storeId) {
-                    val healedRoleId = when (healedRole) {
-                        User.Role.ADMIN -> 1
-                        User.Role.MERCHANT, User.Role.MANAGER -> 3
-                        User.Role.DRIVER, User.Role.SHIPPER -> 4
-                        else -> 2
-                    }
-                    user = user.copy(
-                        role = healedRole,
-                        roleId = healedRoleId,
-                        storeId = healedStoreId
-                    )
-                }
-
-                // Kiểm tra nếu bản ghi trên DB bị thiếu Gmail, tên hoặc bị ghi đè bởi dữ liệu mẫu cũ
-                val wasCorruptedMock = user.email == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && currentEmail.isNotBlank() && !currentEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
-                val needEmailSync = currentEmail.isNotBlank() && (user.email.isBlank() || user.email != currentEmail)
-                val needNameSync = user.name.isBlank() || wasCorruptedMock
-                val needUidSync = user.uid.isBlank() || user.uid != uid
-
-                if (needEmailSync || needNameSync || needUidSync) {
-                    val resolvedName = if (!needNameSync) {
-                        user.name
-                    } else {
-                        authDisplayName.ifBlank { currentEmail.substringBefore("@").ifBlank { user.name } }
-                    }
-                    val resolvedPhone = if (wasCorruptedMock) authPhone else user.phone.ifBlank { authPhone }
-                    val resolvedRole = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) User.Role.ADMIN else user.role.ifBlank { fallbackRole }
-                    val resolvedRoleId = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) 1 else if (user.roleId > 0) user.roleId else fallbackRoleId
-
-                    val updates = mutableMapOf<String, Any>(
-                        "uid" to uid,
-                        "role" to resolvedRole,
-                        "roleId" to resolvedRoleId
-                    )
-                    if (currentEmail.isNotBlank()) updates["email"] = currentEmail
-                    if (resolvedName.isNotBlank()) updates["name"] = resolvedName
-                    if (wasCorruptedMock || resolvedPhone.isNotBlank()) updates["phone"] = resolvedPhone
-
-                    try {
-                        userRef.updateChildren(updates).await()
-                        if (resolvedRole == User.Role.CUSTOMER) {
-                            val custUpdates = mutableMapOf<String, Any>(
-                                "customerId" to uid,
-                                "uid" to uid
-                            )
-                            if (currentEmail.isNotBlank()) custUpdates["email"] = currentEmail
-                            if (resolvedName.isNotBlank()) custUpdates["name"] = resolvedName
-                            if (wasCorruptedMock || resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
-                            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(custUpdates)
-                        }
-                    } catch (_: Exception) {}
-
-                    user = user.copy(
-                        uid = uid,
-                        email = if (currentEmail.isNotBlank()) currentEmail else user.email,
-                        name = resolvedName,
-                        phone = resolvedPhone,
-                        role = resolvedRole,
-                        roleId = resolvedRoleId
-                    )
-                }
-            }
-
-            Result.success(user)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Cập nhật thông tin cá nhân (Họ tên, Số điện thoại, Địa chỉ) cho người dùng hiện tại */
-    suspend fun updateUserProfile(
-        name: String,
-        phone: String,
-        avatarUrl: String = "",
-        address: String = ""
-    ): Result<Unit> {
-        return try {
-            val firebaseUser = auth.currentUser ?: return Result.failure(Exception("Chưa đăng nhập"))
-            val uid = firebaseUser.uid
-            val email = firebaseUser.email.orEmpty()
-
-            if (name.isNotBlank()) {
-                try {
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setDisplayName(name.trim())
-                        .build()
-                    firebaseUser.updateProfile(profileUpdates).await()
-                } catch (_: Exception) {}
-            }
-
-            val updates = mutableMapOf<String, Any>(
-                "uid" to uid,
-                "name" to name.trim(),
-                "phone" to phone.trim()
-            )
-            if (email.isNotBlank()) updates["email"] = email
-            if (address.isNotBlank()) updates["address"] = address.trim()
-            if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl.trim()
-
-            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
-            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(updates).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Lắng nghe thay đổi trạng thái Auth (đăng nhập/đăng xuất) */
-    fun observeAuthState(): Flow<FirebaseUser?> = callbackFlow {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            trySend(auth.currentUser)
-        }
-        auth.addAuthStateListener(listener)
-        awaitClose { auth.removeAuthStateListener(listener) }
-    }
-
-    /** Lấy role của user hiện tại (chuẩn hóa RBAC và có tra cứu chéo stores/drivers) */
-    suspend fun getUserRole(): String? {
-        val uid = auth.currentUser?.uid ?: return null
-        val currentEmail = auth.currentUser?.email.orEmpty().trim()
-        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
-            try {
-                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
-                    mapOf(
-                        "uid" to uid,
-                        "email" to currentEmail,
-                        "role" to User.Role.ADMIN,
-                        "roleId" to 1,
-                        "status" to User.Status.ACTIVE,
-                        "isActive" to true,
-                        "lockReason" to null,
-                        "suspendedReason" to null
-                    )
-                )
-            } catch (_: Exception) {}
-            return User.Role.ADMIN
-        }
-
-        return try {
-            val userData = getCurrentUserData().getOrNull()
-            val rawRole = userData?.role?.trim()?.uppercase()
-            val roleId = userData?.roleId
-
-            // 1. Kiểm tra nếu là Admin, Boss, hoặc Tài xế
-            if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
-            if (rawRole == User.Role.BOSSMERCHANT || roleId == 5) return User.Role.BOSSMERCHANT
-            if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
-
-            // 2. Tra cứu bảng drivers trước: Nếu uid có trong bảng drivers thì chắc chắn là Tài xế (khôi phục nếu từng bị nhảy sang CUSTOMER)
-            try {
-                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
-                if (driverSnap.exists()) {
-                    val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
-                    val updates = mutableMapOf<String, Any>(
-                        "role" to User.Role.DRIVER,
-                        "roleId" to 4
-                    )
-                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
-                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
-                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
-                    return User.Role.DRIVER
-                }
-            } catch (_: Exception) {}
-
-            // 3. Nếu đang mang role MERCHANT/MANAGER hoặc có storeId -> xác thực quyền sở hữu thực sự trên bảng stores
-            if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3 || !userData?.storeId.isNullOrBlank()) {
-                val (healedRole, _) = sanitizeCorruptedCustomerRoleIfNeeded(
-                    uid = uid,
-                    email = currentEmail,
-                    currentRole = rawRole.orEmpty(),
-                    currentStoreId = userData?.storeId.orEmpty()
-                )
-                return healedRole.ifBlank { User.Role.CUSTOMER }
-            }
-
-            // 4. Nếu là CUSTOMER rõ ràng -> trả về CUSTOMER ngay (không tra cứu stores tránh gán nhầm quán)
-            if (rawRole == "CUSTOMER" || roleId == 2) return User.Role.CUSTOMER
-
-            // 4. Tra cứu chéo: Chỉ khớp khi merchantId hoặc ownerId của store bằng đúng uid
-            try {
-                val byMerchant = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
-                for (child in byMerchant.children) {
-                    val merchantId = child.child("merchantId").getValue(String::class.java)
-                        ?: child.child("ownerId").getValue(String::class.java)
-                    if (merchantId == uid) {
-                        val storeId = child.key ?: ""
-                        if (storeId.isNotBlank()) {
-                            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
-                                mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
-                            ).await()
-                            return User.Role.MERCHANT
-                        }
-                    }
-                }
-            } catch (_: Exception) {}
-
-            // 3. Tra cứu chéo: Người dùng có hồ sơ tài xế không?
-            try {
-                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
-                if (driverSnap.exists()) {
-                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
-                        mapOf("role" to User.Role.DRIVER, "roleId" to 4)
-                    ).await()
-                    return User.Role.DRIVER
-                }
-            } catch (_: Exception) {}
-
-            // 4. Fallback theo email nếu email có chứa từ khóa
-            val email = auth.currentUser?.email
-            if (email != null) {
-                when {
-                    email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
-                    email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
-                    email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> return User.Role.ADMIN
-                }
-            }
-
-            userData?.role ?: User.Role.CUSTOMER
-        } catch (e: Exception) {
-            val email = auth.currentUser?.email ?: return null
-            when {
-                email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
-                email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> User.Role.DRIVER
-                email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
-                else -> User.Role.CUSTOMER
-            }
-        }
-    }
-
-    /** Thiết lập hoặc chuyển đổi vai trò cho tài khoản hiện tại */
-    suspend fun setUserRole(newRole: String): Result<Unit> {
-        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
-        return try {
-            val normalizedRole = when (newRole.uppercase()) {
-                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
-                "MERCHANT", "MANAGER" -> User.Role.MERCHANT
-                "DRIVER", "SHIPPER" -> User.Role.DRIVER
-                "CHEF", "COOK" -> User.Role.CHEF
-                "ADMIN" -> User.Role.ADMIN
-                else -> User.Role.CUSTOMER
-            }
-            val roleId = when (normalizedRole) {
-                User.Role.ADMIN -> 1
-                User.Role.BOSSMERCHANT -> 5
-                User.Role.MERCHANT -> 3
-                User.Role.DRIVER -> 4
-                User.Role.CHEF -> 6
-                else -> 2
-            }
-
-            val updates = mutableMapOf<String, Any>(
-                "role" to normalizedRole,
-                "roleId" to roleId
-            )
-
-            if (normalizedRole == User.Role.MERCHANT) {
-                val byMerchantSnap = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
-                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("ownerId").equalTo(uid).get().await()
-                var foundStoreId: String? = null
-                for (child in storeSnap.children) {
-                    val mId = child.child("merchantId").getValue(String::class.java)
-                        ?: child.child("ownerId").getValue(String::class.java)
-                    if (mId == uid) {
-                        foundStoreId = child.key
-                        break
-                    }
-                }
-
-                val finalStoreId = foundStoreId ?: "store_${uid.take(8)}"
-                updates["storeId"] = finalStoreId
-
-                if (foundStoreId == null) {
-                    val defaultCoords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                    val store = com.chuyen_de_2.foodorder.core.data.model.Store(
-                        id = finalStoreId,
-                        merchantId = uid,
-                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_STORE_NAME } ?: AppConstants.Defaults.DEFAULT_STORE_NAME,
-                        latitude = defaultCoords.latitude,
-                        longitude = defaultCoords.longitude,
-                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).setValue(store).await()
-                    val coordsUpdate = mapOf<String, Any>(
-                        "latitude" to defaultCoords.latitude,
-                        "longitude" to defaultCoords.longitude
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).updateChildren(coordsUpdate).await()
-                }
-            } else if (normalizedRole == User.Role.DRIVER) {
-                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
-                if (driverSnap.exists()) {
-                    val dStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
-                    if (dStoreId.isNotBlank()) {
-                        updates["storeId"] = dStoreId
-                    }
-                } else {
-                    val driver = Driver(
-                        driverId = uid,
-                        storeId = "",
-                        driverCode = "TX-" + (10..99).random(),
-                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_DRIVER_NAME } ?: AppConstants.Defaults.DEFAULT_DRIVER_NAME,
-                        dutyStatus = Driver.DutyStatus.AVAILABLE
-                    )
-                    database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).setValue(driver).await()
-                }
-                try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
-            }
-
-            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Cập nhật FCM Token cho user */
-    suspend fun updateFcmToken(token: String) {
-        val uid = auth.currentUser?.uid ?: return
-        database.getReference(AppConstants.FirebaseNodes.USERS)
-            .child(uid)
-            .child("fcmToken")
-            .setValue(token)
-            .await()
-    }
-
-    /** Đọc trực tiếp trạng thái user từ Firebase RTDB REST API để bỏ qua SQLite Persistence Cache cũ */
-    suspend fun fetchFreshUserJsonFromServer(uid: String): org.json.JSONObject? =
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val token = auth.currentUser?.getIdToken(false)?.await()?.token ?: return@withContext null
-                val urlStr = "${com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL}/users/$uid.json?auth=$token"
-                val conn = (java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection).apply {
-                    requestMethod = "GET"
-                    connectTimeout = 5000
-                    readTimeout = 5000
-                    useCaches = false
-                    setRequestProperty("Cache-Control", "no-cache")
-                }
-                if (conn.responseCode in 200..299) {
-                    val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
-                    if (body.isNotEmpty() && body != "null") {
-                        return@withContext org.json.JSONObject(body)
-                    }
-                }
-                null
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-    /** Kiểm tra xem tài khoản có đang bị khóa (LOCKED / SUSPENDED) trên Firebase Realtime DB không */
-    suspend fun checkAccountActiveStatus(uid: String? = currentUser?.uid): Result<Boolean> {
-        val targetUid = uid ?: return Result.failure(Exception("Chưa đăng nhập"))
-        val currentEmail = auth.currentUser?.email.orEmpty().trim()
-        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
-            return Result.success(true)
-        }
-        return try {
-            val freshJson = fetchFreshUserJsonFromServer(targetUid)
-            if (freshJson != null) {
-                val status = freshJson.optString("status", "ACTIVE").uppercase()
-                val isActive = when {
-                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
-                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
-                    else -> true
-                }
-                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                    val reason = freshJson.optString("lockReason", "").ifBlank {
-                        freshJson.optString("suspendedReason", "").ifBlank { "Tài khoản của bạn đã bị khóa bởi Quản trị viên" }
-                    }
-                    try { auth.signOut() } catch (_: Exception) {}
-                    return Result.failure(Exception(reason))
-                } else {
-                    // Đồng bộ trạng thái đã mở khóa xuống local cache
-                    try {
-                        database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).updateChildren(
-                            mapOf(
-                                "status" to User.Status.ACTIVE,
-                                "isActive" to true,
-                                "lockReason" to null,
-                                "suspendedReason" to null
-                            )
-                        )
-                    } catch (_: Exception) {}
-                    return Result.success(true)
-                }
-            }
-
-            val userSnap = database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).get().await()
-            if (userSnap.exists()) {
-                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
-                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
-                    ?: userSnap.child("active").getValue(Boolean::class.java)
-                    ?: true
-                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
-                    val reason = userSnap.child("lockReason").getValue(String::class.java)
-                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
-                        ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên"
-                    try { auth.signOut() } catch (_: Exception) {}
-                    return Result.failure(Exception(reason))
-                }
-            }
-            Result.success(true)
-        } catch (e: Exception) {
-            Result.success(true)
-        }
-    }
-
-    /** Đăng xuất an toàn tuyệt đối, không ghi đè trạng thái LOCKED trên Firebase */
-    fun logout() {
-        try {
-            auth.signOut()
-        } catch (_: Exception) {}
-    }
-
-    /**
-     * Xóa vĩnh viễn tài khoản hiện tại và cascading xóa sạch dữ liệu liên quan:
-     * - Xóa giỏ hàng
-     * - Xóa hồ sơ customers/drivers/users
-     * - Thu hồi các đơn đang nhận (nếu là shipper)
-     * - Xóa tài khoản Firebase Auth
-     */
-    suspend fun deleteCurrentAccount(): Result<Unit> {
-        val user = auth.currentUser ?: return Result.failure(Exception("Chưa đăng nhập"))
-        val uid = user.uid
-
-        return try {
-            // 1. Xóa giỏ hàng
-            try { database.getReference(AppConstants.FirebaseNodes.CARTS).child(uid).removeValue().await() } catch (_: Exception) {}
-
-            // 2. Xóa hồ sơ chuyên biệt
-            try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue().await() } catch (_: Exception) {}
-            try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).removeValue().await() } catch (_: Exception) {}
-
-            // 3. Thu hồi các đơn đang nhận nếu user này là shipper
-            try {
-                val ordersSnap = database.getReference(AppConstants.FirebaseNodes.ORDERS)
-                    .orderByChild("shipperId")
-                    .equalTo(uid)
-                    .get()
-                    .await()
-
-                for (child in ordersSnap.children) {
-                    val order = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Order::class.java) ?: continue
-                    if (order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.COMPLETED &&
-                        order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
-                        order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
-                    ) {
-                        val updates = mapOf<String, Any?>(
-                            "shipperId" to null,
-                            "shipperName" to "",
-                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
-                        )
-                        database.getReference(AppConstants.FirebaseNodes.ORDERS).child(order.orderId).updateChildren(updates).await()
-                        database.getReference(AppConstants.FirebaseNodes.TRACKING).child(order.orderId).removeValue().await()
-                    }
-                }
-            } catch (_: Exception) {}
-
-            // 4. Xóa khỏi users & sổ địa chỉ
-            try { database.getReference("customer_addresses").child(uid).removeValue().await() } catch (_: Exception) {}
-            try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).removeValue().await() } catch (_: Exception) {}
-
-            // 5. Xóa tài khoản Firebase Authentication
-            user.delete().await()
-
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Khôi phục role DRIVER nếu tài khoản có hồ sơ trong bảng drivers,
-     * hoặc khôi phục role CUSTOMER nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác.
-     */
-    private suspend fun sanitizeCorruptedCustomerRoleIfNeeded(
-        uid: String,
-        email: String,
-        currentRole: String,
-        currentStoreId: String
-    ): Pair<String, String> {
-        val normRole = currentRole.trim().uppercase()
-        val sid = currentStoreId.trim()
-        return try {
-            // 0. Kiểm tra trước xem uid có hồ sơ trong bảng drivers không (kể cả khi từng bị nhảy nhầm sang CUSTOMER)
-            val driverSnap = try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await() } catch (_: Exception) { null }
-            if (driverSnap != null && driverSnap.exists()) {
-                val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty().ifBlank { sid }
-                if (normRole != User.Role.DRIVER || sid != driverStoreId) {
-                    val updates = mutableMapOf<String, Any>(
-                        "role" to User.Role.DRIVER,
-                        "roleId" to 4
-                    )
-                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
-                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
-                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
-                }
-                return Pair(User.Role.DRIVER, driverStoreId)
-            }
-
-            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT || normRole == User.Role.CHEF) {
-                return Pair(currentRole, currentStoreId)
-            }
-            if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
-                return Pair(currentRole, currentStoreId)
-            }
-
-            // Kiểm tra xem tài khoản này có phải Quản lý do Boss tạo (có bossId) không
-            val userSnap = try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).get().await() } catch (_: Exception) { null }
-            val bossId = userSnap?.child("bossId")?.getValue(String::class.java).orEmpty()
-            if (bossId.isNotBlank()) {
-                return Pair(User.Role.MERCHANT, sid)
-            }
-
-            // 1. Kiểm tra nếu storeId hiện tại thực sự thuộc sở hữu của uid (merchantId == uid hoặc ownerId == uid)
-            if (sid.isNotBlank()) {
-                val storeSnap = database.getReference(AppConstants.FirebaseNodes.STORES).child(sid).get().await()
-                if (storeSnap.exists()) {
-                    val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
-                    val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
-                    if (mId == uid || oId == uid) {
-                        return Pair(User.Role.MERCHANT, sid)
-                    }
-                }
-            }
-
-            // 2. Kiểm tra xem uid có thực sự sở hữu bất kỳ store nào trên bảng stores không
-            val byMerchant = try {
-                database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
-            } catch (_: Exception) { null }
-            val realOwnedKey = byMerchant?.children?.firstOrNull {
-                it.child("merchantId").getValue(String::class.java) == uid ||
-                    it.child("ownerId").getValue(String::class.java) == uid
-            }?.key
-            if (!realOwnedKey.isNullOrBlank()) {
-                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
-                    mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
-                ).await()
-                return Pair(User.Role.MERCHANT, realOwnedKey)
-            }
-
-            // 3. Chỉ khôi phục về CUSTOMER nếu user thực sự có hồ sơ trong bảng customers
-            val custSnap = try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).get().await() } catch (_: Exception) { null }
-            val hasCustomerRecord = custSnap != null && custSnap.exists()
-
-            if (hasCustomerRecord) {
-                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
-                    mapOf(
-                        "role" to User.Role.CUSTOMER,
-                        "roleId" to 2,
-                        "storeId" to ""
-                    )
-                ).await()
-                return Pair(User.Role.CUSTOMER, "")
-            }
-
-            Pair(currentRole, currentStoreId)
-        } catch (_: Exception) {
-            Pair(currentRole, currentStoreId)
-        }
-    }
-
-    val currentUser: FirebaseUser? get() = auth.currentUser
-
-    /** Kiểm tra đã đăng nhập chưa */
-    val isLoggedIn: Boolean get() = auth.currentUser != null
-}
+## File: .gitignore
 ````
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.idea/
+.kotlin/
+.DS_Store
+/build
+*/build
+captures/
+.externalNativeBuild
+.cxx
+local.properties
+.wrangler/
+**/node_modules/
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Store.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
+# Extracted web prototypes (already in repo root)
+chuyen-de-2-android-main/
+chuyende2/
 
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.google.firebase.database.Exclude
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.gson.annotations.SerializedName
+# Analysis and tool cache
+.claude/
+CLAUDE.md
+graphify-out/
 
-/**
- * Cửa hàng / Quán ăn — lưu tại: stores/{storeId}
- * Giao diện: Quán/5.html — Dashboard quán, Quán/8.html — Hồ sơ CCCD
- * 4 trạng thái: PENDING → OPEN / LOCKED / CLOSED
- * Mapping: Bảng 5 - stores (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class Store(
-    @SerializedName("id")
-    val id: String = "",
+# Antigravity Repomix Code Map
+.antigravity/
 
-    @SerializedName("bossId")
-    val bossId: String = "",
+# Database backups
+backup_*.json
 
-    @SerializedName("merchantId", alternate = ["ownerId"])
-    val merchantId: String = "",
+# Office temp lock files
+~$*
 
-    @SerializedName("merchantName")
-    val merchantName: String = "",
-
-    @SerializedName("name")
-    val name: String = "",
-
-    @SerializedName("phone")
-    val phone: String = "",
-
-    @SerializedName("address")
-    val address: String = "",
-
-    @SerializedName("district")
-    val district: String = "",
-
-    @get:com.google.firebase.database.PropertyName("latitude")
-    @set:com.google.firebase.database.PropertyName("latitude")
-    @SerializedName("latitude", alternate = ["lat"])
-    var latitude: Double = 0.0,
-
-    @get:com.google.firebase.database.PropertyName("longitude")
-    @set:com.google.firebase.database.PropertyName("longitude")
-    @SerializedName("longitude", alternate = ["lng"])
-    var longitude: Double = 0.0,
-
-    @get:Exclude
-    @SerializedName("lat")
-    var lat: Double = 0.0,
-
-    @get:Exclude
-    @SerializedName("lng")
-    var lng: Double = 0.0,
-
-    @get:com.google.firebase.database.PropertyName("imageUrl")
-    @set:com.google.firebase.database.PropertyName("imageUrl")
-    @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
-    var imageUrl: String = "",
-
-    @get:Exclude
-    @SerializedName("avatarUrl")
-    var avatarUrl: String = "",
-
-    @get:Exclude
-    @SerializedName("avatar")
-    var avatar: String = "",
-
-    @get:Exclude
-    @SerializedName("logoUrl")
-    var logoUrl: String = "",
-
-    @get:Exclude
-    @SerializedName("image")
-    var image: String = "",
-
-    @SerializedName("storeStatus")
-    val storeStatus: String = StoreStatus.PENDING,
-
-    @SerializedName("statusId")
-    val statusId: Int = 1,
-
-    @SerializedName("ownerName")
-    val ownerName: String = "",
-
-    @SerializedName("openHours")
-    val openHours: String = "",
-
-    @SerializedName("prepTime")
-    val prepTime: String = "",
-
-    @get:com.google.firebase.database.PropertyName("isVerified")
-    @set:com.google.firebase.database.PropertyName("isVerified")
-    @SerializedName("isVerified")
-    var isVerified: Boolean = false,
-
-    @SerializedName("cccdNumber")
-    val cccdNumber: String = "",
-
-    @SerializedName("cccdFrontUrl")
-    val cccdFrontUrl: String = "",
-
-    @SerializedName("cccdBackUrl")
-    val cccdBackUrl: String = "",
-
-    @SerializedName("cccdHoldUrl")
-    val cccdHoldUrl: String = "",
-
-    @SerializedName("cccdPortraitUrl")
-    val cccdPortraitUrl: String = "",
-
-    @SerializedName("penaltyTierId")
-    val penaltyTierId: Int = 1,
-
-    @SerializedName("penaltyTier")
-    val penaltyTier: String = PenaltyTier.NONE,
-
-    @SerializedName("penaltyReason")
-    val penaltyReason: String = "",
-
-    @SerializedName("ratingAvg", alternate = ["rating"])
-    val ratingAvg: Float = 5.0f,
-
-    @SerializedName("reviewCount", alternate = ["ratingCount"])
-    val reviewCount: Int = 0,
-
-    @SerializedName("deliveryTimeFrameId")
-    val deliveryTimeFrameId: Int = 2,
-
-    @SerializedName("deliveryTime")
-    val deliveryTime: String = AppConstants.Defaults.DEFAULT_DELIVERY_TIME,
-
-    @SerializedName("category")
-    val category: String = "",
-
-    @SerializedName("bankName")
-    val bankName: String = AppConstants.Defaults.DEFAULT_BANK_NAME,
-
-    @SerializedName("bankAccountNumber", alternate = ["bankAccount", "bankNo"])
-    val bankAccountNumber: String = "",
-
-    @SerializedName("bankAccountName", alternate = ["bankOwner", "accountHolderName"])
-    val bankAccountName: String = "",
-
-    @SerializedName("bankBin")
-    val bankBin: String = AppConstants.Defaults.DEFAULT_BANK_BIN,
-
-    @SerializedName("storeCategories")
-    val storeCategories: List<String> = emptyList(),
-
-    @SerializedName("dishes")
-    val dishes: Map<String, Dish> = emptyMap()
-) {
-    /** Thuộc tính phụ trợ tương thích UI */
-    @get:Exclude
-    val isOpen: Boolean
-        get() = storeStatus.equals(StoreStatus.OPEN, ignoreCase = true)
-
-    @get:Exclude
-    val rating: Float
-        get() = ratingAvg
-
-    @get:Exclude
-    val resolvedLatitude: Double
-        get() = if (latitude != 0.0) latitude else lat
-
-    @get:Exclude
-    val resolvedLongitude: Double
-        get() = if (longitude != 0.0) longitude else lng
-
-    /** Trả về URL hoặc Base64 ảnh đại diện quán từ bất kỳ trường nào có dữ liệu */
-    @get:Exclude
-    val effectiveImageUrl: String
-        get() = imageUrl.ifBlank { avatarUrl.ifBlank { avatar.ifBlank { logoUrl.ifBlank { image } } } }
-
-    /** Trạng thái quán ăn — Admin duyệt */
-    object StoreStatus {
-        const val PENDING = "PENDING"
-        const val OPEN = "OPEN"
-        const val LOCKED = "LOCKED"
-        const val CLOSED = "CLOSED"
-        const val REJECTED = "REJECTED"
-    }
-
-    /** Chế tài xử phạt — Admin áp đặt */
-    object PenaltyTier {
-        const val NONE = "NONE"
-        const val WARN = "WARN"
-        const val HIDE = "HIDE"
-        const val LOCK = "LOCK"
-    }
-}
+# Python
+__pycache__/
+*.pyc
+*.pyo
 ````
 
 ## File: app-admin/src/main/res/layout/bottom_sheet_admin_store_detail.xml
@@ -98412,825 +99192,1455 @@ class DashboardActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-internal/src/main/res/layout/activity_store_verification.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/rootVerification"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="40dp">
-
-            <!-- Header Section -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <FrameLayout
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:background="@drawable/bg_badge_orange"
-                    android:backgroundTint="@color/primary_light">
-
-                    <ImageView
-                        android:importantForAccessibility="no"
-                        android:layout_width="28dp"
-                        android:layout_height="28dp"
-                        android:layout_gravity="center"
-                        app:srcCompat="@drawable/ic_store"
-                        app:tint="@color/primary" />
-                </FrameLayout>
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="14dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="THIẾT LẬP ĐỊA CHỈ &amp; QUÁN"
-                        android:textColor="@color/primary"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:text="Xác Minh Hồ Sơ Đối Tác"
-                        android:textColor="@color/text_primary"
-                        android:textSize="18sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-
-            <!-- Banner lưu ý bắt buộc -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_warning_inline"
-                android:orientation="vertical"
-                android:padding="12dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <ImageView
-                        android:importantForAccessibility="no"
-                        android:layout_width="18dp"
-                        android:layout_height="18dp"
-                        android:layout_marginEnd="8dp"
-                        app:srcCompat="@drawable/ic_alert_triangle"
-                        app:tint="#DC2626" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Phiếu thông tin bắt buộc dành cho Quán"
-                        android:textColor="#991B1B"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:lineSpacingExtra="2dp"
-                    android:text="Để quán có thể bắt đầu mở cửa nhận đơn và định vị trên bản đồ khách hàng, vui lòng hoàn tất đầy đủ địa chỉ thực tế và số CCCD định danh của chủ quán."
-                    android:textColor="#7F1D1D"
-                    android:textSize="11.5sp" />
-            </LinearLayout>
-
-            <!-- Card 1: Địa chỉ & Cửa hàng -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:importantForAccessibility="no"
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_map_pin"
-                            app:tint="@color/primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="1. Địa Chỉ &amp; Thông Tin Cửa Hàng"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Tên quán -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStoreName"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:hint="Tên cửa hàng / Quán ăn *"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStoreName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapWords"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Hotline quán -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStorePhone"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số điện thoại quán *"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStorePhone"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="phone"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Địa chỉ cụ thể (Khóa nhập tay - Bắt buộc chọn qua bản đồ để có tọa độ GPS) -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilStoreAddress"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Địa chỉ cụ thể (Chạm để chọn trên bản đồ) *"
-                        app:boxStrokeColor="@color/primary"
-                        app:endIconDrawable="@drawable/ic_map_pin"
-                        app:endIconMode="custom"
-                        app:endIconTint="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etStoreAddress"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:clickable="true"
-                            android:cursorVisible="false"
-                            android:focusable="false"
-                            android:inputType="none"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Nút chọn / ghim vị trí quán trên bản đồ (Place Autocomplete & GPS) -->
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPickLocationMap"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:layout_marginTop="8dp"
-                        android:text="📍 Chọn / Ghim vị trí quán trên bản đồ"
-                        android:textAllCaps="false"
-                        android:textColor="@color/primary"
-                        android:textSize="13.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="10dp"
-                        app:strokeColor="@color/primary"
-                        app:strokeWidth="1.2dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:minHeight="0dp"
-                        android:minWidth="0dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:paddingTop="0dp"
-                        android:paddingBottom="0dp" />
-
-                    <!-- Quận / Huyện TP.HCM -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="4dp"
-                        android:text="Quận / Huyện (Tự động nhận diện từ bản đồ) *:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/spStoreDistrict"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:background="@drawable/bg_rounded_spinner_border"
-                        android:enabled="false"
-                        android:paddingHorizontal="12dp" />
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 2: Xác minh pháp lý chủ quán (KYC) -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:importantForAccessibility="no"
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_shield"
-                            app:tint="@color/primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="2. Xác Minh Danh Tính Chủ Quán (KYC)"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <!-- Tải ảnh CCCD Mặt Trước và Mặt Sau -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <!-- 1. Mặt trước CCCD -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/cardCccdFront"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="#CBD5E1"
-                            app:strokeWidth="1dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="vertical"
-                                android:padding="12dp">
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:gravity="center_vertical"
-                                    android:orientation="horizontal">
-
-                                    <TextView
-                                        android:layout_width="0dp"
-                                        android:layout_height="wrap_content"
-                                        android:layout_weight="1"
-                                        android:text="Ảnh CCCD - Mặt trước *"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="13sp"
-                                        android:textStyle="bold" />
-
-                                    <TextView
-                                        android:id="@+id/tvFrontStatusBadge"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:background="@drawable/bg_badge_orange"
-                                        android:backgroundTint="#F1F5F9"
-                                        android:paddingHorizontal="8dp"
-                                        android:paddingVertical="2dp"
-                                        android:text="Chưa tải lên"
-                                        android:textColor="@color/text_secondary"
-                                        android:textSize="10.5sp"
-                                        android:textStyle="bold" />
-                                </LinearLayout>
-
-                                <!-- Khung xem trước hoặc placeholder Mặt trước -->
-                                <FrameLayout
-                                    android:id="@+id/layoutCccdFrontPreview"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="140dp"
-                                    android:layout_marginTop="10dp"
-                                    android:background="@drawable/bg_card_rounded"
-                                    android:backgroundTint="#F8FAFC"
-                                    android:clickable="true"
-                                    android:focusable="true"
-                                    android:foreground="?attr/selectableItemBackground">
-
-                                    <LinearLayout
-                                        android:id="@+id/layoutPlaceholderFront"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:layout_gravity="center"
-                                        android:gravity="center"
-                                        android:orientation="vertical">
-
-                                        <ImageView
-                                            android:importantForAccessibility="no"
-                                            android:layout_width="32dp"
-                                            android:layout_height="32dp"
-                                            app:srcCompat="@drawable/ic_camera"
-                                            app:tint="@color/text_muted" />
-
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:layout_marginTop="4dp"
-                                            android:text="Chụp hoặc chọn ảnh mặt trước"
-                                            android:textColor="@color/text_muted"
-                                            android:textSize="11.5sp" />
-                                    </LinearLayout>
-
-                                    <ImageView
-                                        android:id="@+id/ivCccdFrontPreview"
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="match_parent"
-                                        android:scaleType="centerCrop"
-                                        android:visibility="gone" />
-                                </FrameLayout>
-
-                                <!-- 2 nút Chụp ảnh & Chọn từ máy cho mặt trước -->
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="10dp"
-                                    android:orientation="horizontal">
-
-                                    <com.google.android.material.button.MaterialButton
-                                        android:id="@+id/btnCaptureCccdFront"
-                                        style="@style/Widget.Material3.Button"
-                                        android:layout_width="0dp"
-                                        android:layout_height="38dp"
-                                        android:layout_weight="1"
-                                        android:backgroundTint="@color/primary"
-                                        android:insetTop="0dp"
-                                        android:insetBottom="0dp"
-                                        android:minHeight="0dp"
-                                        android:minWidth="0dp"
-                                        android:paddingHorizontal="4dp"
-                                        android:text="Chụp ảnh"
-                                        android:textColor="@color/white"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold"
-                                        app:cornerRadius="8dp"
-                                        app:icon="@drawable/ic_camera"
-                                        app:iconGravity="textStart"
-                                        app:iconSize="15dp"
-                                        app:iconTint="@color/white" />
-
-                                    <com.google.android.material.button.MaterialButton
-                                        android:id="@+id/btnPickCccdFront"
-                                        style="@style/Widget.Material3.Button.OutlinedButton"
-                                        android:layout_width="0dp"
-                                        android:layout_height="38dp"
-                                        android:layout_marginStart="8dp"
-                                        android:layout_weight="1"
-                                        android:insetTop="0dp"
-                                        android:insetBottom="0dp"
-                                        android:minHeight="0dp"
-                                        android:minWidth="0dp"
-                                        android:paddingHorizontal="4dp"
-                                        android:text="Chọn từ máy"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold"
-                                        app:cornerRadius="8dp"
-                                        app:icon="@drawable/ic_image"
-                                        app:iconGravity="textStart"
-                                        app:iconSize="15dp"
-                                        app:iconTint="@color/text_secondary"
-                                        app:strokeColor="#CBD5E1" />
-                                </LinearLayout>
-                            </LinearLayout>
-                        </com.google.android.material.card.MaterialCardView>
-
-                        <!-- 2. Mặt sau CCCD -->
-                        <com.google.android.material.card.MaterialCardView
-                            android:id="@+id/cardCccdBack"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="12dp"
-                            app:cardBackgroundColor="@color/white"
-                            app:cardCornerRadius="12dp"
-                            app:cardElevation="0dp"
-                            app:strokeColor="#CBD5E1"
-                            app:strokeWidth="1dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:orientation="vertical"
-                                android:padding="12dp">
-
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:gravity="center_vertical"
-                                    android:orientation="horizontal">
-
-                                    <TextView
-                                        android:layout_width="0dp"
-                                        android:layout_height="wrap_content"
-                                        android:layout_weight="1"
-                                        android:text="Ảnh CCCD - Mặt sau *"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="13sp"
-                                        android:textStyle="bold" />
-
-                                    <TextView
-                                        android:id="@+id/tvBackStatusBadge"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:background="@drawable/bg_badge_orange"
-                                        android:backgroundTint="#F1F5F9"
-                                        android:paddingHorizontal="8dp"
-                                        android:paddingVertical="2dp"
-                                        android:text="Chưa tải lên"
-                                        android:textColor="@color/text_secondary"
-                                        android:textSize="10.5sp"
-                                        android:textStyle="bold" />
-                                </LinearLayout>
-
-                                <!-- Khung xem trước hoặc placeholder Mặt sau -->
-                                <FrameLayout
-                                    android:id="@+id/layoutCccdBackPreview"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="140dp"
-                                    android:layout_marginTop="10dp"
-                                    android:background="@drawable/bg_card_rounded"
-                                    android:backgroundTint="#F8FAFC"
-                                    android:clickable="true"
-                                    android:focusable="true"
-                                    android:foreground="?attr/selectableItemBackground">
-
-                                    <LinearLayout
-                                        android:id="@+id/layoutPlaceholderBack"
-                                        android:layout_width="wrap_content"
-                                        android:layout_height="wrap_content"
-                                        android:layout_gravity="center"
-                                        android:gravity="center"
-                                        android:orientation="vertical">
-
-                                        <ImageView
-                                            android:importantForAccessibility="no"
-                                            android:layout_width="32dp"
-                                            android:layout_height="32dp"
-                                            app:srcCompat="@drawable/ic_camera"
-                                            app:tint="@color/text_muted" />
-
-                                        <TextView
-                                            android:layout_width="wrap_content"
-                                            android:layout_height="wrap_content"
-                                            android:layout_marginTop="4dp"
-                                            android:text="Chụp hoặc chọn ảnh mặt sau"
-                                            android:textColor="@color/text_muted"
-                                            android:textSize="11.5sp" />
-                                    </LinearLayout>
-
-                                    <ImageView
-                                        android:id="@+id/ivCccdBackPreview"
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="match_parent"
-                                        android:layout_height="match_parent"
-                                        android:scaleType="centerCrop"
-                                        android:visibility="gone" />
-                                </FrameLayout>
-
-                                <!-- 2 nút Chụp ảnh & Chọn từ máy cho mặt sau -->
-                                <LinearLayout
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="10dp"
-                                    android:orientation="horizontal">
-
-                                    <com.google.android.material.button.MaterialButton
-                                        android:id="@+id/btnCaptureCccdBack"
-                                        style="@style/Widget.Material3.Button"
-                                        android:layout_width="0dp"
-                                        android:layout_height="38dp"
-                                        android:layout_weight="1"
-                                        android:backgroundTint="@color/primary"
-                                        android:insetTop="0dp"
-                                        android:insetBottom="0dp"
-                                        android:minHeight="0dp"
-                                        android:minWidth="0dp"
-                                        android:paddingHorizontal="4dp"
-                                        android:text="Chụp ảnh"
-                                        android:textColor="@color/white"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold"
-                                        app:cornerRadius="8dp"
-                                        app:icon="@drawable/ic_camera"
-                                        app:iconGravity="textStart"
-                                        app:iconSize="15dp"
-                                        app:iconTint="@color/white" />
-
-                                    <com.google.android.material.button.MaterialButton
-                                        android:id="@+id/btnPickCccdBack"
-                                        style="@style/Widget.Material3.Button.OutlinedButton"
-                                        android:layout_width="0dp"
-                                        android:layout_height="38dp"
-                                        android:layout_marginStart="8dp"
-                                        android:layout_weight="1"
-                                        android:insetTop="0dp"
-                                        android:insetBottom="0dp"
-                                        android:minHeight="0dp"
-                                        android:minWidth="0dp"
-                                        android:paddingHorizontal="4dp"
-                                        android:text="Chọn từ máy"
-                                        android:textColor="@color/text_primary"
-                                        android:textSize="12sp"
-                                        android:textStyle="bold"
-                                        app:cornerRadius="8dp"
-                                        app:icon="@drawable/ic_image"
-                                        app:iconGravity="textStart"
-                                        app:iconSize="15dp"
-                                        app:iconTint="@color/text_secondary"
-                                        app:strokeColor="#CBD5E1" />
-                                </LinearLayout>
-                            </LinearLayout>
-                        </com.google.android.material.card.MaterialCardView>
-                    </LinearLayout>
-
-                    <!-- Chủ hộ kinh doanh -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilOwnerName"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:hint="Họ và tên chủ hộ kinh doanh *"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etOwnerName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textPersonName|textCapWords"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Số CCCD 12 số -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilCccdNumber"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số Căn cước công dân (12 chữ số) *"
-                        app:boxStrokeColor="@color/primary"
-                        app:counterEnabled="true"
-                        app:counterMaxLength="12"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etCccdNumber"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:maxLength="12"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card 3: Tài khoản ngân hàng VietQR -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="14dp"
-                app:cardElevation="0dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <ImageView
-                            android:importantForAccessibility="no"
-                            android:layout_width="18dp"
-                            android:layout_height="18dp"
-                            android:layout_marginEnd="8dp"
-                            app:srcCompat="@drawable/ic_credit_card"
-                            app:tint="@color/primary" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="3. Tài Khoản Nhận Tiền Tự Động (VietQR)"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="Tài khoản này dùng để tạo mã QR thanh toán động khi khách đặt đơn tại quán"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp" />
-
-                    <!-- Ngân hàng -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="4dp"
-                        android:text="Chọn Ngân hàng thụ hưởng *:"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp"
-                        android:textStyle="bold" />
-
-                    <Spinner
-                        android:id="@+id/spBankName"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:background="@drawable/bg_rounded_spinner_border"
-                        android:paddingHorizontal="12dp" />
-
-                    <!-- Số tài khoản -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilBankAccountNumber"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Số tài khoản ngân hàng *"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etBankAccountNumber"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="number"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <!-- Tên chủ tài khoản -->
-                    <com.google.android.material.textfield.TextInputLayout
-                        android:id="@+id/tilBankAccountName"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Tên chủ tài khoản (In hoa không dấu) *"
-                        app:boxStrokeColor="@color/primary"
-                        app:hintTextColor="@color/primary">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/etBankAccountName"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textCapCharacters"
-                            android:textColor="@color/text_primary"
-                            android:textSize="14sp" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Loading ProgressBar -->
-            <ProgressBar
-                android:id="@+id/progressBarVerification"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginTop="16dp"
-                android:indeterminateTint="@color/primary"
-                android:visibility="gone" />
-
-            <!-- Nút Lưu & Kích Hoạt -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSubmitVerification"
-                android:layout_width="match_parent"
-                android:layout_height="52dp"
-                android:layout_marginTop="20dp"
-                android:backgroundTint="@color/primary"
-                android:text="Xác Nhận &amp; Bắt Đầu Hoạt Động"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                app:cornerRadius="10dp"
-                app:icon="@drawable/ic_check"
-                app:iconGravity="textStart"
-                app:iconTint="@color/white"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
-
-            <!-- Nút Đăng xuất -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLogout"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="44dp"
-                android:layout_marginTop="8dp"
-                android:text="Đăng xuất tài khoản này"
-                android:textColor="@color/text_secondary"
-                android:textSize="13sp"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:paddingTop="0dp"
-                android:paddingBottom="0dp" />
-
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/AuthRepository.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.data.firebase
+
+import com.chuyen_de_2.foodorder.core.data.model.Customer
+import com.chuyen_de_2.foodorder.core.data.model.Driver
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.supervisorScope
+import java.util.concurrent.TimeUnit
+import javax.inject.Inject
+import javax.inject.Singleton
+
+class EmailOtpRequiredException : Exception("Email chưa được xác minh. Vui lòng nhập mã OTP đã gửi đến email.")
+class EmailNotRegisteredException(message: String = "Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!") : Exception(message)
+
+/**
+ * Repository xử lý xác thực — Firebase Authentication
+ * Hỗ trợ: Login Email/Password, Register, Supabase Email OTP
+ */
+@Singleton
+class AuthRepository @Inject constructor(
+    private val auth: FirebaseAuth,
+    private val database: FirebaseDatabase,
+    private val emailOtpApi: EmailOtpApi,
+    private val firebaseAuthChecker: FirebaseAuthChecker
+) {
+    /** Đăng nhập bằng Email/Password (kiểm tra khóa tài khoản từ Admin & tự động đồng bộ Gmail/Hồ sơ lên Realtime DB) */
+    suspend fun login(email: String, password: String): Result<FirebaseUser> {
+        return try {
+            val result = auth.signInWithEmailAndPassword(email, password).await()
+            val firebaseUser = result.user ?: return Result.failure(Exception("Đăng nhập thất bại"))
+            firebaseUser.reload().await()
+            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
+            val verificationState = if (firebaseUser.isEmailVerified) {
+                null
+            } else {
+                try {
+                    userRef.get().await()
+                } catch (error: Exception) {
+                    auth.signOut()
+                    throw error
+                }
+            }
+            val driverSnapAtLogin = try {
+                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
+            } catch (_: Exception) { null }
+            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
+            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+            val emailVerifiedByOtp = verificationState
+                ?.child("emailVerified")
+                ?.getValue(Boolean::class.java) == true ||
+                verificationState
+                    ?.child("registrationVerified")
+                    ?.getValue(Boolean::class.java) == true
+            val isStoreCreatedDriver = hasDriverProfile || (
+                verificationState
+                    ?.child("role")
+                    ?.getValue(String::class.java)
+                    .orEmpty()
+                    .uppercase() in setOf(User.Role.DRIVER, User.Role.SHIPPER, User.Role.MERCHANT, User.Role.MANAGER, User.Role.CHEF) &&
+                    (!verificationState
+                        ?.child("storeId")
+                        ?.getValue(String::class.java)
+                        .isNullOrBlank() ||
+                     !verificationState
+                        ?.child("bossId")
+                        ?.getValue(String::class.java)
+                        .isNullOrBlank())
+                )
+            val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
+            val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
+
+            // Kiểm tra cờ bỏ qua OTP từ xa trên Firebase Realtime Database (system_config/bypass_login_otp)
+            val isBypassOtp = try {
+                val bypassSnap = database.getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                    .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                    .get().await()
+                if (bypassSnap.exists()) {
+                    bypassSnap.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                } else {
+                    AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                }
+            } catch (_: Exception) {
+                AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+            }
+
+            // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
+            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com), cấu hình bỏ qua OTP (bypass_login_otp), hoặc tài khoản do quán tạo.
+            if (!isBypassOtp && !isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
+                try {
+                    emailOtpApi.requestCode(email.trim())
+                } catch (error: Exception) {
+                    auth.signOut()
+                    return Result.failure(
+                        Exception("Không gửi được mã OTP xác minh email.", error)
+                    )
+                }
+                auth.signOut()
+                return Result.failure(EmailOtpRequiredException())
+            }
+
+            val user = completePostLogin(
+                firebaseUser = firebaseUser,
+                email = email,
+                emailVerifiedByOtp = emailVerifiedByOtp || isStoreCreatedDriver || isAdminEmail,
+                isStoreCreatedDriver = isStoreCreatedDriver
+            )
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Quy trình hậu đăng nhập: kiểm tra trạng thái khóa từ Admin và đồng bộ hồ sơ vào Realtime DB.
+     */
+    private suspend fun completePostLogin(
+        firebaseUser: FirebaseUser,
+        email: String,
+        emailVerifiedByOtp: Boolean,
+        isStoreCreatedDriver: Boolean = false
+    ): FirebaseUser {
+        val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
+        try { userRef.keepSynced(true) } catch (_: Exception) {}
+
+        // Ưu tiên đọc trực tiếp từ Firebase Server qua REST API với idToken mới để vượt qua SQLite Persistence Cache cũ
+        val freshJson = fetchFreshUserJsonFromServer(firebaseUser.uid)
+        val userSnap = try { userRef.get().await() } catch (_: Exception) { null }
+
+        val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
+        val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
+
+        if (!isAdminEmail) {
+            if (freshJson != null) {
+                val status = freshJson.optString("status", "ACTIVE").uppercase()
+                val isActive = when {
+                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
+                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
+                    else -> true
+                }
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = freshJson.optString("lockReason", "").ifBlank {
+                        freshJson.optString("suspendedReason", "").ifBlank { "Vi phạm quy định nền tảng" }
+                    }
+                    try { auth.signOut() } catch (_: Exception) {}
+                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
+                }
+            } else if (userSnap != null && userSnap.exists()) {
+                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
+                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                    ?: userSnap.child("active").getValue(Boolean::class.java)
+                    ?: true
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = userSnap.child("lockReason").getValue(String::class.java)
+                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
+                        ?: "Vi phạm quy định nền tảng"
+                    try { auth.signOut() } catch (_: Exception) {}
+                    throw Exception("Tài khoản đã bị khóa bởi Admin: $reason")
+                }
+            }
+        }
+
+        // Đồng bộ Gmail & thông tin định danh từ Firebase Auth vào users/{uid} để Admin Dashboard nhận diện chính xác
+        try {
+            val dbEmail = freshJson?.optString("email", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("email")?.getValue(String::class.java).orEmpty()
+            val dbName = freshJson?.optString("name", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            val dbPhone = freshJson?.optString("phone", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("phone")?.getValue(String::class.java).orEmpty()
+            val rawDbRole = freshJson?.optString("role", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("role")?.getValue(String::class.java).orEmpty()
+            val rawDbStoreId = freshJson?.optString("storeId", "")?.takeIf { it.isNotBlank() }
+                ?: userSnap?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+            val driverSnapAtLogin = try {
+                database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await()
+            } catch (_: Exception) { null }
+            val hasDriverProfile = driverSnapAtLogin != null && driverSnapAtLogin.exists()
+            val driverStoreIdFromProfile = driverSnapAtLogin?.child("storeId")?.getValue(String::class.java).orEmpty()
+
+            val (dbRole, dbStoreId) = if (hasDriverProfile) {
+                Pair(User.Role.DRIVER, driverStoreIdFromProfile.ifBlank { rawDbStoreId })
+            } else {
+                sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = firebaseUser.uid,
+                    email = actualEmail,
+                    currentRole = rawDbRole,
+                    currentStoreId = rawDbStoreId
+                )
+            }
+
+            val wasCorruptedMock = dbEmail == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && !actualEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
+            val resolvedRole = when {
+                actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
+                hasDriverProfile -> User.Role.DRIVER
+                dbRole.isNotBlank() -> dbRole.uppercase()
+                actualEmail.contains("boss", ignoreCase = true) -> User.Role.BOSSMERCHANT
+                actualEmail.contains("manager", ignoreCase = true) || actualEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
+                actualEmail.contains("shipper", ignoreCase = true) || actualEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
+                else -> User.Role.CUSTOMER
+            }
+            val resolvedRoleId = when (resolvedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
+                User.Role.MERCHANT, User.Role.MANAGER -> 3
+                User.Role.DRIVER, User.Role.SHIPPER -> 4
+                else -> 2
+            }
+            val resolvedName = if (dbName.isNotBlank() && !wasCorruptedMock) {
+                dbName
+            } else {
+                firebaseUser.displayName?.takeIf { it.isNotBlank() } ?: actualEmail.substringBefore("@")
+            }
+            val resolvedPhone = if (dbPhone.isNotBlank() && !wasCorruptedMock) {
+                dbPhone
+            } else {
+                firebaseUser.phoneNumber.orEmpty()
+            }
+
+            val syncUpdates = mutableMapOf<String, Any?>(
+                "uid" to firebaseUser.uid,
+                "email" to actualEmail,
+                "name" to resolvedName,
+                "phone" to resolvedPhone,
+                "role" to resolvedRole,
+                "roleId" to resolvedRoleId,
+                "storeId" to dbStoreId,
+                "status" to User.Status.ACTIVE,
+                "emailVerified" to (firebaseUser.isEmailVerified || emailVerifiedByOtp || isStoreCreatedDriver),
+                "isActive" to true,
+                "lockReason" to null,
+                "suspendedReason" to null
+            )
+            userRef.updateChildren(syncUpdates).await()
+
+            if (resolvedRole == User.Role.CUSTOMER) {
+                val custUpdates = mutableMapOf<String, Any>(
+                    "customerId" to firebaseUser.uid,
+                    "uid" to firebaseUser.uid,
+                    "email" to actualEmail,
+                    "name" to resolvedName,
+                    "status" to User.Status.ACTIVE
+                )
+                if (resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
+                database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(firebaseUser.uid).updateChildren(custUpdates)
+            } else if ((resolvedRole == User.Role.MERCHANT || resolvedRole == User.Role.MANAGER) && dbStoreId.isNotBlank()) {
+                database.getReference(AppConstants.FirebaseNodes.STORES).child(dbStoreId).child("email").setValue(actualEmail)
+            }
+        } catch (_: Exception) {}
+
+        return firebaseUser
+    }
+
+    /**
+     * Gửi yêu cầu mã OTP 6 số đến email đăng nhập.
+     * Kiểm tra xem email đã được đăng ký trên Firebase chưa:
+     * - Nếu chưa đăng ký: từ chối gửi OTP và trả lỗi EmailNotRegisteredException!
+     * - Nếu đã đăng ký: gửi OTP qua Supabase Auth.
+     */
+    suspend fun requestLoginOtp(email: String): Result<String> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            if (cleanEmail.isBlank()) {
+                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
+            }
+            if (cleanEmail == AppConstants.Defaults.ADMIN_EMAIL) {
+                return Result.failure(Exception("Tài khoản Quản trị viên (${AppConstants.Defaults.ADMIN_EMAIL}) được miễn xác thực OTP. Bạn có thể đăng nhập ngay."))
+            }
+            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
+            if (!isRegistered) {
+                return Result.failure(EmailNotRegisteredException("Email chưa được đăng ký tài khoản. Vui lòng đăng ký trước!"))
+            }
+            emailOtpApi.requestCode(cleanEmail)
+            Result.success("")
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Gửi yêu cầu mã OTP 6 số đến email đăng ký thông qua dịch vụ Supabase Auth.
+     * Kiểm tra nếu email đã đăng ký thì thông báo chuyển sang đăng nhập.
+     */
+    suspend fun requestEmailOtp(email: String): Result<String> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            if (cleanEmail.isBlank()) {
+                return Result.failure(Exception("Vui lòng nhập địa chỉ email."))
+            }
+            val isRegistered = firebaseAuthChecker.isEmailRegistered(cleanEmail)
+            if (isRegistered) {
+                return Result.failure(Exception("Email này đã được đăng ký tài khoản. Vui lòng đăng nhập!"))
+            }
+            emailOtpApi.requestCode(cleanEmail)
+            Result.success("")
+        } catch (error: Exception) {
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Xác thực mã OTP người dùng nhập với email đăng ký.
+     * Trả về Result chứa email đã xác thực thành công.
+     */
+    suspend fun verifyEmailOtp(email: String, code: String): Result<String> {
+        return try {
+            // Xác minh thật qua Supabase; kết quả chứa email được máy chủ xác nhận.
+            Result.success(emailOtpApi.verifyCode(email.trim(), code.trim()))
+        } catch (error: Exception) {
+            // OTP sai/hết hạn hoặc lỗi mạng phải chặn đăng ký và trả lỗi về UI.
+            Result.failure(error)
+        }
+    }
+
+    /**
+     * Xác thực đăng nhập bằng OTP: Chạy song song kiểm tra OTP trên Supabase và đăng nhập Firebase
+     * giúp giảm tối đa độ trễ mạng (giảm từ 2 lần round-trip nối tiếp xuống còn 1 lần song song).
+     */
+    suspend fun verifyLoginOtp(email: String, password: String, code: String): Result<FirebaseUser> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            val cleanCode = code.trim()
+
+            supervisorScope {
+                val otpDeferred = async {
+                    runCatching { emailOtpApi.verifyCode(cleanEmail, cleanCode) }
+                }
+                val authDeferred = async {
+                    runCatching { auth.signInWithEmailAndPassword(cleanEmail, password).await() }
+                }
+
+                val otpRes = otpDeferred.await()
+                val authRes = authDeferred.await()
+
+                if (authRes.isFailure) {
+                    val rawMsg = authRes.exceptionOrNull()?.message.orEmpty()
+                    val userMsg = if (
+                        rawMsg.contains("password", ignoreCase = true) ||
+                        rawMsg.contains("credential", ignoreCase = true) ||
+                        rawMsg.contains("mật khẩu", ignoreCase = true)
+                    ) {
+                        "Mật khẩu không chính xác."
+                    } else if (rawMsg.contains("no user", ignoreCase = true) || rawMsg.contains("user-not-found", ignoreCase = true)) {
+                        "Không tìm thấy tài khoản với email này."
+                    } else {
+                        rawMsg.ifBlank { "Đăng nhập thất bại." }
+                    }
+                    throw Exception(userMsg)
+                }
+
+                val authResult = authRes.getOrNull()
+                val firebaseUser = authResult?.user
+                    ?: throw Exception("Không xác định được tài khoản Firebase.")
+
+                val verifiedEmail = otpRes.getOrElse { otpError ->
+                    // Cho phép tài khoản Tài xế do quán tạo (có trong drivers/{uid}) đăng nhập kể cả không qua OTP
+                    val isDriver = try {
+                        database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(firebaseUser.uid).get().await().exists()
+                    } catch (_: Exception) { false }
+                    if (isDriver) {
+                        cleanEmail
+                    } else {
+                        try { auth.signOut() } catch (_: Exception) {}
+                        val rawMsg = otpError.message.orEmpty()
+                        val userMsg = if (
+                            rawMsg.contains("expired", ignoreCase = true) ||
+                            rawMsg.contains("invalid", ignoreCase = true) ||
+                            rawMsg.contains("token", ignoreCase = true) ||
+                            rawMsg.contains("otp", ignoreCase = true)
+                        ) {
+                            "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                        } else {
+                            rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                        }
+                        throw Exception(userMsg)
+                    }
+                }
+
+                if (!cleanEmail.equals(verifiedEmail, ignoreCase = true) ||
+                    !cleanEmail.equals(firebaseUser.email.orEmpty(), ignoreCase = true)) {
+                    auth.signOut()
+                    throw Exception("Email OTP không khớp với tài khoản Firebase.")
+                }
+
+                val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(firebaseUser.uid)
+                try {
+                    userRef.child("emailVerified").setValue(true).await()
+                } catch (_: Exception) {}
+
+                val user = completePostLogin(firebaseUser, cleanEmail, emailVerifiedByOtp = true)
+                Result.success(user)
+            }
+        } catch (error: Exception) {
+            try { auth.signOut() } catch (_: Exception) {}
+            Result.failure(error)
+        }
+    }
+
+    /** Đăng ký tài khoản kèm xác thực mã OTP 6 số từ Supabase trong cùng một quy trình mượt mà */
+    suspend fun registerWithOtp(
+        name: String,
+        email: String,
+        password: String,
+        role: String = User.Role.CUSTOMER,
+        phone: String = "",
+        otpCode: String
+    ): Result<FirebaseUser> {
+        return try {
+            val cleanEmail = email.trim().lowercase()
+            val cleanOtp = otpCode.trim()
+            val verifiedEmail = try {
+                emailOtpApi.verifyCode(cleanEmail, cleanOtp)
+            } catch (e: Exception) {
+                val rawMsg = e.message.orEmpty()
+                val userMsg = if (
+                    rawMsg.contains("expired", ignoreCase = true) ||
+                    rawMsg.contains("invalid", ignoreCase = true) ||
+                    rawMsg.contains("token", ignoreCase = true) ||
+                    rawMsg.contains("otp", ignoreCase = true)
+                ) {
+                    "Mã OTP không đúng hoặc đã hết hạn. Vui lòng bấm 'Lấy mã' để nhận mã mới."
+                } else {
+                    rawMsg.ifBlank { "Xác thực mã OTP thất bại." }
+                }
+                throw Exception(userMsg)
+            }
+            register(
+                name = name,
+                email = cleanEmail,
+                password = password,
+                role = role,
+                phone = phone,
+                verifiedEmail = verifiedEmail
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+
+
+    /** Đăng ký tài khoản mới sau khi OTP email đã được xác nhận và phân loại theo Actor */
+    suspend fun register(
+        name: String,
+        email: String,
+        password: String,
+        role: String = User.Role.CUSTOMER,
+        phone: String = "",
+        verifiedEmail: String = ""
+    ): Result<FirebaseUser> {
+        return try {
+            // Chỉ cho tạo Firebase account nếu bước OTP trước đó xác nhận đúng chính email đăng ký (ngoại lệ với tài khoản quản trị admin@gmail.com).
+            val isEmailVerified = (verifiedEmail.isNotBlank() && verifiedEmail.equals(email.trim(), ignoreCase = true)) ||
+                    email.trim().equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
+            val normalizedPhone = phone.trim()
+
+            // Chặn gọi register mà không có kết quả xác minh email hợp lệ.
+            if (!isEmailVerified) {
+                return Result.failure(Exception("Bạn cần xác thực Email bằng mã OTP trước khi tạo tài khoản."))
+            }
+            // Firebase Auth vẫn là hệ thống tài khoản đăng nhập chính; Supabase chỉ xác minh OTP trong luồng đăng ký.
+            val result = auth.createUserWithEmailAndPassword(email, password).await()
+            val firebaseUser = result.user ?: return Result.failure(Exception("Đăng ký thất bại"))
+
+            // Lưu displayName trực tiếp vào Firebase Auth Profile để không bao giờ mất tên khi đồng bộ lại
+            try {
+                val profileUpdates = UserProfileChangeRequest.Builder()
+                    .setDisplayName(name.trim())
+                    .build()
+                firebaseUser.updateProfile(profileUpdates).await()
+            } catch (_: Exception) {}
+
+            // Chuẩn hóa role RBAC
+            val normalizedRole = when (role.uppercase()) {
+                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
+                "MERCHANT", "MANAGER" -> User.Role.MERCHANT
+                "DRIVER", "SHIPPER" -> User.Role.DRIVER
+                "ADMIN" -> User.Role.ADMIN
+                else -> User.Role.CUSTOMER
+            }
+            val roleId = when (normalizedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
+                User.Role.MERCHANT -> 3
+                User.Role.DRIVER -> 4
+                else -> 2
+            }
+
+            val assignedStoreId = if (normalizedRole == User.Role.MERCHANT) {
+                "store_${firebaseUser.uid.take(8)}"
+            } else {
+                ""
+            }
+
+            // 1. Lưu thông tin tài khoản dùng chung (Bảng 1: users)
+            val user = User(
+                uid = firebaseUser.uid,
+                roleId = roleId,
+                role = normalizedRole,
+                name = name.trim(),
+                email = email.trim(),
+                phone = normalizedPhone,
+                status = User.Status.ACTIVE,
+                isActive = true,
+                storeId = assignedStoreId,
+                emailVerified = isEmailVerified,
+                phoneVerified = false
+            )
+            database.getReference(AppConstants.FirebaseNodes.USERS)
+                .child(firebaseUser.uid)
+                .setValue(user)
+                .await()
+
+            // 2. Tạo hồ sơ thực thể chuyên biệt theo từng Actor để không bị gộp chung thành 1 loại
+            when (normalizedRole) {
+                User.Role.CUSTOMER -> {
+                    // Bảng 2: customers — Hồ sơ khách hàng & Điểm uy tín (kèm email, name, phone để Admin quản lý)
+                    val customerMap = mapOf(
+                        "customerId" to firebaseUser.uid,
+                        "uid" to firebaseUser.uid,
+                        "name" to name.trim(),
+                        "email" to email.trim(),
+                        "phone" to normalizedPhone,
+                        "trustScore" to 100,
+                        "totalOrders" to 0,
+                        "completedOrders" to 0,
+                        "boomOrders" to 0,
+                        "status" to User.Status.ACTIVE
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
+                        .child(firebaseUser.uid)
+                        .setValue(customerMap)
+                        .await()
+                }
+                User.Role.DRIVER -> {
+                    // Bảng 10: drivers — Hồ sơ tài xế nội bộ quán
+                    val randomCode = "TX-" + (10..99).random()
+                    val driver = Driver(
+                        driverId = firebaseUser.uid,
+                        storeId = assignedStoreId,
+                        driverCode = randomCode,
+                        name = name.trim(),
+                        phone = normalizedPhone,
+                        vehiclePlate = "59P1-${(100..999).random()}.${(10..99).random()}",
+                        ratingAvg = 5.0f,
+                        dutyStatus = Driver.DutyStatus.AVAILABLE
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.DRIVERS)
+                        .child(firebaseUser.uid)
+                        .setValue(driver)
+                        .await()
+                }
+                User.Role.MERCHANT -> {
+                    // Bảng 5: stores — Hồ sơ cửa hàng của đối tác chủ quán
+                    val storeData = com.chuyen_de_2.foodorder.core.data.model.Store(
+                        id = assignedStoreId,
+                        merchantId = firebaseUser.uid,
+                        name = if (name.isNotBlank()) name.trim() else "Quán Ăn Mới",
+                        ownerName = name.trim(),
+                        phone = normalizedPhone,
+                        address = "",
+                        district = "",
+                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING,
+                        isVerified = false,
+                        ratingAvg = 5.0f,
+                        deliveryTime = "20-30 phút",
+                        category = "Món chính",
+                        imageUrl = AppConstants.Defaults.DEFAULT_STORE_IMAGE_URL
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.STORES)
+                        .child(assignedStoreId)
+                        .setValue(storeData)
+                        .await()
+                    database.getReference(AppConstants.FirebaseNodes.STORES)
+                        .child(assignedStoreId)
+                        .child("email")
+                        .setValue(email.trim())
+                }
+            }
+
+            auth.signOut()
+            Result.success(firebaseUser)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy thông tin hồ sơ Khách Hàng (Bảng 2: customers) */
+    suspend fun getCurrentCustomerData(): Result<Customer> {
+        return try {
+            val uid = auth.currentUser?.uid
+                ?: return Result.failure(Exception("Chưa đăng nhập"))
+
+            val snapshot = database.getReference(AppConstants.FirebaseNodes.CUSTOMERS)
+                .child(uid)
+                .get()
+                .await()
+
+            val customer = snapshot.getValue(Customer::class.java)
+                ?: Customer(customerId = uid, trustScore = 100)
+
+            Result.success(customer)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy thông tin User hiện tại từ Firebase DB và tự động đồng bộ email/name từ FirebaseAuth */
+    suspend fun getCurrentUserData(): Result<User> {
+        return try {
+            val firebaseUser = auth.currentUser
+                ?: return Result.failure(Exception("Chưa đăng nhập"))
+            val uid = firebaseUser.uid
+            val currentEmail = firebaseUser.email.orEmpty().trim()
+            val authDisplayName = firebaseUser.displayName.orEmpty().trim()
+            val authPhone = firebaseUser.phoneNumber.orEmpty().trim()
+
+            val userRef = database.getReference(AppConstants.FirebaseNodes.USERS).child(uid)
+            val snapshot = userRef.get().await()
+
+            var user = snapshot.getValue(User::class.java)
+
+            val fallbackRole = when {
+                currentEmail.contains("manager", ignoreCase = true) || currentEmail.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
+                currentEmail.contains("shipper", ignoreCase = true) || currentEmail.contains("driver", ignoreCase = true) -> User.Role.DRIVER
+                currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
+                else -> User.Role.CUSTOMER
+            }
+            val fallbackRoleId = when (fallbackRole) {
+                User.Role.ADMIN -> 1
+                User.Role.MERCHANT -> 3
+                User.Role.DRIVER -> 4
+                else -> 2
+            }
+
+            if (user == null || !snapshot.exists()) {
+                val resolvedName = authDisplayName.ifBlank { currentEmail.substringBefore("@").ifBlank { "Khách hàng" } }
+                val newUser = User(
+                    uid = uid,
+                    email = currentEmail,
+                    name = resolvedName,
+                    phone = authPhone,
+                    role = fallbackRole,
+                    roleId = fallbackRoleId,
+                    status = User.Status.ACTIVE,
+                    isActive = true
+                )
+                try {
+                    userRef.setValue(newUser).await()
+                    if (fallbackRole == User.Role.CUSTOMER) {
+                        database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(
+                            mapOf(
+                                "customerId" to uid,
+                                "uid" to uid,
+                                "email" to currentEmail,
+                                "name" to resolvedName
+                            )
+                        )
+                    }
+                } catch (_: Exception) {}
+                user = newUser
+            } else {
+                // Tự động sửa nếu tài khoản tài xế bị nhảy sang CUSTOMER hoặc khách hàng bị gán nhầm storeId
+                val (healedRole, healedStoreId) = sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = uid,
+                    email = currentEmail,
+                    currentRole = user.role,
+                    currentStoreId = user.storeId
+                )
+                if (healedRole != user.role || healedStoreId != user.storeId) {
+                    val healedRoleId = when (healedRole) {
+                        User.Role.ADMIN -> 1
+                        User.Role.MERCHANT, User.Role.MANAGER -> 3
+                        User.Role.DRIVER, User.Role.SHIPPER -> 4
+                        else -> 2
+                    }
+                    user = user.copy(
+                        role = healedRole,
+                        roleId = healedRoleId,
+                        storeId = healedStoreId
+                    )
+                }
+
+                // Kiểm tra nếu bản ghi trên DB bị thiếu Gmail, tên hoặc bị ghi đè bởi dữ liệu mẫu cũ
+                val wasCorruptedMock = user.email == AppConstants.Defaults.CORRUPTED_MOCK_EMAIL && currentEmail.isNotBlank() && !currentEmail.equals(AppConstants.Defaults.CORRUPTED_MOCK_EMAIL, ignoreCase = true)
+                val needEmailSync = currentEmail.isNotBlank() && (user.email.isBlank() || user.email != currentEmail)
+                val needNameSync = user.name.isBlank() || wasCorruptedMock
+                val needUidSync = user.uid.isBlank() || user.uid != uid
+
+                if (needEmailSync || needNameSync || needUidSync) {
+                    val resolvedName = if (!needNameSync) {
+                        user.name
+                    } else {
+                        authDisplayName.ifBlank { currentEmail.substringBefore("@").ifBlank { user.name } }
+                    }
+                    val resolvedPhone = if (wasCorruptedMock) authPhone else user.phone.ifBlank { authPhone }
+                    val resolvedRole = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) User.Role.ADMIN else user.role.ifBlank { fallbackRole }
+                    val resolvedRoleId = if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) 1 else if (user.roleId > 0) user.roleId else fallbackRoleId
+
+                    val updates = mutableMapOf<String, Any>(
+                        "uid" to uid,
+                        "role" to resolvedRole,
+                        "roleId" to resolvedRoleId
+                    )
+                    if (currentEmail.isNotBlank()) updates["email"] = currentEmail
+                    if (resolvedName.isNotBlank()) updates["name"] = resolvedName
+                    if (wasCorruptedMock || resolvedPhone.isNotBlank()) updates["phone"] = resolvedPhone
+
+                    try {
+                        userRef.updateChildren(updates).await()
+                        if (resolvedRole == User.Role.CUSTOMER) {
+                            val custUpdates = mutableMapOf<String, Any>(
+                                "customerId" to uid,
+                                "uid" to uid
+                            )
+                            if (currentEmail.isNotBlank()) custUpdates["email"] = currentEmail
+                            if (resolvedName.isNotBlank()) custUpdates["name"] = resolvedName
+                            if (wasCorruptedMock || resolvedPhone.isNotBlank()) custUpdates["phone"] = resolvedPhone
+                            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(custUpdates)
+                        }
+                    } catch (_: Exception) {}
+
+                    user = user.copy(
+                        uid = uid,
+                        email = if (currentEmail.isNotBlank()) currentEmail else user.email,
+                        name = resolvedName,
+                        phone = resolvedPhone,
+                        role = resolvedRole,
+                        roleId = resolvedRoleId
+                    )
+                }
+            }
+
+            Result.success(user)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cập nhật thông tin cá nhân (Họ tên, Số điện thoại, Địa chỉ) cho người dùng hiện tại */
+    suspend fun updateUserProfile(
+        name: String,
+        phone: String,
+        avatarUrl: String = "",
+        address: String = ""
+    ): Result<Unit> {
+        return try {
+            val firebaseUser = auth.currentUser ?: return Result.failure(Exception("Chưa đăng nhập"))
+            val uid = firebaseUser.uid
+            val email = firebaseUser.email.orEmpty()
+
+            if (name.isNotBlank()) {
+                try {
+                    val profileUpdates = UserProfileChangeRequest.Builder()
+                        .setDisplayName(name.trim())
+                        .build()
+                    firebaseUser.updateProfile(profileUpdates).await()
+                } catch (_: Exception) {}
+            }
+
+            val updates = mutableMapOf<String, Any>(
+                "uid" to uid,
+                "name" to name.trim(),
+                "phone" to phone.trim()
+            )
+            if (email.isNotBlank()) updates["email"] = email
+            if (address.isNotBlank()) updates["address"] = address.trim()
+            if (avatarUrl.isNotBlank()) updates["avatarUrl"] = avatarUrl.trim()
+
+            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+            database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lắng nghe thay đổi trạng thái Auth (đăng nhập/đăng xuất) */
+    fun observeAuthState(): Flow<FirebaseUser?> = callbackFlow {
+        val listener = FirebaseAuth.AuthStateListener { auth ->
+            trySend(auth.currentUser)
+        }
+        auth.addAuthStateListener(listener)
+        awaitClose { auth.removeAuthStateListener(listener) }
+    }
+
+    /** Lấy role của user hiện tại (chuẩn hóa RBAC và có tra cứu chéo stores/drivers) */
+    suspend fun getUserRole(): String? {
+        val uid = auth.currentUser?.uid ?: return null
+        val currentEmail = auth.currentUser?.email.orEmpty().trim()
+        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
+            try {
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
+                    mapOf(
+                        "uid" to uid,
+                        "email" to currentEmail,
+                        "role" to User.Role.ADMIN,
+                        "roleId" to 1,
+                        "status" to User.Status.ACTIVE,
+                        "isActive" to true,
+                        "lockReason" to null,
+                        "suspendedReason" to null
+                    )
+                )
+            } catch (_: Exception) {}
+            return User.Role.ADMIN
+        }
+
+        return try {
+            val userData = getCurrentUserData().getOrNull()
+            val rawRole = userData?.role?.trim()?.uppercase()
+            val roleId = userData?.roleId
+
+            // 1. Kiểm tra nếu là Admin, Boss, hoặc Tài xế
+            if (rawRole == "ADMIN" || roleId == 1) return User.Role.ADMIN
+            if (rawRole == User.Role.BOSSMERCHANT || roleId == 5) return User.Role.BOSSMERCHANT
+            if (rawRole == "DRIVER" || rawRole == "SHIPPER" || roleId == 4) return User.Role.DRIVER
+
+            // 2. Tra cứu bảng drivers trước: Nếu uid có trong bảng drivers thì chắc chắn là Tài xế (khôi phục nếu từng bị nhảy sang CUSTOMER)
+            try {
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
+                if (driverSnap.exists()) {
+                    val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
+                    val updates = mutableMapOf<String, Any>(
+                        "role" to User.Role.DRIVER,
+                        "roleId" to 4
+                    )
+                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
+                    return User.Role.DRIVER
+                }
+            } catch (_: Exception) {}
+
+            // 3. Nếu đang mang role MERCHANT/MANAGER hoặc có storeId -> xác thực quyền sở hữu thực sự trên bảng stores
+            if (rawRole == "MERCHANT" || rawRole == "MANAGER" || roleId == 3 || !userData?.storeId.isNullOrBlank()) {
+                val (healedRole, _) = sanitizeCorruptedCustomerRoleIfNeeded(
+                    uid = uid,
+                    email = currentEmail,
+                    currentRole = rawRole.orEmpty(),
+                    currentStoreId = userData?.storeId.orEmpty()
+                )
+                return healedRole.ifBlank { User.Role.CUSTOMER }
+            }
+
+            // 4. Nếu là CUSTOMER rõ ràng -> trả về CUSTOMER ngay (không tra cứu stores tránh gán nhầm quán)
+            if (rawRole == "CUSTOMER" || roleId == 2) return User.Role.CUSTOMER
+
+            // 4. Tra cứu chéo: Chỉ khớp khi merchantId hoặc ownerId của store bằng đúng uid
+            try {
+                val byMerchant = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
+                for (child in byMerchant.children) {
+                    val merchantId = child.child("merchantId").getValue(String::class.java)
+                        ?: child.child("ownerId").getValue(String::class.java)
+                    if (merchantId == uid) {
+                        val storeId = child.key ?: ""
+                        if (storeId.isNotBlank()) {
+                            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
+                                mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to storeId)
+                            ).await()
+                            return User.Role.MERCHANT
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 3. Tra cứu chéo: Người dùng có hồ sơ tài xế không?
+            try {
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
+                if (driverSnap.exists()) {
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
+                        mapOf("role" to User.Role.DRIVER, "roleId" to 4)
+                    ).await()
+                    return User.Role.DRIVER
+                }
+            } catch (_: Exception) {}
+
+            // 4. Fallback theo email nếu email có chứa từ khóa
+            val email = auth.currentUser?.email
+            if (email != null) {
+                when {
+                    email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> return User.Role.MERCHANT
+                    email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> return User.Role.DRIVER
+                    email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> return User.Role.ADMIN
+                }
+            }
+
+            userData?.role ?: User.Role.CUSTOMER
+        } catch (e: Exception) {
+            val email = auth.currentUser?.email ?: return null
+            when {
+                email.contains("manager", ignoreCase = true) || email.contains("merchant", ignoreCase = true) -> User.Role.MERCHANT
+                email.contains("shipper", ignoreCase = true) || email.contains("driver", ignoreCase = true) -> User.Role.DRIVER
+                email.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true) -> User.Role.ADMIN
+                else -> User.Role.CUSTOMER
+            }
+        }
+    }
+
+    /** Thiết lập hoặc chuyển đổi vai trò cho tài khoản hiện tại */
+    suspend fun setUserRole(newRole: String): Result<Unit> {
+        val uid = auth.currentUser?.uid ?: return Result.failure(Exception("Chưa đăng nhập"))
+        return try {
+            val normalizedRole = when (newRole.uppercase()) {
+                "BOSSMERCHANT", "BOSS" -> User.Role.BOSSMERCHANT
+                "MERCHANT", "MANAGER" -> User.Role.MERCHANT
+                "DRIVER", "SHIPPER" -> User.Role.DRIVER
+                "CHEF", "COOK" -> User.Role.CHEF
+                "ADMIN" -> User.Role.ADMIN
+                else -> User.Role.CUSTOMER
+            }
+            val roleId = when (normalizedRole) {
+                User.Role.ADMIN -> 1
+                User.Role.BOSSMERCHANT -> 5
+                User.Role.MERCHANT -> 3
+                User.Role.DRIVER -> 4
+                User.Role.CHEF -> 6
+                else -> 2
+            }
+
+            val updates = mutableMapOf<String, Any>(
+                "role" to normalizedRole,
+                "roleId" to roleId
+            )
+
+            if (normalizedRole == User.Role.MERCHANT) {
+                val byMerchantSnap = database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
+                val storeSnap = if (byMerchantSnap.hasChildren()) byMerchantSnap else database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("ownerId").equalTo(uid).get().await()
+                var foundStoreId: String? = null
+                for (child in storeSnap.children) {
+                    val mId = child.child("merchantId").getValue(String::class.java)
+                        ?: child.child("ownerId").getValue(String::class.java)
+                    if (mId == uid) {
+                        foundStoreId = child.key
+                        break
+                    }
+                }
+
+                val finalStoreId = foundStoreId ?: "store_${uid.take(8)}"
+                updates["storeId"] = finalStoreId
+
+                if (foundStoreId == null) {
+                    val defaultCoords = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    val store = com.chuyen_de_2.foodorder.core.data.model.Store(
+                        id = finalStoreId,
+                        merchantId = uid,
+                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_STORE_NAME } ?: AppConstants.Defaults.DEFAULT_STORE_NAME,
+                        latitude = defaultCoords.latitude,
+                        longitude = defaultCoords.longitude,
+                        storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).setValue(store).await()
+                    val coordsUpdate = mapOf<String, Any>(
+                        "latitude" to defaultCoords.latitude,
+                        "longitude" to defaultCoords.longitude
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).updateChildren(coordsUpdate).await()
+                }
+            } else if (normalizedRole == User.Role.DRIVER) {
+                val driverSnap = database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await()
+                if (driverSnap.exists()) {
+                    val dStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty()
+                    if (dStoreId.isNotBlank()) {
+                        updates["storeId"] = dStoreId
+                    }
+                } else {
+                    val driver = Driver(
+                        driverId = uid,
+                        storeId = "",
+                        driverCode = "TX-" + (10..99).random(),
+                        name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_DRIVER_NAME } ?: AppConstants.Defaults.DEFAULT_DRIVER_NAME,
+                        dutyStatus = Driver.DutyStatus.AVAILABLE
+                    )
+                    database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).setValue(driver).await()
+                }
+                try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
+            }
+
+            database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Cập nhật FCM Token cho user */
+    suspend fun updateFcmToken(token: String) {
+        val uid = auth.currentUser?.uid ?: return
+        database.getReference(AppConstants.FirebaseNodes.USERS)
+            .child(uid)
+            .child("fcmToken")
+            .setValue(token)
+            .await()
+    }
+
+    /** Đọc trực tiếp trạng thái user từ Firebase RTDB REST API để bỏ qua SQLite Persistence Cache cũ */
+    suspend fun fetchFreshUserJsonFromServer(uid: String): org.json.JSONObject? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val token = auth.currentUser?.getIdToken(false)?.await()?.token ?: return@withContext null
+                val urlStr = "${com.chuyen_de_2.foodorder.core.util.Constants.FIREBASE_DATABASE_URL}/users/$uid.json?auth=$token"
+                val conn = (java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 5000
+                    readTimeout = 5000
+                    useCaches = false
+                    setRequestProperty("Cache-Control", "no-cache")
+                }
+                if (conn.responseCode in 200..299) {
+                    val body = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
+                    if (body.isNotEmpty() && body != "null") {
+                        return@withContext org.json.JSONObject(body)
+                    }
+                }
+                null
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+    /** Kiểm tra xem tài khoản có đang bị khóa (LOCKED / SUSPENDED) trên Firebase Realtime DB không */
+    suspend fun checkAccountActiveStatus(uid: String? = currentUser?.uid): Result<Boolean> {
+        val targetUid = uid ?: return Result.failure(Exception("Chưa đăng nhập"))
+        val currentEmail = auth.currentUser?.email.orEmpty().trim()
+        if (currentEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)) {
+            return Result.success(true)
+        }
+        return try {
+            val freshJson = fetchFreshUserJsonFromServer(targetUid)
+            if (freshJson != null) {
+                val status = freshJson.optString("status", "ACTIVE").uppercase()
+                val isActive = when {
+                    freshJson.has("isActive") && !freshJson.isNull("isActive") -> freshJson.optBoolean("isActive", true)
+                    freshJson.has("active") && !freshJson.isNull("active") -> freshJson.optBoolean("active", true)
+                    else -> true
+                }
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = freshJson.optString("lockReason", "").ifBlank {
+                        freshJson.optString("suspendedReason", "").ifBlank { "Tài khoản của bạn đã bị khóa bởi Quản trị viên" }
+                    }
+                    try { auth.signOut() } catch (_: Exception) {}
+                    return Result.failure(Exception(reason))
+                } else {
+                    // Đồng bộ trạng thái đã mở khóa xuống local cache
+                    try {
+                        database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).updateChildren(
+                            mapOf(
+                                "status" to User.Status.ACTIVE,
+                                "isActive" to true,
+                                "lockReason" to null,
+                                "suspendedReason" to null
+                            )
+                        )
+                    } catch (_: Exception) {}
+                    return Result.success(true)
+                }
+            }
+
+            val userSnap = database.getReference(AppConstants.FirebaseNodes.USERS).child(targetUid).get().await()
+            if (userSnap.exists()) {
+                val status = userSnap.child("status").getValue(String::class.java)?.uppercase() ?: "ACTIVE"
+                val isActive = userSnap.child("isActive").getValue(Boolean::class.java)
+                    ?: userSnap.child("active").getValue(Boolean::class.java)
+                    ?: true
+                if (status == "LOCKED" || status == "SUSPENDED" || status == "INACTIVE" || !isActive) {
+                    val reason = userSnap.child("lockReason").getValue(String::class.java)
+                        ?: userSnap.child("suspendedReason").getValue(String::class.java)
+                        ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên"
+                    try { auth.signOut() } catch (_: Exception) {}
+                    return Result.failure(Exception(reason))
+                }
+            }
+            Result.success(true)
+        } catch (e: Exception) {
+            Result.success(true)
+        }
+    }
+
+    /** Đăng xuất an toàn tuyệt đối, không ghi đè trạng thái LOCKED trên Firebase */
+    fun logout() {
+        try {
+            auth.signOut()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Xóa vĩnh viễn tài khoản hiện tại và cascading xóa sạch dữ liệu liên quan:
+     * - Xóa giỏ hàng
+     * - Xóa hồ sơ customers/drivers/users
+     * - Thu hồi các đơn đang nhận (nếu là shipper)
+     * - Xóa tài khoản Firebase Auth
+     */
+    suspend fun deleteCurrentAccount(): Result<Unit> {
+        val user = auth.currentUser ?: return Result.failure(Exception("Chưa đăng nhập"))
+        val uid = user.uid
+
+        return try {
+            // 1. Xóa giỏ hàng
+            try { database.getReference(AppConstants.FirebaseNodes.CARTS).child(uid).removeValue().await() } catch (_: Exception) {}
+
+            // 2. Xóa hồ sơ chuyên biệt
+            try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).removeValue().await() } catch (_: Exception) {}
+
+            // 3. Thu hồi các đơn đang nhận nếu user này là shipper
+            try {
+                val ordersSnap = database.getReference(AppConstants.FirebaseNodes.ORDERS)
+                    .orderByChild("shipperId")
+                    .equalTo(uid)
+                    .get()
+                    .await()
+
+                for (child in ordersSnap.children) {
+                    val order = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Order::class.java) ?: continue
+                    if (order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.COMPLETED &&
+                        order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
+                        order.status != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
+                    ) {
+                        val updates = mapOf<String, Any?>(
+                            "shipperId" to null,
+                            "shipperName" to "",
+                            "status" to com.chuyen_de_2.foodorder.core.data.model.Order.Status.READY
+                        )
+                        database.getReference(AppConstants.FirebaseNodes.ORDERS).child(order.orderId).updateChildren(updates).await()
+                        database.getReference(AppConstants.FirebaseNodes.TRACKING).child(order.orderId).removeValue().await()
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // 4. Xóa khỏi users & sổ địa chỉ
+            try { database.getReference("customer_addresses").child(uid).removeValue().await() } catch (_: Exception) {}
+            try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).removeValue().await() } catch (_: Exception) {}
+
+            // 5. Xóa tài khoản Firebase Authentication
+            user.delete().await()
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Khôi phục role DRIVER nếu tài khoản có hồ sơ trong bảng drivers,
+     * hoặc khôi phục role CUSTOMER nếu tài khoản khách hàng từng bị gán nhầm storeId của quán khác.
+     */
+    private suspend fun sanitizeCorruptedCustomerRoleIfNeeded(
+        uid: String,
+        email: String,
+        currentRole: String,
+        currentStoreId: String
+    ): Pair<String, String> {
+        val normRole = currentRole.trim().uppercase()
+        val sid = currentStoreId.trim()
+        return try {
+            // 0. Kiểm tra trước xem uid có hồ sơ trong bảng drivers không (kể cả khi từng bị nhảy nhầm sang CUSTOMER)
+            val driverSnap = try { database.getReference(AppConstants.FirebaseNodes.DRIVERS).child(uid).get().await() } catch (_: Exception) { null }
+            if (driverSnap != null && driverSnap.exists()) {
+                val driverStoreId = driverSnap.child("storeId").getValue(String::class.java).orEmpty().ifBlank { sid }
+                if (normRole != User.Role.DRIVER || sid != driverStoreId) {
+                    val updates = mutableMapOf<String, Any>(
+                        "role" to User.Role.DRIVER,
+                        "roleId" to 4
+                    )
+                    if (driverStoreId.isNotBlank()) updates["storeId"] = driverStoreId
+                    database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(updates).await()
+                    try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).removeValue() } catch (_: Exception) {}
+                }
+                return Pair(User.Role.DRIVER, driverStoreId)
+            }
+
+            if (normRole == User.Role.DRIVER || normRole == User.Role.SHIPPER || normRole == User.Role.ADMIN || normRole == User.Role.BOSSMERCHANT || normRole == User.Role.CHEF) {
+                return Pair(currentRole, currentStoreId)
+            }
+            if (normRole != User.Role.MERCHANT && normRole != User.Role.MANAGER && sid.isBlank()) {
+                return Pair(currentRole, currentStoreId)
+            }
+
+            // Kiểm tra xem tài khoản này có phải Quản lý do Boss tạo (có bossId) không
+            val userSnap = try { database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).get().await() } catch (_: Exception) { null }
+            val bossId = userSnap?.child("bossId")?.getValue(String::class.java).orEmpty()
+            if (bossId.isNotBlank()) {
+                return Pair(User.Role.MERCHANT, sid)
+            }
+
+            // 1. Kiểm tra nếu storeId hiện tại thực sự thuộc sở hữu của uid (merchantId == uid hoặc ownerId == uid)
+            if (sid.isNotBlank()) {
+                val storeSnap = database.getReference(AppConstants.FirebaseNodes.STORES).child(sid).get().await()
+                if (storeSnap.exists()) {
+                    val mId = storeSnap.child("merchantId").getValue(String::class.java).orEmpty()
+                    val oId = storeSnap.child("ownerId").getValue(String::class.java).orEmpty()
+                    if (mId == uid || oId == uid) {
+                        return Pair(User.Role.MERCHANT, sid)
+                    }
+                }
+            }
+
+            // 2. Kiểm tra xem uid có thực sự sở hữu bất kỳ store nào trên bảng stores không
+            val byMerchant = try {
+                database.getReference(AppConstants.FirebaseNodes.STORES).orderByChild("merchantId").equalTo(uid).get().await()
+            } catch (_: Exception) { null }
+            val realOwnedKey = byMerchant?.children?.firstOrNull {
+                it.child("merchantId").getValue(String::class.java) == uid ||
+                    it.child("ownerId").getValue(String::class.java) == uid
+            }?.key
+            if (!realOwnedKey.isNullOrBlank()) {
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
+                    mapOf("role" to User.Role.MERCHANT, "roleId" to 3, "storeId" to realOwnedKey)
+                ).await()
+                return Pair(User.Role.MERCHANT, realOwnedKey)
+            }
+
+            // 3. Chỉ khôi phục về CUSTOMER nếu user thực sự có hồ sơ trong bảng customers
+            val custSnap = try { database.getReference(AppConstants.FirebaseNodes.CUSTOMERS).child(uid).get().await() } catch (_: Exception) { null }
+            val hasCustomerRecord = custSnap != null && custSnap.exists()
+
+            if (hasCustomerRecord) {
+                database.getReference(AppConstants.FirebaseNodes.USERS).child(uid).updateChildren(
+                    mapOf(
+                        "role" to User.Role.CUSTOMER,
+                        "roleId" to 2,
+                        "storeId" to ""
+                    )
+                ).await()
+                return Pair(User.Role.CUSTOMER, "")
+            }
+
+            Pair(currentRole, currentStoreId)
+        } catch (_: Exception) {
+            Pair(currentRole, currentStoreId)
+        }
+    }
+
+    val currentUser: FirebaseUser? get() = auth.currentUser
+
+    /** Kiểm tra đã đăng nhập chưa */
+    val isLoggedIn: Boolean get() = auth.currentUser != null
+}
+````
+
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Store.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.data.model
+
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.gson.annotations.SerializedName
+
+/**
+ * Cửa hàng / Quán ăn — lưu tại: stores/{storeId}
+ * Giao diện: Quán/5.html — Dashboard quán, Quán/8.html — Hồ sơ CCCD
+ * 4 trạng thái: PENDING → OPEN / LOCKED / CLOSED
+ * Mapping: Bảng 5 - stores (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class Store(
+    @SerializedName("id")
+    val id: String = "",
+
+    @SerializedName("bossId")
+    val bossId: String = "",
+
+    @SerializedName("merchantId", alternate = ["ownerId"])
+    val merchantId: String = "",
+
+    @SerializedName("merchantName")
+    val merchantName: String = "",
+
+    @SerializedName("name")
+    val name: String = "",
+
+    @SerializedName("phone")
+    val phone: String = "",
+
+    @SerializedName("address")
+    val address: String = "",
+
+    @SerializedName("district")
+    val district: String = "",
+
+    @get:com.google.firebase.database.PropertyName("latitude")
+    @set:com.google.firebase.database.PropertyName("latitude")
+    @SerializedName("latitude", alternate = ["lat"])
+    var latitude: Double = 0.0,
+
+    @get:com.google.firebase.database.PropertyName("longitude")
+    @set:com.google.firebase.database.PropertyName("longitude")
+    @SerializedName("longitude", alternate = ["lng"])
+    var longitude: Double = 0.0,
+
+    @get:Exclude
+    @SerializedName("lat")
+    var lat: Double = 0.0,
+
+    @get:Exclude
+    @SerializedName("lng")
+    var lng: Double = 0.0,
+
+    @get:com.google.firebase.database.PropertyName("imageUrl")
+    @set:com.google.firebase.database.PropertyName("imageUrl")
+    @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
+    var imageUrl: String = "",
+
+    @get:Exclude
+    @SerializedName("avatarUrl")
+    var avatarUrl: String = "",
+
+    @get:Exclude
+    @SerializedName("avatar")
+    var avatar: String = "",
+
+    @get:Exclude
+    @SerializedName("logoUrl")
+    var logoUrl: String = "",
+
+    @get:Exclude
+    @SerializedName("image")
+    var image: String = "",
+
+    @SerializedName("storeStatus")
+    val storeStatus: String = StoreStatus.PENDING,
+
+    @SerializedName("statusId")
+    val statusId: Int = 1,
+
+    @SerializedName("ownerName")
+    val ownerName: String = "",
+
+    @SerializedName("openHours")
+    val openHours: String = "",
+
+    @SerializedName("prepTime")
+    val prepTime: String = "",
+
+    @get:com.google.firebase.database.PropertyName("isVerified")
+    @set:com.google.firebase.database.PropertyName("isVerified")
+    @SerializedName("isVerified")
+    var isVerified: Boolean = false,
+
+    @SerializedName("cccdNumber")
+    val cccdNumber: String = "",
+
+    @SerializedName("cccdFrontUrl")
+    val cccdFrontUrl: String = "",
+
+    @SerializedName("cccdBackUrl")
+    val cccdBackUrl: String = "",
+
+    @SerializedName("cccdHoldUrl")
+    val cccdHoldUrl: String = "",
+
+    @SerializedName("cccdPortraitUrl")
+    val cccdPortraitUrl: String = "",
+
+    @SerializedName("penaltyTierId")
+    val penaltyTierId: Int = 1,
+
+    @SerializedName("penaltyTier")
+    val penaltyTier: String = PenaltyTier.NONE,
+
+    @SerializedName("penaltyReason")
+    val penaltyReason: String = "",
+
+    @SerializedName("ratingAvg", alternate = ["rating"])
+    val ratingAvg: Float = 5.0f,
+
+    @SerializedName("reviewCount", alternate = ["ratingCount"])
+    val reviewCount: Int = 0,
+
+    @SerializedName("deliveryTimeFrameId")
+    val deliveryTimeFrameId: Int = 2,
+
+    @SerializedName("deliveryTime")
+    val deliveryTime: String = AppConstants.Defaults.DEFAULT_DELIVERY_TIME,
+
+    @SerializedName("category")
+    val category: String = "",
+
+    @SerializedName("bankName")
+    val bankName: String = AppConstants.Defaults.DEFAULT_BANK_NAME,
+
+    @SerializedName("bankAccountNumber", alternate = ["bankAccount", "bankNo"])
+    val bankAccountNumber: String = "",
+
+    @SerializedName("bankAccountName", alternate = ["bankOwner", "accountHolderName"])
+    val bankAccountName: String = "",
+
+    @SerializedName("bankBin")
+    val bankBin: String = AppConstants.Defaults.DEFAULT_BANK_BIN,
+
+    @SerializedName("storeCategories")
+    val storeCategories: List<String> = emptyList(),
+
+    @SerializedName("dishes")
+    val dishes: Map<String, Dish> = emptyMap()
+) {
+    /** Thuộc tính phụ trợ tương thích UI */
+    @get:Exclude
+    val isOpen: Boolean
+        get() = storeStatus.equals(StoreStatus.OPEN, ignoreCase = true)
+
+    @get:Exclude
+    val rating: Float
+        get() = ratingAvg
+
+    @get:Exclude
+    val resolvedLatitude: Double
+        get() = if (latitude != 0.0) latitude else lat
+
+    @get:Exclude
+    val resolvedLongitude: Double
+        get() = if (longitude != 0.0) longitude else lng
+
+    /** Trả về URL hoặc Base64 ảnh đại diện quán từ bất kỳ trường nào có dữ liệu */
+    @get:Exclude
+    val effectiveImageUrl: String
+        get() = imageUrl.ifBlank { avatarUrl.ifBlank { avatar.ifBlank { logoUrl.ifBlank { image } } } }
+
+    /** Trạng thái quán ăn — Admin duyệt */
+    object StoreStatus {
+        const val PENDING = "PENDING"
+        const val OPEN = "OPEN"
+        const val LOCKED = "LOCKED"
+        const val CLOSED = "CLOSED"
+        const val REJECTED = "REJECTED"
+    }
+
+    /** Chế tài xử phạt — Admin áp đặt */
+    object PenaltyTier {
+        const val NONE = "NONE"
+        const val WARN = "WARN"
+        const val HIDE = "HIDE"
+        const val LOCK = "LOCK"
+    }
+}
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/order/OrderHistoryAdapter.kt
@@ -100215,690 +101625,6 @@ class PaymentActivity : AppCompatActivity() {
         super.onDestroy()
         countDownTimer?.cancel()
         orderPaymentListener?.let { orderRef?.removeEventListener(it) }
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/StoreVerificationActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Intent
-import android.net.Uri
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.View
-import android.widget.ArrayAdapter
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
-import androidx.lifecycle.lifecycleScope
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.chuyen_de_2.foodorder.core.util.CccdOcrHelper
-import com.chuyen_de_2.foodorder.core.util.GoogleMapUtils
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityStoreVerificationBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import java.io.File
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Phiếu Thiết Lập Địa Chỉ Bắt Buộc & Xác Minh Thông Tin Quán
- * Cách hoạt động:
- *  - Thu thập hồ sơ kinh doanh của Quán: Tên quán, SĐT, Địa chỉ lấy hàng chi tiết, Quận/Huyện, Họ tên chủ quán, CCCD (12 số).
- *  - Thu thập thông tin Tài khoản ngân hàng (VietQR / Napas) để hệ thống quyết toán doanh thu.
- *  - Tự động map tọa độ GPS theo Quận/Huyện TP.HCM phục vụ tính toán cước ship và định tuyến cho Shipper.
- *  - Cập nhật cờ `isVerified = true` lên Firestore document của Quán và tài khoản Merchant.
- * Luồng hướng tới:
- *  - Xác minh thành công -> Điều hướng trực tiếp vào [DashboardActivity] (xóa stack).
- *  - Bấm Đăng xuất -> Trở về [LoginActivity].
- */
-@AndroidEntryPoint
-class StoreVerificationActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityStoreVerificationBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private var currentStoreId: String = ""
-    private var selectedLat: Double? = null
-    private var selectedLng: Double? = null
-    private var capturedCccdUri: Uri? = null
-    private var cccdFrontBase64: String = ""
-    private var cccdBackBase64: String = ""
-
-    private enum class CccdSide { FRONT, BACK }
-    private var currentTargetSide: CccdSide = CccdSide.FRONT
-    private var isSyncingBankName = false
-    private var isManualEditingBankName = false
-
-    private val takePictureLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            val uri = capturedCccdUri
-            if (uri != null) {
-                processPickedCccdImage(uri, currentTargetSide)
-            }
-        }
-    }
-
-    private val pickGalleryLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            processPickedCccdImage(uri, currentTargetSide)
-        }
-    }
-
-    private val cameraPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            launchCamera()
-        } else {
-            Toast.makeText(this, "⚠️ Vui lòng cấp quyền Camera để chụp ảnh thẻ CCCD", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun checkPermissionAndLaunchCamera() {
-        if (ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.CAMERA
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
-            launchCamera()
-        } else {
-            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-        }
-    }
-
-    private fun launchCamera() {
-        try {
-            val photoFile = File(cacheDir, "cccd_scan_${System.currentTimeMillis()}.jpg")
-            val photoUri = FileProvider.getUriForFile(
-                this,
-                "${packageName}.fileprovider",
-                photoFile
-            )
-            capturedCccdUri = photoUri
-            takePictureLauncher.launch(photoUri)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Không thể mở camera: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private val selectLocationLauncher = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val data = result.data ?: return@registerForActivityResult
-            val streetAddress = data.getStringExtra(SelectLocationActivity.EXTRA_STREET_ADDRESS)
-            val fullAddress = data.getStringExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS)
-            val district = data.getStringExtra(SelectLocationActivity.EXTRA_DISTRICT)
-            val lat = data.getDoubleExtra(SelectLocationActivity.EXTRA_LAT, 0.0)
-            val lng = data.getDoubleExtra(SelectLocationActivity.EXTRA_LNG, 0.0)
-
-            if (!streetAddress.isNullOrBlank()) {
-                binding.etStoreAddress.setText(streetAddress)
-            } else if (!fullAddress.isNullOrBlank()) {
-                binding.etStoreAddress.setText(fullAddress)
-            }
-
-            if (!district.isNullOrBlank()) {
-                val dIndex = districts.indexOfFirst { d ->
-                    d.equals(district, ignoreCase = true) || district.contains(d, ignoreCase = true)
-                }
-                if (dIndex >= 0) {
-                    binding.spStoreDistrict.setSelection(dIndex)
-                }
-            }
-
-            if (lat != 0.0 && lng != 0.0) {
-                selectedLat = lat
-                selectedLng = lng
-            }
-        }
-    }
-
-    data class SupportedBank(val name: String, val bin: String)
-
-    private val supportedBanks = listOf(
-        SupportedBank("MB Bank (Quân Đội)", "970422"),
-        SupportedBank("Vietcombank (Ngoại Thương)", "970436"),
-        SupportedBank("Techcombank (Kỹ Thương)", "970407"),
-        SupportedBank("VPBank (Việt Nam Thịnh Vượng)", "970432"),
-        SupportedBank("ACB (Á Châu)", "970416"),
-        SupportedBank("BIDV (Đầu Tư & Phát Triển)", "970418"),
-        SupportedBank("Agribank (Nông Nghiệp)", "970405"),
-        SupportedBank("TPBank (Tiên Phong)", "970423"),
-        SupportedBank("Sacombank (Sài Gòn Thương Tín)", "970403"),
-        SupportedBank("VIB (Quốc Tế)", "970441"),
-        SupportedBank("OCB (Phương Đông)", "970448")
-    )
-
-    private val districts = listOf(
-        "Quận 1", "Quận 3", "Quận 4", "Quận 5", "Quận 6",
-        "Quận 7", "Quận 8", "Quận 10", "Quận 11", "Quận 12",
-        "Bình Thạnh", "Gò Vấp", "Phú Nhuận", "Tân Bình", "Tân Phú",
-        "Bình Tân", "Thủ Đức", "Hóc Môn", "Bình Chánh", "Nhà Bè"
-    )
-
-    /**
-     * Tên chức năng: Khởi tạo màn hình xác minh
-     * Cách hoạt động: Thiết lập padding Edge-to-Edge tránh đè status bar, load storeId từ Intent hoặc Firebase, khởi tạo Spinners.
-     * Luồng hướng tới: Chuẩn bị form để đối tác điền thông tin.
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        InsetUtils.initEdgeToEdge(this, true)
-        binding = ActivityStoreVerificationBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        val statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
-        binding.rootVerification.setPadding(0, statusBarHeight, 0, 0)
-        InsetUtils.setLightStatusBar(this, true)
-
-        currentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
-
-        setupSpinners()
-        setupListeners()
-        loadInitialData()
-    }
-
-    /**
-     * Tên chức năng: Thiết lập danh sách chọn Quận/Huyện và Ngân hàng
-     * Cách hoạt động: Gán ArrayAdapter danh mục các quận TP.HCM và các ngân hàng nội địa phổ biến vào Spinner.
-     * Luồng hướng tới: Cung cấp lựa chọn dropdown cho người dùng.
-     */
-    private fun setupSpinners() {
-        // Spinner Quận/Huyện
-        val districtAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, districts)
-        districtAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spStoreDistrict.adapter = districtAdapter
-
-        // Spinner Ngân hàng
-        val bankAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, supportedBanks.map { it.name })
-        bankAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        binding.spBankName.adapter = bankAdapter
-    }
-
-    /**
-     * Tên chức năng: Tải trước thông tin quán (nếu đã có trên Firebase)
-     * Cách hoạt động: Truy vấn Firestore lấy thông tin hiện tại của User và Store để tự động điền sẵn vào các trường nhập liệu.
-     * Luồng hướng tới: Giảm thiểu thao tác nhập liệu lại cho chủ quán.
-     */
-    /**
-     * Tên chức năng: Xử lý hiển thị và nén ảnh CCCD Mặt trước / Mặt sau
-     */
-    private fun processPickedCccdImage(uri: Uri, side: CccdSide) {
-        if (side == CccdSide.FRONT) {
-            binding.ivCccdFrontPreview.visibility = View.VISIBLE
-            binding.layoutPlaceholderFront.visibility = View.GONE
-            binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
-            binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
-            binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
-            binding.btnCaptureCccdFront.text = "Chụp lại"
-            binding.btnPickCccdFront.text = "Đổi ảnh"
-
-            Glide.with(this).load(uri).into(binding.ivCccdFrontPreview)
-
-            lifecycleScope.launch {
-                val base64 = ImagePickerUtils.compressUriToBase64(
-                    this@StoreVerificationActivity,
-                    uri,
-                    maxDimension = 800,
-                    quality = 80
-                )
-                if (!base64.isNullOrBlank()) {
-                    cccdFrontBase64 = base64
-                }
-            }
-        } else {
-            binding.ivCccdBackPreview.visibility = View.VISIBLE
-            binding.layoutPlaceholderBack.visibility = View.GONE
-            binding.tvBackStatusBadge.text = "✓ Đã tải lên"
-            binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this, R.color.brand_green_bg)
-            binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this, R.color.brand_green))
-            binding.btnCaptureCccdBack.text = "Chụp lại"
-            binding.btnPickCccdBack.text = "Đổi ảnh"
-
-            Glide.with(this).load(uri).into(binding.ivCccdBackPreview)
-
-            lifecycleScope.launch {
-                val base64 = ImagePickerUtils.compressUriToBase64(
-                    this@StoreVerificationActivity,
-                    uri,
-                    maxDimension = 800,
-                    quality = 80
-                )
-                if (!base64.isNullOrBlank()) {
-                    cccdBackBase64 = base64
-                }
-            }
-        }
-    }
-
-    private fun loadInitialData() {
-        lifecycleScope.launch {
-            val user = authRepository.currentUser
-            if (user == null) {
-                finish()
-                return@launch
-            }
-
-            if (currentStoreId.isBlank()) {
-                currentStoreId = firebaseRepository.resolveStoreIdForUser(user.uid)
-            }
-
-            if (currentStoreId.isNotBlank()) {
-                firebaseRepository.removeStoreHoursAndPrepTime(currentStoreId)
-                val store = firebaseRepository.getStoreOnce(currentStoreId)
-                store?.let {
-                    if (it.name.isNotBlank() && it.name != "Quán Ăn Mới") {
-                        binding.etStoreName.setText(it.name)
-                    } else if (!user.displayName.isNullOrBlank()) {
-                        binding.etStoreName.setText(user.displayName)
-                    }
-
-                    if (it.phone.isNotBlank()) {
-                        binding.etStorePhone.setText(it.phone)
-                    } else if (!user.phoneNumber.isNullOrBlank()) {
-                        binding.etStorePhone.setText(user.phoneNumber)
-                    }
-
-                    if (it.address.isNotBlank()) binding.etStoreAddress.setText(it.address)
-                    if (it.ownerName.isNotBlank()) {
-                        binding.etOwnerName.setText(it.ownerName)
-                    } else if (!user.displayName.isNullOrBlank()) {
-                        binding.etOwnerName.setText(user.displayName)
-                    }
-
-                    if (it.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(it.cccdNumber)
-                    if (it.cccdFrontUrl.isNotBlank()) {
-                        cccdFrontBase64 = it.cccdFrontUrl
-                        binding.ivCccdFrontPreview.visibility = View.VISIBLE
-                        binding.layoutPlaceholderFront.visibility = View.GONE
-                        binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
-                        binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
-                        binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
-                        binding.btnCaptureCccdFront.text = "Chụp lại"
-                        binding.btnPickCccdFront.text = "Đổi ảnh"
-
-                        val decoded = if (it.cccdFrontUrl.startsWith("data:image")) {
-                            try {
-                                val base64Clean = it.cccdFrontUrl.substringAfter("base64,")
-                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
-                            } catch (_: Exception) { null }
-                        } else null
-
-                        if (decoded != null) {
-                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdFrontPreview)
-                        } else {
-                            Glide.with(this@StoreVerificationActivity).load(it.cccdFrontUrl).into(binding.ivCccdFrontPreview)
-                        }
-                    }
-
-                    if (it.cccdBackUrl.isNotBlank()) {
-                        cccdBackBase64 = it.cccdBackUrl
-                        binding.ivCccdBackPreview.visibility = View.VISIBLE
-                        binding.layoutPlaceholderBack.visibility = View.GONE
-                        binding.tvBackStatusBadge.text = "✓ Đã tải lên"
-                        binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
-                        binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
-                        binding.btnCaptureCccdBack.text = "Chụp lại"
-                        binding.btnPickCccdBack.text = "Đổi ảnh"
-
-                        val decoded = if (it.cccdBackUrl.startsWith("data:image")) {
-                            try {
-                                val base64Clean = it.cccdBackUrl.substringAfter("base64,")
-                                android.util.Base64.decode(base64Clean, android.util.Base64.DEFAULT)
-                            } catch (_: Exception) { null }
-                        } else null
-
-                        if (decoded != null) {
-                            Glide.with(this@StoreVerificationActivity).load(decoded).into(binding.ivCccdBackPreview)
-                        } else {
-                            Glide.with(this@StoreVerificationActivity).load(it.cccdBackUrl).into(binding.ivCccdBackPreview)
-                        }
-                    }
-
-                    if (it.district.isNotBlank()) {
-                        val dIndex = districts.indexOfFirst { d -> d.equals(it.district, ignoreCase = true) }
-                        if (dIndex >= 0) binding.spStoreDistrict.setSelection(dIndex)
-                    }
-
-                    if (it.latitude != 0.0 && it.longitude != 0.0) {
-                        selectedLat = it.latitude
-                        selectedLng = it.longitude
-                    }
-
-                    if (it.bankAccountNumber.isNotBlank()) binding.etBankAccountNumber.setText(it.bankAccountNumber)
-                    if (it.bankAccountName.isNotBlank()) {
-                        binding.etBankAccountName.setText(it.bankAccountName)
-                        isManualEditingBankName = true
-                    } else {
-                        val currentOwner = binding.etOwnerName.text.toString().trim()
-                        if (currentOwner.isNotBlank()) {
-                            binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(currentOwner).uppercase())
-                        }
-                    }
-                    if (it.bankName.isNotBlank()) {
-                        val bIndex = supportedBanks.indexOfFirst { b -> b.name.contains(it.bankName, ignoreCase = true) }
-                        if (bIndex >= 0) binding.spBankName.setSelection(bIndex)
-                    }
-                }
-            } else {
-                if (!user.displayName.isNullOrBlank()) {
-                    binding.etStoreName.setText(user.displayName)
-                    binding.etOwnerName.setText(user.displayName)
-                    binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(user.displayName.orEmpty()).uppercase())
-                }
-                if (!user.phoneNumber.isNullOrBlank()) {
-                    binding.etStorePhone.setText(user.phoneNumber)
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập sự kiện nút bấm gửi phiếu xác minh & đăng xuất
-     * Cách hoạt động: Bắt sự kiện Click nút "Xác Nhận & Kích Hoạt Quán", nút "Đăng Xuất".
-     * Luồng hướng tới: Gọi [validateAndSubmit] hoặc hiển thị xác nhận đăng xuất.
-     */
-    private fun setupListeners() {
-        val openMapAction = {
-            val intent = Intent(this, SelectLocationActivity::class.java).apply {
-                val currentAddress = binding.etStoreAddress.text.toString().trim()
-                if (currentAddress.isNotBlank()) {
-                    putExtra(SelectLocationActivity.EXTRA_FULL_ADDRESS, currentAddress)
-                }
-                val curDistrict = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-                if (curDistrict.isNotBlank()) {
-                    putExtra(SelectLocationActivity.EXTRA_DISTRICT, curDistrict)
-                }
-                selectedLat?.let { putExtra(SelectLocationActivity.EXTRA_LAT, it) }
-                selectedLng?.let { putExtra(SelectLocationActivity.EXTRA_LNG, it) }
-            }
-            selectLocationLauncher.launch(intent)
-        }
-
-        binding.btnPickLocationMap.setOnClickListener { openMapAction() }
-        binding.etStoreAddress.setOnClickListener { openMapAction() }
-        binding.tilStoreAddress.setOnClickListener { openMapAction() }
-
-        binding.btnCaptureCccdFront.setOnClickListener {
-            currentTargetSide = CccdSide.FRONT
-            checkPermissionAndLaunchCamera()
-        }
-
-        binding.btnPickCccdFront.setOnClickListener {
-            currentTargetSide = CccdSide.FRONT
-            pickGalleryLauncher.launch("image/*")
-        }
-
-        binding.layoutCccdFrontPreview.setOnClickListener {
-            currentTargetSide = CccdSide.FRONT
-            pickGalleryLauncher.launch("image/*")
-        }
-
-        binding.btnCaptureCccdBack.setOnClickListener {
-            currentTargetSide = CccdSide.BACK
-            checkPermissionAndLaunchCamera()
-        }
-
-        binding.btnPickCccdBack.setOnClickListener {
-            currentTargetSide = CccdSide.BACK
-            pickGalleryLauncher.launch("image/*")
-        }
-
-        binding.layoutCccdBackPreview.setOnClickListener {
-            currentTargetSide = CccdSide.BACK
-            pickGalleryLauncher.launch("image/*")
-        }
-
-
-
-        // Tự động liên kết giữa ô Họ tên chủ hộ kinh doanh và Tên chủ tài khoản:
-        // - Chủ hộ kinh doanh: Nhập tên bình thường đầy đủ dấu (ví dụ: Nguyễn Văn An)
-        // - Tên chủ tài khoản: Tự động cập nhật thành IN HOA TOÀN BỘ VÀ KHÔNG DẤU (ví dụ: NGUYEN VAN AN)
-        binding.etOwnerName.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                if (isSyncingBankName) return
-                val ownerInput = s?.toString().orEmpty().trim()
-                if (ownerInput.isNotBlank()) {
-                    val unaccentedUpper = CccdOcrHelper.removeAccents(ownerInput).uppercase()
-                    if (!isManualEditingBankName || binding.etBankAccountName.text.isNullOrBlank()) {
-                        isSyncingBankName = true
-                        binding.etBankAccountName.setText(unaccentedUpper)
-                        binding.tilBankAccountName.error = null
-                        isSyncingBankName = false
-                    }
-                } else if (!isManualEditingBankName) {
-                    isSyncingBankName = true
-                    binding.etBankAccountName.setText("")
-                    isSyncingBankName = false
-                }
-            }
-        })
-
-        // Khi người dùng chủ động gõ vào ô Tên chủ tài khoản:
-        // Đánh dấu đã chỉnh sửa thủ công và tự động chuẩn hóa thành IN HOA KHÔNG DẤU
-        binding.etBankAccountName.addTextChangedListener(object : android.text.TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: android.text.Editable?) {
-                if (isSyncingBankName) return
-                if (binding.etBankAccountName.hasFocus()) {
-                    isManualEditingBankName = true
-                    val currentStr = s?.toString().orEmpty()
-                    val sanitized = CccdOcrHelper.removeAccents(currentStr).uppercase()
-                    if (currentStr != sanitized) {
-                        isSyncingBankName = true
-                        binding.etBankAccountName.setText(sanitized)
-                        binding.etBankAccountName.setSelection(sanitized.length)
-                        isSyncingBankName = false
-                    }
-                }
-            }
-        })
-
-        binding.btnSubmitVerification.setOnClickListener {
-            validateAndSubmit()
-        }
-
-        binding.btnLogout.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("🚪 Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, MODE_PRIVATE).edit().clear().apply()
-                    authRepository.logout()
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra(AppConstants.Extras.LOGOUT, true)
-                    })
-                    finish()
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Tên chức năng: Kiểm tra tính hợp lệ dữ liệu và lưu hồ sơ lên Firebase
-     * Cách hoạt động:
-     *  - Kiểm tra các trường bắt buộc (Tên quán, SĐT, Địa chỉ, Chủ quán, CCCD 12 số, Số tài khoản ngân hàng).
-     *  - Tự động gán tọa độ GPS dựa trên bảng tọa độ các quận TP.HCM.
-     *  - Lưu dữ liệu lên Firestore via [FirebaseRepository.verifyAndCompleteStoreProfile].
-     * Luồng hướng tới:
-     *  - Thành công: Chuyển sang [DashboardActivity] và bắt đầu vận hành nhận đơn.
-     *  - Thất bại: Hiển thị thông báo Toast lỗi cụ thể.
-     */
-    private fun validateAndSubmit() {
-        // Reset errors
-        binding.tilStoreName.error = null
-        binding.tilStorePhone.error = null
-        binding.tilStoreAddress.error = null
-        binding.tilOwnerName.error = null
-        binding.tilCccdNumber.error = null
-        binding.tilBankAccountNumber.error = null
-        binding.tilBankAccountName.error = null
-
-        val name = binding.etStoreName.text.toString().trim()
-        val phone = binding.etStorePhone.text.toString().trim()
-        val address = binding.etStoreAddress.text.toString().trim()
-        val district = binding.spStoreDistrict.selectedItem?.toString().orEmpty()
-
-        val ownerName = binding.etOwnerName.text.toString().trim()
-        val cccd = binding.etCccdNumber.text.toString().trim()
-
-        val selectedBank = supportedBanks.getOrNull(binding.spBankName.selectedItemPosition) ?: supportedBanks[0]
-        val bankAccount = binding.etBankAccountNumber.text.toString().trim()
-        val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
-
-        var hasError = false
-
-        if (name.isBlank()) {
-            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
-            hasError = true
-        }
-
-        if (phone.isBlank()) {
-            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
-            hasError = true
-        }
-
-        if (address.isBlank()) {
-            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
-            hasError = true
-        }
-
-        if (cccdFrontBase64.isBlank()) {
-            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt trước CCCD", Toast.LENGTH_SHORT).show()
-            hasError = true
-        }
-
-        if (cccdBackBase64.isBlank()) {
-            Toast.makeText(this, "⚠️ Vui lòng chụp hoặc tải lên ảnh mặt sau CCCD", Toast.LENGTH_SHORT).show()
-            hasError = true
-        }
-
-        if (ownerName.isBlank()) {
-            binding.tilOwnerName.error = "Vui lòng nhập họ và tên chủ hộ kinh doanh"
-            hasError = true
-        }
-
-        if (cccd.length != 12) {
-            binding.tilCccdNumber.error = "Số CCCD phải có đúng 12 chữ số"
-            hasError = true
-        }
-
-        if (bankAccount.isBlank()) {
-            binding.tilBankAccountNumber.error = "Vui lòng nhập số tài khoản ngân hàng"
-            hasError = true
-        }
-
-        if (bankAccountName.isBlank()) {
-            binding.tilBankAccountName.error = "Vui lòng nhập tên chủ tài khoản"
-            hasError = true
-        }
-
-        if (hasError) {
-            Toast.makeText(this, "⚠️ Vui lòng điền đầy đủ các thông tin bắt buộc!", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        lifecycleScope.launch {
-            binding.progressBarVerification.visibility = View.VISIBLE
-            binding.btnSubmitVerification.isEnabled = false
-
-            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
-            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
-            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
-                selectedLat!! to selectedLng!!
-            } else {
-                val coords = try {
-                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
-                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
-                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                } catch (_: Exception) {
-                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                }
-                coords.latitude to coords.longitude
-            }
-            val user = authRepository.currentUser
-            val uid = user?.uid.orEmpty()
-            if (currentStoreId.isBlank()) {
-                currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            }
-            if (currentStoreId.isBlank()) {
-                currentStoreId = "store_${System.currentTimeMillis()}"
-            }
-
-            val result = firebaseRepository.verifyAndCompleteStoreProfile(
-                storeId = currentStoreId,
-                merchantUid = uid,
-                name = name,
-                phone = phone,
-                address = address,
-                district = district,
-                ownerName = ownerName,
-                cccdNumber = cccd,
-                cccdFrontUrl = cccdFrontBase64,
-                cccdBackUrl = cccdBackBase64,
-                bankName = selectedBank.name,
-                bankAccountNumber = bankAccount,
-                bankAccountName = bankAccountName,
-                bankBin = selectedBank.bin,
-                latitude = resolvedLat,
-                longitude = resolvedLng
-            )
-
-            binding.progressBarVerification.visibility = View.GONE
-            binding.btnSubmitVerification.isEnabled = true
-
-            result.onSuccess {
-                val role = authRepository.getUserRole()?.uppercase()
-                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
-                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
-                }
-                androidx.appcompat.app.AlertDialog.Builder(this@StoreVerificationActivity)
-                    .setTitle("🎉 Gửi Hồ Sơ Thành Công!")
-                    .setMessage("Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nQuản trị viên sẽ tiến hành kiểm duyệt hồ sơ trong thời gian sớm nhất. Bạn có thể theo dõi trạng thái tại màn hình chính.")
-                    .setPositiveButton("Đã hiểu") { _, _ ->
-                        startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        })
-                        finish()
-                    }
-                    .setCancelable(false)
-                    .show()
-            }.onFailure { err ->
-                Toast.makeText(this@StoreVerificationActivity, "Lỗi khi cập nhật hồ sơ: ${err.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
     }
 }
 ````

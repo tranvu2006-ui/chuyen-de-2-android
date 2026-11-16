@@ -59,4 +59,17 @@ object AppConstants {
         const val DEFAULT_SCORE = 100
         const val CANCEL_DELIVERING_COD_PENALTY = 30
     }
+
+    object AuthConfig {
+        const val NODE_SYSTEM_CONFIG = "system_config"
+        const val KEY_BYPASS_LOGIN_OTP = "bypass_login_otp"
+
+        /**
+         * Cờ mặc định bỏ qua mã OTP khi đăng nhập.
+         * - true: Vào thẳng app không cần OTP.
+         * - false: Bắt buộc xác thực OTP email.
+         * Lưu ý: Giá trị này có thể được ghi đè từ xa qua Firebase Realtime Database tại node system_config/bypass_login_otp.
+         */
+        const val DEFAULT_BYPASS_LOGIN_OTP = true
+    }
 }

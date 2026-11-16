@@ -16,7 +16,10 @@ object OtpSessionManager {
 
     private const val PREFS_NAME = "foodorder_otp_session_prefs"
     private const val KEY_PREFIX = "otp_verified_at_"
+    private const val KEY_BYPASS_OTP = "bypass_login_otp"
     const val SESSION_DURATION_MS = 24L * 60L * 60L * 1000L // 24 giờ (1 ngày)
+
+    private var cachedBypassOtp: Boolean? = null
 
     private fun getPrefs(context: Context): SharedPreferences {
         return context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -27,10 +30,41 @@ object OtpSessionManager {
     }
 
     /**
-     * Kiểm tra xem email này có phiên xác minh OTP hợp lệ (chưa quá 24h) trên thiết bị không.
+     * Cập nhật trạng thái cấu hình bỏ qua OTP (từ Firebase Realtime Database hoặc mặc định).
+     */
+    fun updateBypassOtpConfig(context: Context, enabled: Boolean) {
+        cachedBypassOtp = enabled
+        try {
+            getPrefs(context).edit().putBoolean(KEY_BYPASS_OTP, enabled).apply()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Kiểm tra xem tính năng bỏ qua OTP đăng nhập đang được kích hoạt hay không.
+     */
+    fun isBypassOtpEnabled(context: Context): Boolean {
+        cachedBypassOtp?.let { return it }
+        return try {
+            val prefs = getPrefs(context)
+            if (prefs.contains(KEY_BYPASS_OTP)) {
+                val value = prefs.getBoolean(KEY_BYPASS_OTP, AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP)
+                cachedBypassOtp = value
+                value
+            } else {
+                AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+            }
+        } catch (_: Exception) {
+            AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+        }
+    }
+
+    /**
+     * Kiểm tra xem email này có phiên xác minh OTP hợp lệ (chưa quá 24h) trên thiết bị không,
+     * hoặc nếu tính năng bỏ qua OTP đang bật thì cho phép vào thẳng.
      * Tài khoản admin@gmail.com luôn được miễn OTP.
      */
     fun isSessionValid(context: Context, email: String): Boolean {
+        if (isBypassOtpEnabled(context)) return true
         val cleanEmail = normalizeEmail(email)
         if (cleanEmail.isBlank()) return false
         if (cleanEmail == "admin@gmail.com") return true

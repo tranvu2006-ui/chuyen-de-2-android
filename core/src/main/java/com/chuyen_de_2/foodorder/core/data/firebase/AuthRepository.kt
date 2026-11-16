@@ -80,10 +80,23 @@ class AuthRepository @Inject constructor(
             val actualEmail = firebaseUser.email?.takeIf { it.isNotBlank() } ?: email.trim()
             val isAdminEmail = actualEmail.equals(AppConstants.Defaults.ADMIN_EMAIL, ignoreCase = true)
 
+            // Kiểm tra cờ bỏ qua OTP từ xa trên Firebase Realtime Database (system_config/bypass_login_otp)
+            val isBypassOtp = try {
+                val bypassSnap = database.getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                    .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                    .get().await()
+                if (bypassSnap.exists()) {
+                    bypassSnap.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                } else {
+                    AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                }
+            } catch (_: Exception) {
+                AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+            }
+
             // Chấp nhận một trong hai cách xác thực: emailVerified của Firebase hoặc cờ xác minh OTP đã lưu trong hồ sơ.
-            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com) và DRIVER/SHIPPER/MERCHANT có storeId/bossId do quán/boss tạo không cần xác minh email tại đây.
-            // Nếu chưa xác thực qua Firebase/OTP, gửi OTP Supabase và dừng đăng nhập cho tới khi người dùng nhập mã.
-            if (!isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
+            // Ngoại lệ: tài khoản Quản trị viên (admin@gmail.com), cấu hình bỏ qua OTP (bypass_login_otp), hoặc tài khoản do quán tạo.
+            if (!isBypassOtp && !isAdminEmail && !firebaseUser.isEmailVerified && !emailVerifiedByOtp && !isStoreCreatedDriver) {
                 try {
                     emailOtpApi.requestCode(email.trim())
                 } catch (error: Exception) {

@@ -945,16 +945,12 @@ class AuthRepository @Inject constructor(
                         name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_STORE_NAME } ?: AppConstants.Defaults.DEFAULT_STORE_NAME,
                         latitude = defaultCoords.latitude,
                         longitude = defaultCoords.longitude,
-                        lat = defaultCoords.latitude,
-                        lng = defaultCoords.longitude,
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
                     )
                     database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).setValue(store).await()
                     val coordsUpdate = mapOf<String, Any>(
                         "latitude" to defaultCoords.latitude,
-                        "longitude" to defaultCoords.longitude,
-                        "lat" to defaultCoords.latitude,
-                        "lng" to defaultCoords.longitude
+                        "longitude" to defaultCoords.longitude
                     )
                     database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).updateChildren(coordsUpdate).await()
                 }

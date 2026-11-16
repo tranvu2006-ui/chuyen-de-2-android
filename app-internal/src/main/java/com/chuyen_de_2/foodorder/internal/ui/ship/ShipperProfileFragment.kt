@@ -147,7 +147,7 @@ class ShipperProfileFragment : Fragment() {
         val phone = user?.phoneNumber.orEmpty()
 
         binding.tvProfileName.text = defaultName
-        binding.tvProfileSub.text = if (phone.isNotBlank()) "$phone • Sirius 59-T1 882.91" else email
+        binding.tvProfileSub.text = if (phone.isNotBlank()) phone else email
 
         // Lắng nghe dữ liệu hồ sơ Driver thời gian thực
         if (uid.isNotBlank()) {
@@ -176,13 +176,23 @@ class ShipperProfileFragment : Fragment() {
     private fun bindDriverData(driver: Driver) {
         val name = driver.name.ifBlank { auth.currentUser?.displayName ?: "Tài xế" }
         val phone = driver.phone.ifBlank { auth.currentUser?.phoneNumber ?: "Chưa cập nhật" }
-        val model = driver.vehicleModel.ifBlank { "Sirius FI" }
-        val plate = driver.vehiclePlate.ifBlank { "59-T1 882.91" }
+        val model = driver.vehicleModel.trim()
+        val plate = driver.vehiclePlate.trim()
+        val vehicleInfo = when {
+            model.isNotBlank() && plate.isNotBlank() -> "$model $plate"
+            plate.isNotBlank() -> plate
+            model.isNotBlank() -> model
+            else -> ""
+        }
         val cccd = driver.cccdNumber.ifBlank { "Chưa cập nhật" }
         val license = driver.licenseNumber.ifBlank { "Chưa cập nhật" }
 
         binding.tvProfileName.text = name
-        binding.tvProfileSub.text = "$phone • $model $plate"
+        binding.tvProfileSub.text = if (phone.isNotBlank() && phone != "Chưa cập nhật") {
+            if (vehicleInfo.isNotBlank()) "$phone • $vehicleInfo" else phone
+        } else {
+            if (vehicleInfo.isNotBlank()) vehicleInfo else (auth.currentUser?.email.orEmpty())
+        }
         if (driver.driverCode.isNotBlank()) {
             binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
         }
@@ -191,8 +201,8 @@ class ShipperProfileFragment : Fragment() {
         displayAvatar(avatarUrl)
 
         binding.tvDetailDriverPhone.text = phone
-        binding.tvDetailVehicleModel.text = model
-        binding.tvDetailVehiclePlate.text = plate
+        binding.tvDetailVehicleModel.text = model.ifBlank { "Chưa cập nhật" }
+        binding.tvDetailVehiclePlate.text = plate.ifBlank { "Chưa cập nhật" }
         binding.tvDetailCccd.text = cccd
         binding.tvDetailLicense.text = license
     }
@@ -336,8 +346,8 @@ class ShipperProfileFragment : Fragment() {
         val driver = currentDriver
         val currentName = driver?.name?.ifBlank { user.displayName.orEmpty() } ?: user.displayName.orEmpty()
         val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
-        val currentModel = driver?.vehicleModel?.ifBlank { "Sirius" } ?: "Sirius"
-        val currentPlate = driver?.vehiclePlate?.ifBlank { "59-T1 882.91" } ?: "59-T1 882.91"
+        val currentModel = driver?.vehicleModel.orEmpty()
+        val currentPlate = driver?.vehiclePlate.orEmpty()
         val currentAvatar = driver?.avatarUrl.orEmpty().ifBlank { user.photoUrl?.toString().orEmpty() }
 
         if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {

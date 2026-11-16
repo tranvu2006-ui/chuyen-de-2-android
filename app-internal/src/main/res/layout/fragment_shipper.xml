@@ -139,7 +139,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
                         android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
                 </LinearLayout>

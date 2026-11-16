@@ -5,6 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Driver
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -31,6 +32,9 @@ class ShipperViewModel @Inject constructor(
     private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
     val shipperStore: LiveData<Pair<String, String>> = _shipperStore
 
+    private val _driverProfile = MutableLiveData<Driver?>()
+    val driverProfile: LiveData<Driver?> = _driverProfile
+
     private val _isOnline = MutableLiveData(true)
     val isOnline: LiveData<Boolean> = _isOnline
 
@@ -48,6 +52,11 @@ class ShipperViewModel @Inject constructor(
         val shipperId = auth.currentUser?.uid.orEmpty()
         viewModelScope.launch {
             if (shipperId.isNotBlank()) {
+                launch {
+                    firebaseRepository.observeDriver(shipperId).collectLatest { driver ->
+                        _driverProfile.value = driver
+                    }
+                }
                 firebaseRepository.setupDriverPresence(shipperId)
                 val isCurrentlyOnline = _isOnline.value ?: true
                 val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY

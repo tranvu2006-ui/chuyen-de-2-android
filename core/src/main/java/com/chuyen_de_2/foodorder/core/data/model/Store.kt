@@ -47,13 +47,11 @@ data class Store(
     @SerializedName("longitude", alternate = ["lng"])
     var longitude: Double = 0.0,
 
-    @get:com.google.firebase.database.PropertyName("lat")
-    @set:com.google.firebase.database.PropertyName("lat")
+    @get:Exclude
     @SerializedName("lat")
     var lat: Double = 0.0,
 
-    @get:com.google.firebase.database.PropertyName("lng")
-    @set:com.google.firebase.database.PropertyName("lng")
+    @get:Exclude
     @SerializedName("lng")
     var lng: Double = 0.0,
 
@@ -62,23 +60,19 @@ data class Store(
     @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
     var imageUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("avatarUrl")
-    @set:com.google.firebase.database.PropertyName("avatarUrl")
+    @get:Exclude
     @SerializedName("avatarUrl")
     var avatarUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("avatar")
-    @set:com.google.firebase.database.PropertyName("avatar")
+    @get:Exclude
     @SerializedName("avatar")
     var avatar: String = "",
 
-    @get:com.google.firebase.database.PropertyName("logoUrl")
-    @set:com.google.firebase.database.PropertyName("logoUrl")
+    @get:Exclude
     @SerializedName("logoUrl")
     var logoUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("image")
-    @set:com.google.firebase.database.PropertyName("image")
+    @get:Exclude
     @SerializedName("image")
     var image: String = "",
 

@@ -3702,12 +3702,10 @@ class FirebaseRepository @Inject constructor(
     /** Lắng nghe cấu hình thời gian đếm ngược sự cố / bom hàng (Lần 1 và Lần 2) */
     fun observeCountdownConfig(): Flow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = callbackFlow {
         // Lắng nghe đồng thời cả 3 node để đảm bảo tương thích mọi tầng rules:
-        // 1. orders/system_countdown_config: .read: auth != null, .write: auth != null (Tất cả tài khoản đều truy cập được)
-        // 2. delivery_time_frames/countdown_config: .read: true (Quyền đọc công khai)
-        // 3. system_config/delivery_countdown: node hệ thống gốc
-        val refOrders = database.getReference("orders").child("system_countdown_config")
-        val refTimeFrames = database.getReference("delivery_time_frames").child("countdown_config")
+        // 1. system_config/delivery_countdown: node hệ thống gốc
+        // 2. orders/system_countdown_config: .read: auth != null (dự phòng)
         val refSysConfig = database.getReference("system_config").child("delivery_countdown")
+        val refOrders = database.getReference("orders").child("system_countdown_config")
 
         var latestVersion = 0L
 
@@ -3737,28 +3735,21 @@ class FirebaseRepository @Inject constructor(
             override fun onDataChange(snapshot: DataSnapshot) = handleSnapshot(snapshot)
             override fun onCancelled(error: DatabaseError) {}
         }
-        val l3 = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) = handleSnapshot(snapshot)
-            override fun onCancelled(error: DatabaseError) {}
-        }
 
-        refOrders.addValueEventListener(l1)
-        refTimeFrames.addValueEventListener(l2)
-        refSysConfig.addValueEventListener(l3)
+        refSysConfig.addValueEventListener(l1)
+        refOrders.addValueEventListener(l2)
 
         awaitClose {
-            refOrders.removeEventListener(l1)
-            refTimeFrames.removeEventListener(l2)
-            refSysConfig.removeEventListener(l3)
+            refSysConfig.removeEventListener(l1)
+            refOrders.removeEventListener(l2)
         }
     }
 
     /** Lấy 1 lần cấu hình thời gian đếm ngược */
     suspend fun getCountdownConfig(): com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig {
         return try {
-            val snapOrders = try { database.getReference("orders").child("system_countdown_config").get().await() } catch (_: Exception) { null }
-            val snapFrames = if (snapOrders != null && snapOrders.exists()) snapOrders else try { database.getReference("delivery_time_frames").child("countdown_config").get().await() } catch (_: Exception) { null }
-            val snapshot = if (snapFrames != null && snapFrames.exists()) snapFrames else database.getReference("system_config").child("delivery_countdown").get().await()
+            val snapSys = try { database.getReference("system_config").child("delivery_countdown").get().await() } catch (_: Exception) { null }
+            val snapshot = if (snapSys != null && snapSys.exists()) snapSys else database.getReference("orders").child("system_countdown_config").get().await()
             val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
             val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
             val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
@@ -3780,10 +3771,8 @@ class FirebaseRepository @Inject constructor(
                 "round2Minutes" to round2Minutes,
                 "updatedAt" to System.currentTimeMillis()
             )
-            // Cập nhật cả 3 node để đảm bảo mọi client đều đọc được tức thì
-            try { database.getReference("orders").child("system_countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
-            try { database.getReference("delivery_time_frames").child("countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             try { database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await() } catch (_: Exception) {}
+            try { database.getReference("orders").child("system_countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

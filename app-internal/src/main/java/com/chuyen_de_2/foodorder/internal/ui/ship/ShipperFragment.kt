@@ -291,6 +291,22 @@ class ShipperFragment : Fragment() {
             }
         }
 
+        viewModel.driverProfile.observe(viewLifecycleOwner) { driver ->
+            val vehicleModel = driver?.vehicleModel?.trim().orEmpty()
+            val vehiclePlate = driver?.vehiclePlate?.trim().orEmpty()
+            val vehicleText = when {
+                vehicleModel.isNotBlank() && vehiclePlate.isNotBlank() -> "$vehicleModel • $vehiclePlate"
+                vehiclePlate.isNotBlank() -> vehiclePlate
+                vehicleModel.isNotBlank() -> vehicleModel
+                else -> ""
+            }
+            binding.tvDriverSub.text = if (vehicleText.isNotBlank()) {
+                "Tài xế chuyên quán • $vehicleText"
+            } else {
+                "Tài xế chuyên quán"
+            }
+        }
+
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
             pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)

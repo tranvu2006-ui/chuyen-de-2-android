@@ -542,7 +542,6 @@ app-customer/
           dialog_edit_address.xml
           dialog_edit_profile.xml
           dialog_incident_proof.xml
-          item_cart.xml
           item_customer_address.xml
           item_customer_complaint.xml
           item_dish_review.xml
@@ -558,7 +557,6 @@ app-customer/
           item_restaurant.xml
           item_shop_cart.xml
           item_shop_dish.xml
-          item_trust_score_log_row.xml
         menu/
           menu_bottom_nav_customer.xml
           menu_complaint_toolbar.xml
@@ -911,11 +909,9 @@ core/
                     DishOption.kt
                     DishReview.kt
                     Driver.kt
-                    MenuItem.kt
                     Merchant.kt
                     Notification.kt
                     Order.kt
-                    Restaurant.kt
                     Role.kt
                     ShippingRule.kt
                     Store.kt
@@ -923,9 +919,6 @@ core/
                     TrustScoreLog.kt
                     User.kt
                     UserStatus.kt
-                  remote/
-                    MockInterceptor.kt
-                    RestBackendApi.kt
                 di/
                   FirebaseModule.kt
                   NetworkModule.kt
@@ -1051,6 +1044,7 @@ Logo/
   logo-app-quan-new.png
   logo-app-quan.png
 scripts/
+  cleanup_firebase_nodes.py
   generate_project_firebase_docs.py
   migrate_orders_driver_to_shipper.py
   reset_firebase_data.py
@@ -1565,6 +1559,342 @@ class AddEditCategoryDialogFragment(
 
     companion object {
         const val TAG = "AddEditCategoryDialogFragment"
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.category
+
+import android.util.Base64
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.chuyen_de_2.foodorder.admin.R
+import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminCategoryBinding
+import com.chuyen_de_2.foodorder.core.data.model.Category
+import com.chuyen_de_2.foodorder.core.util.CategoryIconCache
+
+class AdminCategoryAdapter(
+    private val onEdit: (Category) -> Unit,
+    private val onDelete: (Category) -> Unit,
+    private val onToggleActive: (Category, Boolean) -> Unit
+) : ListAdapter<Category, AdminCategoryAdapter.CategoryViewHolder>(CategoryDiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
+        val binding = ItemAdminCategoryBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return CategoryViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class CategoryViewHolder(private val binding: ItemAdminCategoryBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(category: Category) {
+            val icon = category.iconUrl.trim()
+            if (category.isImageUrl) {
+                val cachedBmp = CategoryIconCache.getOrDecode(icon)
+                if (cachedBmp != null) {
+                    Glide.with(itemView.context).clear(binding.ivCategoryIcon)
+                    binding.ivCategoryIcon.setImageBitmap(cachedBmp)
+                } else if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
+                    try {
+                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
+                        val decoded = Base64.decode(clean, Base64.DEFAULT)
+                        Glide.with(itemView.context)
+                            .asBitmap()
+                            .load(decoded)
+                            .dontAnimate()
+                            .error(R.drawable.ic_image)
+                            .into(binding.ivCategoryIcon)
+                    } catch (_: Exception) {
+                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_image)
+                    }
+                } else {
+                    Glide.with(itemView.context)
+                        .load(icon)
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .error(R.drawable.ic_image)
+                        .into(binding.ivCategoryIcon)
+                }
+            } else {
+                Glide.with(itemView.context).clear(binding.ivCategoryIcon)
+                val fallbackRes = when {
+                    category.categoryName.contains("Cơm", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_utensils_crossed
+                    category.categoryName.contains("Phở", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_soup
+                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_milktea
+                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_bun_dau
+                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_juice
+                    else -> R.drawable.ic_image
+                }
+                binding.ivCategoryIcon.setImageResource(fallbackRes)
+            }
+
+            binding.tvCategoryName.text = category.name
+            binding.tvCategoryOrder.text = "Thứ tự: #${category.displayOrder} • ID: ${category.id}"
+
+            if (category.description.isNotBlank()) {
+                binding.tvCategoryDesc.visibility = View.VISIBLE
+                binding.tvCategoryDesc.text = category.description
+            } else {
+                binding.tvCategoryDesc.visibility = View.GONE
+            }
+
+            // Detach listener before setting checked to avoid triggering during scroll
+            binding.switchActive.setOnCheckedChangeListener(null)
+            binding.switchActive.isChecked = category.isActive
+
+            binding.switchActive.setOnCheckedChangeListener { _, isChecked ->
+                onToggleActive(category, isChecked)
+            }
+
+            binding.btnEditCategory.setOnClickListener {
+                onEdit(category)
+            }
+
+            binding.btnDeleteCategory.setOnClickListener {
+                onDelete(category)
+            }
+        }
+    }
+
+    class CategoryDiffCallback : DiffUtil.ItemCallback<Category>() {
+        override fun areItemsTheSame(oldItem: Category, newItem: Category): Boolean =
+            oldItem.id == newItem.id
+
+        override fun areContentsTheSame(oldItem: Category, newItem: Category): Boolean =
+            oldItem == newItem
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.category
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminCategoryListBinding
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+
+@AndroidEntryPoint
+class AdminCategoryListFragment : Fragment() {
+
+    private var _binding: FragmentAdminCategoryListBinding? = null
+    private val binding get() = _binding!!
+
+    private val viewModel: AdminCategoryViewModel by viewModels()
+    private lateinit var adapter: AdminCategoryAdapter
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentAdminCategoryListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        setupRecyclerView()
+        setupListeners()
+        observeViewModel()
+    }
+
+    private fun setupRecyclerView() {
+        adapter = AdminCategoryAdapter(
+            onEdit = { category ->
+                val dialog = AddEditCategoryDialogFragment(categoryToEdit = category) { updatedCat ->
+                    viewModel.saveCategory(updatedCat)
+                }
+                dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
+            },
+            onDelete = { category ->
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Xóa danh mục")
+                    .setMessage("Bạn có chắc chắn muốn xóa danh mục '${category.name}' khỏi sàn?")
+                    .setNegativeButton("Hủy", null)
+                    .setPositiveButton("Xóa") { _, _ ->
+                        viewModel.deleteCategory(category.categoryId)
+                    }
+                    .show()
+            },
+            onToggleActive = { category, isChecked ->
+                viewModel.toggleCategoryActive(category, isChecked)
+            }
+        )
+
+        binding.rvCategories.layoutManager = LinearLayoutManager(requireContext())
+        binding.rvCategories.adapter = adapter
+    }
+
+    private fun setupListeners() {
+        binding.swipeRefreshCategory.setOnRefreshListener {
+            binding.swipeRefreshCategory.isRefreshing = false
+        }
+
+        binding.btnAddCategory.setOnClickListener {
+            val nextOrder = (viewModel.categories.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
+            val dialog = AddEditCategoryDialogFragment(defaultOrder = nextOrder) { newCat ->
+                viewModel.saveCategory(newCat)
+            }
+            dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
+        }
+
+        binding.btnRestoreCategoryDefaults.setOnClickListener {
+            AlertDialog.Builder(requireContext())
+                .setTitle("Khôi phục danh mục mẫu")
+                .setMessage("Thao tác này sẽ đồng bộ lại 5 danh mục chính của Oishi Food (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên cơ sở dữ liệu.")
+                .setNegativeButton("Hủy", null)
+                .setPositiveButton("Đồng ý") { _, _ ->
+                    viewModel.restoreDefaults()
+                }
+                .show()
+        }
+    }
+
+    private fun observeViewModel() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                launch {
+                    viewModel.categories.collect { list ->
+                        adapter.submitList(list)
+                        val activeCount = list.count { it.isActive }
+                        binding.tvCategoryStats.text = "Tổng: ${list.size} nhóm món • $activeCount đang hiển thị trên app Khách"
+                    }
+                }
+
+                launch {
+                    viewModel.message.collect { msg ->
+                        if (!msg.isNullOrBlank()) {
+                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
+                            viewModel.clearMessage()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
+## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.admin.ui.category
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Category
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class AdminCategoryViewModel @Inject constructor(
+    private val firebaseRepo: FirebaseRepository
+) : ViewModel() {
+
+    private val _categories = MutableStateFlow<List<Category>>(emptyList())
+    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
+
+    private val _message = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = _message.asStateFlow()
+
+    init {
+        observeCategories()
+    }
+
+    private fun observeCategories() {
+        viewModelScope.launch {
+            firebaseRepo.observeCategories(includeInactive = true).collect { list ->
+                _categories.value = list.sortedBy { it.displayOrder }
+            }
+        }
+    }
+
+    fun saveCategory(category: Category) {
+        viewModelScope.launch {
+            val finalCategory = if (category.categoryId.isBlank()) {
+                val generatedId = "cat_" + System.currentTimeMillis()
+                category.copy(categoryId = generatedId)
+            } else category
+
+            val result = firebaseRepo.saveCategory(finalCategory, finalCategory.description)
+            if (result.isSuccess) {
+                _message.value = "Lưu danh mục '${finalCategory.name}' thành công!"
+            } else {
+                _message.value = "Lưu danh mục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun toggleCategoryActive(category: Category, isActive: Boolean) {
+        viewModelScope.launch {
+            val result = firebaseRepo.toggleCategoryActive(category.categoryId, isActive)
+            if (result.isSuccess) {
+                val stateText = if (isActive) "Hiển thị" else "Ẩn"
+                _message.value = "Đã chuyển '${category.name}' sang trạng thái: $stateText"
+            }
+        }
+    }
+
+    fun deleteCategory(categoryId: String) {
+        viewModelScope.launch {
+            val result = firebaseRepo.deleteCategory(categoryId)
+            if (result.isSuccess) {
+                _message.value = "Đã xóa danh mục thành công!"
+            } else {
+                _message.value = "Xóa thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun restoreDefaults() {
+        viewModelScope.launch {
+            val result = firebaseRepo.restoreDefaultCategories()
+            if (result.isSuccess) {
+                _message.value = "Đã khôi phục 5 danh mục chính thành công!"
+            } else {
+                _message.value = "Khôi phục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
+            }
+        }
+    }
+
+    fun clearMessage() {
+        _message.value = null
     }
 }
 ````
@@ -4085,6 +4415,58 @@ class FoodOrderAdminApp : Application() {
 </vector>
 ````
 
+## File: app-admin/src/main/res/drawable/ic_bun_dau.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Mẹt tre tròn -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
+    <!-- Chén mắm tôm ở tâm mẹt -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
+    <!-- Đậu hũ rán góc trên -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
+    <!-- Chả cốm / dồi góc phải -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
+    <!-- Bún lá góc trái -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
+    <!-- Rau sống góc dưới -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
+</vector>
+````
+
 ## File: app-admin/src/main/res/drawable/ic_camera.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -4763,6 +5145,50 @@ class FoodOrderAdminApp : Application() {
 </vector>
 ````
 
+## File: app-admin/src/main/res/drawable/ic_juice.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Thân ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
+    <!-- Miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,6 L18,6" />
+    <!-- Ống hút -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,6 L16,2" />
+    <!-- Lát cam / chanh cài miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
+    <!-- Mực nước ép bên trong -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M8.2,11 L15.8,11" />
+</vector>
+````
+
 ## File: app-admin/src/main/res/drawable/ic_landmark.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -4981,6 +5407,49 @@ class FoodOrderAdminApp : Application() {
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+</vector>
+````
+
+## File: app-admin/src/main/res/drawable/ic_milktea.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,8 L19,8" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,8 L17,2" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
 </vector>
 ````
 
@@ -9672,6 +10141,221 @@ class CustomerComplaintTrackingActivity : AppCompatActivity() {
 }
 ````
 
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeCategoryAdapter.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import android.util.Base64
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
+import com.bumptech.glide.load.engine.DiskCacheStrategy
+import com.chuyen_de_2.foodorder.core.data.model.Category
+import com.chuyen_de_2.foodorder.core.util.CategoryIconCache
+import com.chuyen_de_2.foodorder.customer.R
+import com.chuyen_de_2.foodorder.customer.databinding.ItemHomeCategoryBinding
+
+class HomeCategoryAdapter(
+    private val onCategoryClick: (Category?) -> Unit
+) : RecyclerView.Adapter<HomeCategoryAdapter.CategoryViewHolder>() {
+
+    companion object {
+        private const val PAYLOAD_SELECTION = "PAYLOAD_SELECTION"
+    }
+
+    private val categories = mutableListOf<Category>()
+    var selectedCategoryId: String? = null
+        private set
+
+    private val bgDrawables = listOf(
+        R.drawable.bg_cat_orange,
+        R.drawable.bg_cat_green,
+        R.drawable.bg_cat_blue,
+        R.drawable.bg_cat_red,
+        R.drawable.bg_cat_amber,
+        R.drawable.bg_cat_purple,
+        R.drawable.bg_cat_pink
+    )
+
+    fun submitCategories(list: List<Category>) {
+        categories.clear()
+        // Item đầu tiên luôn là Tất Cả
+        categories.add(
+            Category(
+                categoryId = "ALL",
+                categoryName = "Tất cả",
+                iconUrl = "",
+                displayOrder = 0,
+                isActive = true
+            )
+        )
+        categories.addAll(list.filter { it.isActive }.sortedBy { it.displayOrder })
+        notifyDataSetChanged()
+    }
+
+    private fun findCategoryIndex(targetId: String?): Int {
+        if (targetId.isNullOrBlank() || targetId == "ALL") {
+            return categories.indexOfFirst { it.categoryId == "ALL" }
+        }
+        return categories.indexOfFirst {
+            it.categoryId == targetId ||
+                    it.categoryName.equals(targetId, ignoreCase = true) ||
+                    it.categoryName.contains(targetId, ignoreCase = true) ||
+                    targetId.contains(it.categoryName, ignoreCase = true)
+        }
+    }
+
+    private fun isCategorySelected(category: Category, isAll: Boolean): Boolean {
+        return if (selectedCategoryId.isNullOrBlank() || selectedCategoryId == "ALL") {
+            isAll
+        } else {
+            selectedCategoryId == category.categoryId ||
+                    selectedCategoryId.equals(category.categoryName, ignoreCase = true) ||
+                    category.categoryName.contains(selectedCategoryId!!, ignoreCase = true) ||
+                    selectedCategoryId!!.contains(category.categoryName, ignoreCase = true)
+        }
+    }
+
+    fun setSelected(catId: String?) {
+        if (selectedCategoryId == catId) return
+        val oldId = selectedCategoryId
+        selectedCategoryId = catId
+
+        val oldIndex = findCategoryIndex(oldId)
+        val newIndex = findCategoryIndex(catId)
+
+        if (oldIndex != -1) notifyItemChanged(oldIndex, PAYLOAD_SELECTION)
+        if (newIndex != -1 && newIndex != oldIndex) notifyItemChanged(newIndex, PAYLOAD_SELECTION)
+        if (oldIndex == -1 && newIndex == -1) notifyDataSetChanged()
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
+        val binding = ItemHomeCategoryBinding.inflate(
+            LayoutInflater.from(parent.context), parent, false
+        )
+        return CategoryViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
+        holder.bind(categories[position], position)
+    }
+
+    override fun onBindViewHolder(
+        holder: CategoryViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(PAYLOAD_SELECTION)) {
+            holder.bindSelection(categories[position])
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    override fun getItemCount(): Int = categories.size
+
+    inner class CategoryViewHolder(private val binding: ItemHomeCategoryBinding) :
+        RecyclerView.ViewHolder(binding.root) {
+
+        fun bindSelection(category: Category) {
+            val context = itemView.context
+            val isAll = category.categoryId == "ALL"
+            val isSelected = isCategorySelected(category, isAll)
+
+            if (isSelected) {
+                itemView.setBackgroundResource(R.drawable.bg_chip_selected)
+                binding.tvCategoryName.setTextColor(ContextCompat.getColor(context, R.color.primary))
+            } else {
+                itemView.background = null
+                binding.tvCategoryName.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
+            }
+        }
+
+        fun bind(category: Category, position: Int) {
+            val context = itemView.context
+            val isAll = category.categoryId == "ALL"
+
+            // Gán màu nền icon theo vòng lặp màu
+            val bgRes = bgDrawables[position % bgDrawables.size]
+            binding.layoutIconCircle.setBackgroundResource(bgRes)
+
+            // Hiển thị ảnh Icon tải lên từ Admin (Base64 hoặc URL)
+            val icon = category.iconUrl.trim()
+            if (category.isImageUrl) {
+                binding.ivCategoryIcon.imageTintList = null
+                val cachedBmp = CategoryIconCache.getOrDecode(icon)
+                if (cachedBmp != null) {
+                    // Tải ngay lập tức từ bộ nhớ đệm RAM (0ms delay, không giật, không chớp icon mặc định)
+                    Glide.with(context).clear(binding.ivCategoryIcon)
+                    binding.ivCategoryIcon.setImageBitmap(cachedBmp)
+                } else if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
+                    try {
+                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
+                        val decoded = Base64.decode(clean, Base64.DEFAULT)
+                        Glide.with(context)
+                            .asBitmap()
+                            .load(decoded)
+                            .dontAnimate()
+                            .error(R.drawable.ic_utensils_crossed)
+                            .into(binding.ivCategoryIcon)
+                    } catch (_: Exception) {
+                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_utensils_crossed)
+                    }
+                } else {
+                    Glide.with(context)
+                        .load(icon)
+                        .dontAnimate()
+                        .diskCacheStrategy(DiskCacheStrategy.ALL)
+                        .error(R.drawable.ic_utensils_crossed)
+                        .into(binding.ivCategoryIcon)
+                }
+            } else {
+                Glide.with(context).clear(binding.ivCategoryIcon)
+                val fallbackRes = when {
+                    isAll -> R.drawable.ic_sparkles
+                    category.categoryName.contains("Cơm", true) -> R.drawable.ic_utensils_crossed
+                    category.categoryName.contains("Phở", true) -> R.drawable.ic_soup
+                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> R.drawable.ic_milktea
+                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> R.drawable.ic_bun_dau
+                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> R.drawable.ic_juice
+                    else -> R.drawable.ic_utensils_crossed
+                }
+                binding.ivCategoryIcon.setImageResource(fallbackRes)
+                binding.ivCategoryIcon.imageTintList = ContextCompat.getColorStateList(context, R.color.primary)
+            }
+
+            binding.tvCategoryName.text = category.name
+            bindSelection(category)
+
+            itemView.setOnClickListener {
+                val oldId = selectedCategoryId
+                val newId = if (isAll) {
+                    null
+                } else if (selectedCategoryId == category.categoryId || selectedCategoryId == category.name) {
+                    null
+                } else {
+                    category.categoryId
+                }
+
+                if (oldId != newId) {
+                    selectedCategoryId = newId
+                    val oldIndex = findCategoryIndex(oldId)
+                    val newIndex = findCategoryIndex(newId)
+                    if (oldIndex != -1) notifyItemChanged(oldIndex, PAYLOAD_SELECTION)
+                    if (newIndex != -1 && newIndex != oldIndex) notifyItemChanged(newIndex, PAYLOAD_SELECTION)
+                    if (oldIndex == -1 && newIndex == -1) notifyDataSetChanged()
+                }
+
+                val clickedCategory = if (newId == null) null else category
+                onCategoryClick(clickedCategory)
+            }
+        }
+    }
+}
+````
+
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeDishAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
@@ -10778,9 +11462,7 @@ import com.chuyen_de_2.foodorder.core.data.model.Cart
 import com.chuyen_de_2.foodorder.core.data.model.CartItem
 import com.chuyen_de_2.foodorder.core.data.model.CartPayload
 import com.chuyen_de_2.foodorder.core.data.model.Dish
-import com.chuyen_de_2.foodorder.core.data.model.MenuItem
 import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import com.chuyen_de_2.foodorder.core.util.Constants
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -10793,13 +11475,12 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * ViewModel cho màn hình Menu — load dữ liệu từ Retrofit, thêm vào giỏ hàng.
+ * ViewModel cho màn hình Menu — load dữ liệu từ Firebase, thêm vào giỏ hàng.
  * Hỗ trợ giao diện b5.html: Nửa trên (selectedDish), Nửa dưới (filteredDishes), Bottom Bar (cartTotal).
  */
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class MenuViewModel @Inject constructor(
-    private val api: RestBackendApi,
     private val firebaseRepository: FirebaseRepository,
     private val auth: FirebaseAuth
 ) : ViewModel() {
@@ -11013,18 +11694,6 @@ class MenuViewModel @Inject constructor(
         _cartItems.value = currentMap
         updateCartTotals()
         emitCartUpdate()
-    }
-
-    fun addToCart(menuItem: MenuItem) {
-        val dish = Dish(
-            id = menuItem.id,
-            name = menuItem.name,
-            basePrice = menuItem.price,
-            imageUrl = menuItem.imageUrl,
-            description = menuItem.description,
-            category = menuItem.category
-        )
-        addToCart(dish)
     }
 
     fun removeFromCart(itemId: String): Boolean {
@@ -14578,6 +15247,58 @@ class FoodOrderCustomerApp : Application() {
 </vector>
 ````
 
+## File: app-customer/src/main/res/drawable/ic_bun_dau.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Mẹt tre tròn -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
+    <!-- Chén mắm tôm ở tâm mẹt -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
+    <!-- Đậu hũ rán góc trên -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
+    <!-- Chả cốm / dồi góc phải -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
+    <!-- Bún lá góc trái -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
+    <!-- Rau sống góc dưới -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
+</vector>
+````
+
 ## File: app-customer/src/main/res/drawable/ic_camera.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -15256,6 +15977,50 @@ class FoodOrderCustomerApp : Application() {
 </vector>
 ````
 
+## File: app-customer/src/main/res/drawable/ic_juice.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Thân ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
+    <!-- Miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,6 L18,6" />
+    <!-- Ống hút -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,6 L16,2" />
+    <!-- Lát cam / chanh cài miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
+    <!-- Mực nước ép bên trong -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M8.2,11 L15.8,11" />
+</vector>
+````
+
 ## File: app-customer/src/main/res/drawable/ic_landmark.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -15474,6 +16239,49 @@ class FoodOrderCustomerApp : Application() {
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+</vector>
+````
+
+## File: app-customer/src/main/res/drawable/ic_milktea.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,8 L19,8" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,8 L17,2" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
 </vector>
 ````
 
@@ -20408,6 +21216,58 @@ class FoodOrderInternalApp : Application() {
 </vector>
 ````
 
+## File: app-internal/src/main/res/drawable/ic_bun_dau.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Mẹt tre tròn -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
+    <!-- Chén mắm tôm ở tâm mẹt -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
+    <!-- Đậu hũ rán góc trên -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
+    <!-- Chả cốm / dồi góc phải -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
+    <!-- Bún lá góc trái -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
+    <!-- Rau sống góc dưới -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
+</vector>
+````
+
 ## File: app-internal/src/main/res/drawable/ic_camera.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -21086,6 +21946,50 @@ class FoodOrderInternalApp : Application() {
 </vector>
 ````
 
+## File: app-internal/src/main/res/drawable/ic_juice.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Thân ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
+    <!-- Miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,6 L18,6" />
+    <!-- Ống hút -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,6 L16,2" />
+    <!-- Lát cam / chanh cài miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
+    <!-- Mực nước ép bên trong -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M8.2,11 L15.8,11" />
+</vector>
+````
+
 ## File: app-internal/src/main/res/drawable/ic_landmark.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -21304,6 +22208,49 @@ class FoodOrderInternalApp : Application() {
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+</vector>
+````
+
+## File: app-internal/src/main/res/drawable/ic_milktea.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,8 L19,8" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,8 L17,2" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
 </vector>
 ````
 
@@ -23001,6 +23948,67 @@ data class CartItem(
 )
 ````
 
+## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Category.kt
+````kotlin
+package com.chuyen_de_2.foodorder.core.data.model
+
+import com.google.firebase.database.Exclude
+import com.google.firebase.database.IgnoreExtraProperties
+import com.google.gson.annotations.SerializedName
+
+/**
+ * Danh mục ngành hàng thực phẩm
+ * Giao diện: khách/b1.html — Grid danh mục (Cơm, Trà sữa, Phở, Gà...)
+ * Mapping: Bảng 4 - categories (database_schema.sql)
+ */
+@IgnoreExtraProperties
+data class Category(
+    @SerializedName("categoryId", alternate = ["id"])
+    val categoryId: String = "",
+
+    @SerializedName("categoryName", alternate = ["name"])
+    val categoryName: String = "",
+
+    @SerializedName("iconUrl", alternate = ["icon"])
+    val iconUrl: String = "",
+
+    @SerializedName("displayOrder")
+    val displayOrder: Int = 0,
+
+    @SerializedName("isActive")
+    val isActive: Boolean = true,
+
+    @SerializedName("description", alternate = ["desc"])
+    val description: String = ""
+) {
+    @get:Exclude
+    val id: String get() = categoryId
+
+    @get:Exclude
+    val name: String get() = categoryName
+
+    @get:Exclude
+    val icon: String get() = iconUrl
+
+    @get:Exclude
+    val isImageUrl: Boolean
+        get() = iconUrl.startsWith("http://", ignoreCase = true) ||
+                iconUrl.startsWith("https://", ignoreCase = true) ||
+                iconUrl.startsWith("data:image", ignoreCase = true) ||
+                iconUrl.length > 100
+
+    companion object {
+        fun getDefaultCategories(): List<Category> = listOf(
+            Category(categoryId = "cat_com", categoryName = "Cơm", iconUrl = "", displayOrder = 1, isActive = true, description = "Cơm trưa, cơm tấm, cơm văn phòng, cơm gà"),
+            Category(categoryId = "cat_pho", categoryName = "Phở", iconUrl = "", displayOrder = 2, isActive = true, description = "Phở bò, phở gà, phở tái nạm, phở đặc biệt"),
+            Category(categoryId = "cat_tra_sua", categoryName = "Trà sữa", iconUrl = "", displayOrder = 3, isActive = true, description = "Trà sữa trân châu, trà đào, macchiato"),
+            Category(categoryId = "cat_bun_dau", categoryName = "Bún đậu", iconUrl = "", displayOrder = 4, isActive = true, description = "Bún đậu mắm tôm, bún đậu thập cẩm"),
+            Category(categoryId = "cat_nuoc_ep", categoryName = "Nước ép", iconUrl = "", displayOrder = 5, isActive = true, description = "Nước ép hoa quả tươi, sinh tố, detox")
+        )
+    }
+}
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Combo.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -23631,37 +24639,6 @@ data class Driver(
 }
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/MenuItem.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
-
-import com.google.gson.annotations.SerializedName
-
-/**
- * Món ăn — dữ liệu tĩnh lấy từ REST API qua Retrofit
- * API Contract (Section 5 - doc-adr): GET /api/v1/shops/{shopId}/menu
- */
-data class MenuItem(
-    @SerializedName("id")
-    val id: String = "",
-
-    @SerializedName("name")
-    val name: String = "",
-
-    @SerializedName("description")
-    val description: String = "",
-
-    @SerializedName("price")
-    val price: Long = 0,
-
-    @SerializedName("imageUrl")
-    val imageUrl: String = "",
-
-    @SerializedName("category")
-    val category: String = ""
-)
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Merchant.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -23761,43 +24738,6 @@ data class Notification(
         const val SYSTEM = "SYSTEM"
     }
 }
-````
-
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Restaurant.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
-
-import com.google.gson.annotations.SerializedName
-
-/**
- * Nhà hàng — dữ liệu tĩnh lấy từ REST API qua Retrofit
- * API Contract (Section 5 - doc-adr): GET /api/v1/restaurants
- */
-data class Restaurant(
-    @SerializedName("id")
-    val id: String = "",
-
-    @SerializedName("name")
-    val name: String = "",
-
-    @SerializedName("address")
-    val address: String = "",
-
-    @SerializedName("imageUrl")
-    val imageUrl: String = "",
-
-    @SerializedName("rating")
-    val rating: Float = 0f,
-
-    @SerializedName("category")
-    val category: String = "",
-
-    @SerializedName("deliveryTime")
-    val deliveryTime: String = "30-45 phút",
-
-    @SerializedName("isOpen")
-    val isOpen: Boolean = true
-)
 ````
 
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Role.kt
@@ -23968,119 +24908,6 @@ data class UserStatus(
 }
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/remote/MockInterceptor.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.remote
-
-import com.google.gson.Gson
-import okhttp3.Interceptor
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.Protocol
-import okhttp3.Response
-import okhttp3.ResponseBody.Companion.toResponseBody
-import javax.inject.Inject
-import javax.inject.Singleton
-
-/**
- * OkHttp Interceptor phục vụ giả lập phản hồi rỗng khi chưa có dữ liệu.
- */
-@Singleton
-class MockInterceptor @Inject constructor() : Interceptor {
-
-    private val gson = Gson()
-
-    override fun intercept(chain: Interceptor.Chain): Response {
-        val uri = chain.request().url.toUri().toString()
-
-        val responseString = when {
-            (uri.contains("restaurants") || uri.contains("stores")) && (uri.contains("menu") || uri.contains("dishes")) -> getMockMenuJson(uri)
-            uri.contains("restaurants") || uri.contains("stores") -> getMockRestaurantsJson()
-            else -> """{"data": [], "message": "Unknown endpoint", "success": false}"""
-        }
-
-        // Giả lập network delay nhẹ 50ms
-        Thread.sleep(50)
-
-        return Response.Builder()
-            .code(200)
-            .request(chain.request())
-            .protocol(Protocol.HTTP_1_1)
-            .message("OK (Empty Clean Slate)")
-            .body(responseString.toResponseBody("application/json".toMediaType()))
-            .build()
-    }
-
-    private fun getMockRestaurantsJson(): String = "[]"
-
-    private fun getMockMenuJson(uri: String): String = "[]"
-}
-````
-
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/remote/RestBackendApi.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.remote
-
-import com.chuyen_de_2.foodorder.core.data.model.Dish
-import com.chuyen_de_2.foodorder.core.data.model.MenuItem
-import com.chuyen_de_2.foodorder.core.data.model.Restaurant
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import retrofit2.Response
-import retrofit2.http.GET
-import retrofit2.http.Header
-import retrofit2.http.Path
-
-/**
- * Retrofit Interface — API Contract (Section 5 & 14 - doc-adr)
- *
- * Gọi dữ liệu tĩnh (ít thay đổi) qua REST API để giảm tải Firebase.
- * Auth: Bearer Token JWT
- */
-interface RestBackendApi {
-
-    /**
-     * Lấy danh sách cửa hàng / quán ăn
-     * GET /api/v1/stores
-     */
-    @GET("api/v1/stores")
-    suspend fun getStores(
-        @Header("Authorization") token: String = ""
-    ): Response<List<Store>>
-
-    /**
-     * Lấy danh sách món ăn theo cửa hàng
-     * GET /api/v1/stores/{id}/dishes
-     */
-    @GET("api/v1/stores/{id}/dishes")
-    suspend fun getDishesByStore(
-        @Path("id") storeId: String,
-        @Header("Authorization") token: String = ""
-    ): Response<List<Dish>>
-
-    // ==========================================
-    // Legacy Endpoints (giữ nguyên để tránh break code cũ)
-    // ==========================================
-
-    /**
-     * Lấy danh sách nhà hàng (Legacy)
-     * GET /api/v1/restaurants
-     */
-    @GET("api/v1/restaurants")
-    suspend fun getRestaurants(
-        @Header("Authorization") token: String = ""
-    ): Response<List<Restaurant>>
-
-    /**
-     * Lấy menu món ăn theo nhà hàng (Legacy)
-     * GET /api/v1/restaurants/{id}/menu
-     */
-    @GET("api/v1/restaurants/{id}/menu")
-    suspend fun getMenuByRestaurant(
-        @Path("id") shopId: String,
-        @Header("Authorization") token: String = ""
-    ): Response<List<MenuItem>>
-}
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/di/FirebaseModule.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.di
@@ -24133,8 +24960,6 @@ object FirebaseModule {
 ````kotlin
 package com.chuyen_de_2.foodorder.core.di
 
-import com.chuyen_de_2.foodorder.core.data.remote.MockInterceptor
-import com.chuyen_de_2.foodorder.core.data.remote.RestBackendApi
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24147,16 +24972,12 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
- * Hilt Module cung cấp OkHttpClient, Retrofit, RestBackendApi
- *
- * Lưu ý: MockInterceptor được thêm vào OkHttpClient để giả lập REST API.
- * Khi có backend thật, thay BASE_URL và xóa MockInterceptor.
+ * Hilt Module cung cấp OkHttpClient và Retrofit cho các nhu cầu kết nối HTTP ngoài (nếu có).
  */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // Base URL placeholder — thay bằng URL backend thật khi có
     private const val BASE_URL = "https://api.foodorder.example.com/"
 
     @Provides
@@ -24170,11 +24991,9 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        loggingInterceptor: HttpLoggingInterceptor,
-        mockInterceptor: MockInterceptor
+        loggingInterceptor: HttpLoggingInterceptor
     ): OkHttpClient {
         return OkHttpClient.Builder()
-            .addInterceptor(mockInterceptor) // Giả lập API — xóa khi có backend thật
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -24190,12 +25009,6 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-    }
-
-    @Provides
-    @Singleton
-    fun provideRestBackendApi(retrofit: Retrofit): RestBackendApi {
-        return retrofit.create(RestBackendApi::class.java)
     }
 }
 ````
@@ -25794,6 +26607,58 @@ object RegistrationOtpManager {
 </vector>
 ````
 
+## File: core/src/main/res/drawable/ic_bun_dau.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Mẹt tre tròn -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
+    <!-- Chén mắm tôm ở tâm mẹt -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
+    <!-- Đậu hũ rán góc trên -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
+    <!-- Chả cốm / dồi góc phải -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
+    <!-- Bún lá góc trái -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
+    <!-- Rau sống góc dưới -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
+</vector>
+````
+
 ## File: core/src/main/res/drawable/ic_camera.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -26472,6 +27337,50 @@ object RegistrationOtpManager {
 </vector>
 ````
 
+## File: core/src/main/res/drawable/ic_juice.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Thân ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
+    <!-- Miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,6 L18,6" />
+    <!-- Ống hút -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M13,6 L16,2" />
+    <!-- Lát cam / chanh cài miệng ly -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
+    <!-- Mực nước ép bên trong -->
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.4"
+        android:strokeLineCap="round"
+        android:pathData="M8.2,11 L15.8,11" />
+</vector>
+````
+
 ## File: core/src/main/res/drawable/ic_landmark.xml
 ````xml
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -26653,6 +27562,49 @@ object RegistrationOtpManager {
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:pathData="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719" />
+</vector>
+````
+
+## File: core/src/main/res/drawable/ic_milktea.xml
+````xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M5,8 L19,8" />
+    <path
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M14,8 L17,2" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
 </vector>
 ````
 
@@ -27845,6 +28797,67 @@ networkTimeout=10000
 validateDistributionUrl=true
 zipStoreBase=GRADLE_USER_HOME
 zipStorePath=wrapper/dists
+````
+
+## File: scripts/cleanup_firebase_nodes.py
+````python
+# -*- coding: utf-8 -*-
+"""
+Script dọn rác và tối ưu các node trên Firebase Realtime Database:
+1. Xóa các key rác và các tracking cũ của đơn đã kết thúc trong node 'tracking'
+2. Đồng bộ cấu hình sang 'system_config/delivery_countdown' và xóa node dư thừa 'delivery_time_frames'
+"""
+⋮----
+API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
+DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
+ADMIN_EMAIL = "admin@gmail.com"
+ADMIN_PASSWORD = "123456"
+⋮----
+def make_request(url, method="GET", data=None)
+⋮----
+headers = {"Content-Type": "application/json"}
+body = json.dumps(data).encode("utf-8") if data is not None else None
+req = urllib.request.Request(url, data=body, headers=headers, method=method)
+⋮----
+content = resp.read().decode("utf-8")
+⋮----
+def main()
+⋮----
+# Đăng nhập Admin
+⋮----
+auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+auth_res = make_request(auth_url, method="POST", data={
+id_token = auth_res.get("idToken")
+⋮----
+# 1. Dọn dẹp node tracking
+⋮----
+orders_url = f"{DATABASE_URL}/orders.json?auth={id_token}"
+orders = make_request(orders_url, method="GET") or {}
+⋮----
+tracking_url = f"{DATABASE_URL}/tracking.json?auth={id_token}"
+trackings = make_request(tracking_url, method="GET") or {}
+⋮----
+removed_tracking = 0
+active_statuses = {"DELIVERING", "ARRIVED_AT_CUSTOMER", "RETURNING_TO_STORE"}
+⋮----
+order = orders.get(t_id)
+# Xóa nếu không phải mã đơn hợp lệ hoặc đơn không còn active
+is_invalid_key = not t_id.startswith("OISHI_")
+is_ended = order is not None and order.get("status", "").upper() not in active_statuses
+is_not_found = order is None
+⋮----
+del_url = f"{DATABASE_URL}/tracking/{t_id}.json?auth={id_token}"
+⋮----
+# 2. Xóa node dư thừa delivery_time_frames sau khi đảm bảo system_config đã có
+⋮----
+dtf_url = f"{DATABASE_URL}/delivery_time_frames.json?auth={id_token}"
+dtf = make_request(dtf_url, method="GET")
+⋮----
+cfg = dtf["countdown_config"]
+# Đảm bảo lưu sang system_config
+sys_cfg_url = f"{DATABASE_URL}/system_config/delivery_countdown.json?auth={id_token}"
+⋮----
+# Xóa node delivery_time_frames
 ````
 
 ## File: .firebaserc
@@ -32452,342 +33465,6 @@ Bạn có thể lưu nội dung sau vào file **`GEMINI.md`** hoặc **`.cursorr
 - [ ] Bạn đã tránh copy toàn bộ cả file code vào ô chat chưa (hãy dùng `@ten_file` hoặc đường dẫn file để AI tự đọc)?
 ````
 
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.category
-
-import android.util.Base64
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.chuyen_de_2.foodorder.admin.R
-import com.chuyen_de_2.foodorder.admin.databinding.ItemAdminCategoryBinding
-import com.chuyen_de_2.foodorder.core.data.model.Category
-import com.chuyen_de_2.foodorder.core.util.CategoryIconCache
-
-class AdminCategoryAdapter(
-    private val onEdit: (Category) -> Unit,
-    private val onDelete: (Category) -> Unit,
-    private val onToggleActive: (Category, Boolean) -> Unit
-) : ListAdapter<Category, AdminCategoryAdapter.CategoryViewHolder>(CategoryDiffCallback()) {
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
-        val binding = ItemAdminCategoryBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return CategoryViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
-
-    inner class CategoryViewHolder(private val binding: ItemAdminCategoryBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(category: Category) {
-            val icon = category.iconUrl.trim()
-            if (category.isImageUrl) {
-                val cachedBmp = CategoryIconCache.getOrDecode(icon)
-                if (cachedBmp != null) {
-                    Glide.with(itemView.context).clear(binding.ivCategoryIcon)
-                    binding.ivCategoryIcon.setImageBitmap(cachedBmp)
-                } else if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
-                    try {
-                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
-                        val decoded = Base64.decode(clean, Base64.DEFAULT)
-                        Glide.with(itemView.context)
-                            .asBitmap()
-                            .load(decoded)
-                            .dontAnimate()
-                            .error(R.drawable.ic_image)
-                            .into(binding.ivCategoryIcon)
-                    } catch (_: Exception) {
-                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_image)
-                    }
-                } else {
-                    Glide.with(itemView.context)
-                        .load(icon)
-                        .dontAnimate()
-                        .diskCacheStrategy(DiskCacheStrategy.ALL)
-                        .error(R.drawable.ic_image)
-                        .into(binding.ivCategoryIcon)
-                }
-            } else {
-                Glide.with(itemView.context).clear(binding.ivCategoryIcon)
-                val fallbackRes = when {
-                    category.categoryName.contains("Cơm", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_utensils_crossed
-                    category.categoryName.contains("Phở", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_soup
-                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_milktea
-                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_bun_dau
-                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> com.chuyen_de_2.foodorder.core.R.drawable.ic_juice
-                    else -> R.drawable.ic_image
-                }
-                binding.ivCategoryIcon.setImageResource(fallbackRes)
-            }
-
-            binding.tvCategoryName.text = category.name
-            binding.tvCategoryOrder.text = "Thứ tự: #${category.displayOrder} • ID: ${category.id}"
-
-            if (category.description.isNotBlank()) {
-                binding.tvCategoryDesc.visibility = View.VISIBLE
-                binding.tvCategoryDesc.text = category.description
-            } else {
-                binding.tvCategoryDesc.visibility = View.GONE
-            }
-
-            // Detach listener before setting checked to avoid triggering during scroll
-            binding.switchActive.setOnCheckedChangeListener(null)
-            binding.switchActive.isChecked = category.isActive
-
-            binding.switchActive.setOnCheckedChangeListener { _, isChecked ->
-                onToggleActive(category, isChecked)
-            }
-
-            binding.btnEditCategory.setOnClickListener {
-                onEdit(category)
-            }
-
-            binding.btnDeleteCategory.setOnClickListener {
-                onDelete(category)
-            }
-        }
-    }
-
-    class CategoryDiffCallback : DiffUtil.ItemCallback<Category>() {
-        override fun areItemsTheSame(oldItem: Category, newItem: Category): Boolean =
-            oldItem.id == newItem.id
-
-        override fun areContentsTheSame(oldItem: Category, newItem: Category): Boolean =
-            oldItem == newItem
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.category
-
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.admin.databinding.FragmentAdminCategoryListBinding
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-
-@AndroidEntryPoint
-class AdminCategoryListFragment : Fragment() {
-
-    private var _binding: FragmentAdminCategoryListBinding? = null
-    private val binding get() = _binding!!
-
-    private val viewModel: AdminCategoryViewModel by viewModels()
-    private lateinit var adapter: AdminCategoryAdapter
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentAdminCategoryListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-        setupRecyclerView()
-        setupListeners()
-        observeViewModel()
-    }
-
-    private fun setupRecyclerView() {
-        adapter = AdminCategoryAdapter(
-            onEdit = { category ->
-                val dialog = AddEditCategoryDialogFragment(categoryToEdit = category) { updatedCat ->
-                    viewModel.saveCategory(updatedCat)
-                }
-                dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
-            },
-            onDelete = { category ->
-                AlertDialog.Builder(requireContext())
-                    .setTitle("Xóa danh mục")
-                    .setMessage("Bạn có chắc chắn muốn xóa danh mục '${category.name}' khỏi sàn?")
-                    .setNegativeButton("Hủy", null)
-                    .setPositiveButton("Xóa") { _, _ ->
-                        viewModel.deleteCategory(category.categoryId)
-                    }
-                    .show()
-            },
-            onToggleActive = { category, isChecked ->
-                viewModel.toggleCategoryActive(category, isChecked)
-            }
-        )
-
-        binding.rvCategories.layoutManager = LinearLayoutManager(requireContext())
-        binding.rvCategories.adapter = adapter
-    }
-
-    private fun setupListeners() {
-        binding.swipeRefreshCategory.setOnRefreshListener {
-            binding.swipeRefreshCategory.isRefreshing = false
-        }
-
-        binding.btnAddCategory.setOnClickListener {
-            val nextOrder = (viewModel.categories.value.maxOfOrNull { it.displayOrder } ?: 0) + 1
-            val dialog = AddEditCategoryDialogFragment(defaultOrder = nextOrder) { newCat ->
-                viewModel.saveCategory(newCat)
-            }
-            dialog.show(childFragmentManager, AddEditCategoryDialogFragment.TAG)
-        }
-
-        binding.btnRestoreCategoryDefaults.setOnClickListener {
-            AlertDialog.Builder(requireContext())
-                .setTitle("Khôi phục danh mục mẫu")
-                .setMessage("Thao tác này sẽ đồng bộ lại 5 danh mục chính của Oishi Food (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên cơ sở dữ liệu.")
-                .setNegativeButton("Hủy", null)
-                .setPositiveButton("Đồng ý") { _, _ ->
-                    viewModel.restoreDefaults()
-                }
-                .show()
-        }
-    }
-
-    private fun observeViewModel() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.categories.collect { list ->
-                        adapter.submitList(list)
-                        val activeCount = list.count { it.isActive }
-                        binding.tvCategoryStats.text = "Tổng: ${list.size} nhóm món • $activeCount đang hiển thị trên app Khách"
-                    }
-                }
-
-                launch {
-                    viewModel.message.collect { msg ->
-                        if (!msg.isNullOrBlank()) {
-                            Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-                            viewModel.clearMessage()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
-## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/category/AdminCategoryViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.admin.ui.category
-
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Category
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class AdminCategoryViewModel @Inject constructor(
-    private val firebaseRepo: FirebaseRepository
-) : ViewModel() {
-
-    private val _categories = MutableStateFlow<List<Category>>(emptyList())
-    val categories: StateFlow<List<Category>> = _categories.asStateFlow()
-
-    private val _message = MutableStateFlow<String?>(null)
-    val message: StateFlow<String?> = _message.asStateFlow()
-
-    init {
-        observeCategories()
-    }
-
-    private fun observeCategories() {
-        viewModelScope.launch {
-            firebaseRepo.observeCategories(includeInactive = true).collect { list ->
-                _categories.value = list.sortedBy { it.displayOrder }
-            }
-        }
-    }
-
-    fun saveCategory(category: Category) {
-        viewModelScope.launch {
-            val finalCategory = if (category.categoryId.isBlank()) {
-                val generatedId = "cat_" + System.currentTimeMillis()
-                category.copy(categoryId = generatedId)
-            } else category
-
-            val result = firebaseRepo.saveCategory(finalCategory, finalCategory.description)
-            if (result.isSuccess) {
-                _message.value = "Lưu danh mục '${finalCategory.name}' thành công!"
-            } else {
-                _message.value = "Lưu danh mục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun toggleCategoryActive(category: Category, isActive: Boolean) {
-        viewModelScope.launch {
-            val result = firebaseRepo.toggleCategoryActive(category.categoryId, isActive)
-            if (result.isSuccess) {
-                val stateText = if (isActive) "Hiển thị" else "Ẩn"
-                _message.value = "Đã chuyển '${category.name}' sang trạng thái: $stateText"
-            }
-        }
-    }
-
-    fun deleteCategory(categoryId: String) {
-        viewModelScope.launch {
-            val result = firebaseRepo.deleteCategory(categoryId)
-            if (result.isSuccess) {
-                _message.value = "Đã xóa danh mục thành công!"
-            } else {
-                _message.value = "Xóa thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun restoreDefaults() {
-        viewModelScope.launch {
-            val result = firebaseRepo.restoreDefaultCategories()
-            if (result.isSuccess) {
-                _message.value = "Đã khôi phục 5 danh mục chính thành công!"
-            } else {
-                _message.value = "Khôi phục thất bại: ${result.exceptionOrNull()?.localizedMessage}"
-            }
-        }
-    }
-
-    fun clearMessage() {
-        _message.value = null
-    }
-}
-````
-
 ## File: app-admin/src/main/java/com/chuyen_de_2/foodorder/admin/ui/dashboard/AdminDashboardFragment.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.admin.ui.dashboard
@@ -34236,145 +34913,6 @@ class EditStoreDialogFragment(
         const val TAG = "EditStoreDialogFragment"
     }
 }
-````
-
-## File: app-admin/src/main/res/drawable/ic_bun_dau.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Mẹt tre tròn -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
-    <!-- Chén mắm tôm ở tâm mẹt -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
-    <!-- Đậu hũ rán góc trên -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
-    <!-- Chả cốm / dồi góc phải -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
-    <!-- Bún lá góc trái -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
-    <!-- Rau sống góc dưới -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
-</vector>
-````
-
-## File: app-admin/src/main/res/drawable/ic_juice.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Thân ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
-    <!-- Miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,6 L18,6" />
-    <!-- Ống hút -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M13,6 L16,2" />
-    <!-- Lát cam / chanh cài miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
-    <!-- Mực nước ép bên trong -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-        android:pathData="M8.2,11 L15.8,11" />
-</vector>
-````
-
-## File: app-admin/src/main/res/drawable/ic_milktea.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5,8 L19,8" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M14,8 L17,2" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-</vector>
 ````
 
 ## File: app-admin/src/main/res/layout/fragment_admin_complaint_list.xml
@@ -35945,221 +36483,6 @@ class HomeActivity : AppCompatActivity() {
 }
 ````
 
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeCategoryAdapter.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import android.util.Base64
-import android.view.LayoutInflater
-import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
-import com.chuyen_de_2.foodorder.core.data.model.Category
-import com.chuyen_de_2.foodorder.core.util.CategoryIconCache
-import com.chuyen_de_2.foodorder.customer.R
-import com.chuyen_de_2.foodorder.customer.databinding.ItemHomeCategoryBinding
-
-class HomeCategoryAdapter(
-    private val onCategoryClick: (Category?) -> Unit
-) : RecyclerView.Adapter<HomeCategoryAdapter.CategoryViewHolder>() {
-
-    companion object {
-        private const val PAYLOAD_SELECTION = "PAYLOAD_SELECTION"
-    }
-
-    private val categories = mutableListOf<Category>()
-    var selectedCategoryId: String? = null
-        private set
-
-    private val bgDrawables = listOf(
-        R.drawable.bg_cat_orange,
-        R.drawable.bg_cat_green,
-        R.drawable.bg_cat_blue,
-        R.drawable.bg_cat_red,
-        R.drawable.bg_cat_amber,
-        R.drawable.bg_cat_purple,
-        R.drawable.bg_cat_pink
-    )
-
-    fun submitCategories(list: List<Category>) {
-        categories.clear()
-        // Item đầu tiên luôn là Tất Cả
-        categories.add(
-            Category(
-                categoryId = "ALL",
-                categoryName = "Tất cả",
-                iconUrl = "",
-                displayOrder = 0,
-                isActive = true
-            )
-        )
-        categories.addAll(list.filter { it.isActive }.sortedBy { it.displayOrder })
-        notifyDataSetChanged()
-    }
-
-    private fun findCategoryIndex(targetId: String?): Int {
-        if (targetId.isNullOrBlank() || targetId == "ALL") {
-            return categories.indexOfFirst { it.categoryId == "ALL" }
-        }
-        return categories.indexOfFirst {
-            it.categoryId == targetId ||
-                    it.categoryName.equals(targetId, ignoreCase = true) ||
-                    it.categoryName.contains(targetId, ignoreCase = true) ||
-                    targetId.contains(it.categoryName, ignoreCase = true)
-        }
-    }
-
-    private fun isCategorySelected(category: Category, isAll: Boolean): Boolean {
-        return if (selectedCategoryId.isNullOrBlank() || selectedCategoryId == "ALL") {
-            isAll
-        } else {
-            selectedCategoryId == category.categoryId ||
-                    selectedCategoryId.equals(category.categoryName, ignoreCase = true) ||
-                    category.categoryName.contains(selectedCategoryId!!, ignoreCase = true) ||
-                    selectedCategoryId!!.contains(category.categoryName, ignoreCase = true)
-        }
-    }
-
-    fun setSelected(catId: String?) {
-        if (selectedCategoryId == catId) return
-        val oldId = selectedCategoryId
-        selectedCategoryId = catId
-
-        val oldIndex = findCategoryIndex(oldId)
-        val newIndex = findCategoryIndex(catId)
-
-        if (oldIndex != -1) notifyItemChanged(oldIndex, PAYLOAD_SELECTION)
-        if (newIndex != -1 && newIndex != oldIndex) notifyItemChanged(newIndex, PAYLOAD_SELECTION)
-        if (oldIndex == -1 && newIndex == -1) notifyDataSetChanged()
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CategoryViewHolder {
-        val binding = ItemHomeCategoryBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
-        )
-        return CategoryViewHolder(binding)
-    }
-
-    override fun onBindViewHolder(holder: CategoryViewHolder, position: Int) {
-        holder.bind(categories[position], position)
-    }
-
-    override fun onBindViewHolder(
-        holder: CategoryViewHolder,
-        position: Int,
-        payloads: MutableList<Any>
-    ) {
-        if (payloads.contains(PAYLOAD_SELECTION)) {
-            holder.bindSelection(categories[position])
-        } else {
-            super.onBindViewHolder(holder, position, payloads)
-        }
-    }
-
-    override fun getItemCount(): Int = categories.size
-
-    inner class CategoryViewHolder(private val binding: ItemHomeCategoryBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bindSelection(category: Category) {
-            val context = itemView.context
-            val isAll = category.categoryId == "ALL"
-            val isSelected = isCategorySelected(category, isAll)
-
-            if (isSelected) {
-                itemView.setBackgroundResource(R.drawable.bg_chip_selected)
-                binding.tvCategoryName.setTextColor(ContextCompat.getColor(context, R.color.primary))
-            } else {
-                itemView.background = null
-                binding.tvCategoryName.setTextColor(ContextCompat.getColor(context, R.color.text_primary))
-            }
-        }
-
-        fun bind(category: Category, position: Int) {
-            val context = itemView.context
-            val isAll = category.categoryId == "ALL"
-
-            // Gán màu nền icon theo vòng lặp màu
-            val bgRes = bgDrawables[position % bgDrawables.size]
-            binding.layoutIconCircle.setBackgroundResource(bgRes)
-
-            // Hiển thị ảnh Icon tải lên từ Admin (Base64 hoặc URL)
-            val icon = category.iconUrl.trim()
-            if (category.isImageUrl) {
-                binding.ivCategoryIcon.imageTintList = null
-                val cachedBmp = CategoryIconCache.getOrDecode(icon)
-                if (cachedBmp != null) {
-                    // Tải ngay lập tức từ bộ nhớ đệm RAM (0ms delay, không giật, không chớp icon mặc định)
-                    Glide.with(context).clear(binding.ivCategoryIcon)
-                    binding.ivCategoryIcon.setImageBitmap(cachedBmp)
-                } else if (icon.startsWith("data:image", ignoreCase = true) || icon.length > 100) {
-                    try {
-                        val clean = if (icon.contains(",")) icon.substringAfter(",") else icon
-                        val decoded = Base64.decode(clean, Base64.DEFAULT)
-                        Glide.with(context)
-                            .asBitmap()
-                            .load(decoded)
-                            .dontAnimate()
-                            .error(R.drawable.ic_utensils_crossed)
-                            .into(binding.ivCategoryIcon)
-                    } catch (_: Exception) {
-                        binding.ivCategoryIcon.setImageResource(R.drawable.ic_utensils_crossed)
-                    }
-                } else {
-                    Glide.with(context)
-                        .load(icon)
-                        .dontAnimate()
-                        .diskCacheStrategy(DiskCacheStrategy.ALL)
-                        .error(R.drawable.ic_utensils_crossed)
-                        .into(binding.ivCategoryIcon)
-                }
-            } else {
-                Glide.with(context).clear(binding.ivCategoryIcon)
-                val fallbackRes = when {
-                    isAll -> R.drawable.ic_sparkles
-                    category.categoryName.contains("Cơm", true) -> R.drawable.ic_utensils_crossed
-                    category.categoryName.contains("Phở", true) -> R.drawable.ic_soup
-                    category.categoryName.contains("Trà sữa", true) || category.categoryName.contains("Trà", true) -> R.drawable.ic_milktea
-                    category.categoryName.contains("Bún đậu", true) || category.categoryName.contains("Bún", true) -> R.drawable.ic_bun_dau
-                    category.categoryName.contains("Nước ép", true) || category.categoryName.contains("Nước", true) -> R.drawable.ic_juice
-                    else -> R.drawable.ic_utensils_crossed
-                }
-                binding.ivCategoryIcon.setImageResource(fallbackRes)
-                binding.ivCategoryIcon.imageTintList = ContextCompat.getColorStateList(context, R.color.primary)
-            }
-
-            binding.tvCategoryName.text = category.name
-            bindSelection(category)
-
-            itemView.setOnClickListener {
-                val oldId = selectedCategoryId
-                val newId = if (isAll) {
-                    null
-                } else if (selectedCategoryId == category.categoryId || selectedCategoryId == category.name) {
-                    null
-                } else {
-                    category.categoryId
-                }
-
-                if (oldId != newId) {
-                    selectedCategoryId = newId
-                    val oldIndex = findCategoryIndex(oldId)
-                    val newIndex = findCategoryIndex(newId)
-                    if (oldIndex != -1) notifyItemChanged(oldIndex, PAYLOAD_SELECTION)
-                    if (newIndex != -1 && newIndex != oldIndex) notifyItemChanged(newIndex, PAYLOAD_SELECTION)
-                    if (oldIndex == -1 && newIndex == -1) notifyDataSetChanged()
-                }
-
-                val clickedCategory = if (newId == null) null else category
-                onCategoryClick(clickedCategory)
-            }
-        }
-    }
-}
-````
-
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/NearbyStoreAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.customer.ui.home
@@ -36276,145 +36599,6 @@ class NearbyStoreAdapter(
     <solid android:color="#FFF7ED" />
     <stroke android:width="1dp" android:color="#FFEDD5" />
 </shape>
-````
-
-## File: app-customer/src/main/res/drawable/ic_bun_dau.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Mẹt tre tròn -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
-    <!-- Chén mắm tôm ở tâm mẹt -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
-    <!-- Đậu hũ rán góc trên -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
-    <!-- Chả cốm / dồi góc phải -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
-    <!-- Bún lá góc trái -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
-    <!-- Rau sống góc dưới -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
-</vector>
-````
-
-## File: app-customer/src/main/res/drawable/ic_juice.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Thân ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
-    <!-- Miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,6 L18,6" />
-    <!-- Ống hút -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M13,6 L16,2" />
-    <!-- Lát cam / chanh cài miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
-    <!-- Mực nước ép bên trong -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-        android:pathData="M8.2,11 L15.8,11" />
-</vector>
-````
-
-## File: app-customer/src/main/res/drawable/ic_milktea.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5,8 L19,8" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M14,8 L17,2" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-</vector>
 ````
 
 ## File: app-customer/src/main/res/layout/activity_cart.xml
@@ -37922,74 +38106,6 @@ class NearbyStoreAdapter(
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-customer/src/main/res/layout/item_trust_score_log_row.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_search_bar_modern"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:padding="12dp">
-
-    <TextView
-        android:id="@+id/tvLogRowBadge"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:background="@drawable/bg_circle_icon_indigo"
-        android:gravity="center"
-        android:textColor="@color/brand_green"
-        android:textSize="13sp"
-        android:textStyle="bold"
-        tools:text="+2đ" />
-
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="12dp"
-        android:layout_weight="1"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/tvLogRowReason"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
-            android:textSize="12.5sp"
-            android:textStyle="bold"
-            tools:text="Hoàn thành nhận hàng đơn #ORD-88219" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/tvLogRowTime"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                tools:text="28/10/2026 14:30" />
-
-            <TextView
-                android:id="@+id/tvLogRowScoreDiff"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:textColor="@color/text_secondary"
-                android:textSize="11sp"
-                tools:text="(98 ➔ 100đ)" />
-        </LinearLayout>
-    </LinearLayout>
-</LinearLayout>
 ````
 
 ## File: app-customer/src/main/res/values/colors.xml
@@ -39594,9 +39710,15 @@ class DriverAdapter(
             }
 
             // Xe máy
-            val vehicleModelStr = if (driver.vehicleModel.isNotBlank()) driver.vehicleModel else "Yamaha Sirius"
-            val vehiclePlateStr = if (driver.vehiclePlate.isNotBlank()) " (${driver.vehiclePlate})" else ""
-            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleModelStr$vehiclePlateStr"
+            val vehicleModelStr = driver.vehicleModel.trim()
+            val vehiclePlateStr = driver.vehiclePlate.trim()
+            val vehicleInfo = when {
+                vehicleModelStr.isNotBlank() && vehiclePlateStr.isNotBlank() -> "$vehicleModelStr ($vehiclePlateStr)"
+                vehiclePlateStr.isNotBlank() -> vehiclePlateStr
+                vehicleModelStr.isNotBlank() -> vehicleModelStr
+                else -> "Chưa cập nhật xe"
+            }
+            binding.tvVehicleInfo.text = "🏍️ Xe máy: $vehicleInfo"
 
             // Đơn giao
             if (driver.dutyStatus == Driver.DutyStatus.DELIVERING) {
@@ -39794,7 +39916,7 @@ class ShipperProfileFragment : Fragment() {
         val phone = user?.phoneNumber.orEmpty()
 
         binding.tvProfileName.text = defaultName
-        binding.tvProfileSub.text = if (phone.isNotBlank()) "$phone • Sirius 59-T1 882.91" else email
+        binding.tvProfileSub.text = if (phone.isNotBlank()) phone else email
 
         // Lắng nghe dữ liệu hồ sơ Driver thời gian thực
         if (uid.isNotBlank()) {
@@ -39823,13 +39945,23 @@ class ShipperProfileFragment : Fragment() {
     private fun bindDriverData(driver: Driver) {
         val name = driver.name.ifBlank { auth.currentUser?.displayName ?: "Tài xế" }
         val phone = driver.phone.ifBlank { auth.currentUser?.phoneNumber ?: "Chưa cập nhật" }
-        val model = driver.vehicleModel.ifBlank { "Sirius FI" }
-        val plate = driver.vehiclePlate.ifBlank { "59-T1 882.91" }
+        val model = driver.vehicleModel.trim()
+        val plate = driver.vehiclePlate.trim()
+        val vehicleInfo = when {
+            model.isNotBlank() && plate.isNotBlank() -> "$model $plate"
+            plate.isNotBlank() -> plate
+            model.isNotBlank() -> model
+            else -> ""
+        }
         val cccd = driver.cccdNumber.ifBlank { "Chưa cập nhật" }
         val license = driver.licenseNumber.ifBlank { "Chưa cập nhật" }
 
         binding.tvProfileName.text = name
-        binding.tvProfileSub.text = "$phone • $model $plate"
+        binding.tvProfileSub.text = if (phone.isNotBlank() && phone != "Chưa cập nhật") {
+            if (vehicleInfo.isNotBlank()) "$phone • $vehicleInfo" else phone
+        } else {
+            if (vehicleInfo.isNotBlank()) vehicleInfo else (auth.currentUser?.email.orEmpty())
+        }
         if (driver.driverCode.isNotBlank()) {
             binding.tvDriverBadgeId.text = "MÃ TX: ${driver.driverCode}"
         }
@@ -39838,8 +39970,8 @@ class ShipperProfileFragment : Fragment() {
         displayAvatar(avatarUrl)
 
         binding.tvDetailDriverPhone.text = phone
-        binding.tvDetailVehicleModel.text = model
-        binding.tvDetailVehiclePlate.text = plate
+        binding.tvDetailVehicleModel.text = model.ifBlank { "Chưa cập nhật" }
+        binding.tvDetailVehiclePlate.text = plate.ifBlank { "Chưa cập nhật" }
         binding.tvDetailCccd.text = cccd
         binding.tvDetailLicense.text = license
     }
@@ -39983,8 +40115,8 @@ class ShipperProfileFragment : Fragment() {
         val driver = currentDriver
         val currentName = driver?.name?.ifBlank { user.displayName.orEmpty() } ?: user.displayName.orEmpty()
         val currentPhone = driver?.phone?.ifBlank { user.phoneNumber.orEmpty() } ?: user.phoneNumber.orEmpty()
-        val currentModel = driver?.vehicleModel?.ifBlank { "Sirius" } ?: "Sirius"
-        val currentPlate = driver?.vehiclePlate?.ifBlank { "59-T1 882.91" } ?: "59-T1 882.91"
+        val currentModel = driver?.vehicleModel.orEmpty()
+        val currentPlate = driver?.vehiclePlate.orEmpty()
         val currentAvatar = driver?.avatarUrl.orEmpty().ifBlank { user.photoUrl?.toString().orEmpty() }
 
         if (currentAvatar.startsWith("data:image") || currentAvatar.startsWith("http")) {
@@ -40398,145 +40530,6 @@ class StoreReportFragment : Fragment() {
     <item android:state_checked="true" android:color="@color/brand_green" />
     <item android:color="#CBD5E1" />
 </selector>
-````
-
-## File: app-internal/src/main/res/drawable/ic_bun_dau.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Mẹt tre tròn -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
-    <!-- Chén mắm tôm ở tâm mẹt -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
-    <!-- Đậu hũ rán góc trên -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
-    <!-- Chả cốm / dồi góc phải -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
-    <!-- Bún lá góc trái -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
-    <!-- Rau sống góc dưới -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
-</vector>
-````
-
-## File: app-internal/src/main/res/drawable/ic_juice.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Thân ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
-    <!-- Miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,6 L18,6" />
-    <!-- Ống hút -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M13,6 L16,2" />
-    <!-- Lát cam / chanh cài miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
-    <!-- Mực nước ép bên trong -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-        android:pathData="M8.2,11 L15.8,11" />
-</vector>
-````
-
-## File: app-internal/src/main/res/drawable/ic_milktea.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5,8 L19,8" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M14,8 L17,2" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-</vector>
 ````
 
 ## File: app-internal/src/main/res/layout/activity_otp_verification_internal.xml
@@ -42514,67 +42507,6 @@ dependencies {
 }
 ````
 
-## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Category.kt
-````kotlin
-package com.chuyen_de_2.foodorder.core.data.model
-
-import com.google.firebase.database.Exclude
-import com.google.firebase.database.IgnoreExtraProperties
-import com.google.gson.annotations.SerializedName
-
-/**
- * Danh mục ngành hàng thực phẩm
- * Giao diện: khách/b1.html — Grid danh mục (Cơm, Trà sữa, Phở, Gà...)
- * Mapping: Bảng 4 - categories (database_schema.sql)
- */
-@IgnoreExtraProperties
-data class Category(
-    @SerializedName("categoryId", alternate = ["id"])
-    val categoryId: String = "",
-
-    @SerializedName("categoryName", alternate = ["name"])
-    val categoryName: String = "",
-
-    @SerializedName("iconUrl", alternate = ["icon"])
-    val iconUrl: String = "",
-
-    @SerializedName("displayOrder")
-    val displayOrder: Int = 0,
-
-    @SerializedName("isActive")
-    val isActive: Boolean = true,
-
-    @SerializedName("description", alternate = ["desc"])
-    val description: String = ""
-) {
-    @get:Exclude
-    val id: String get() = categoryId
-
-    @get:Exclude
-    val name: String get() = categoryName
-
-    @get:Exclude
-    val icon: String get() = iconUrl
-
-    @get:Exclude
-    val isImageUrl: Boolean
-        get() = iconUrl.startsWith("http://", ignoreCase = true) ||
-                iconUrl.startsWith("https://", ignoreCase = true) ||
-                iconUrl.startsWith("data:image", ignoreCase = true) ||
-                iconUrl.length > 100
-
-    companion object {
-        fun getDefaultCategories(): List<Category> = listOf(
-            Category(categoryId = "cat_com", categoryName = "Cơm", iconUrl = "", displayOrder = 1, isActive = true, description = "Cơm trưa, cơm tấm, cơm văn phòng, cơm gà"),
-            Category(categoryId = "cat_pho", categoryName = "Phở", iconUrl = "", displayOrder = 2, isActive = true, description = "Phở bò, phở gà, phở tái nạm, phở đặc biệt"),
-            Category(categoryId = "cat_tra_sua", categoryName = "Trà sữa", iconUrl = "", displayOrder = 3, isActive = true, description = "Trà sữa trân châu, trà đào, macchiato"),
-            Category(categoryId = "cat_bun_dau", categoryName = "Bún đậu", iconUrl = "", displayOrder = 4, isActive = true, description = "Bún đậu mắm tôm, bún đậu thập cẩm"),
-            Category(categoryId = "cat_nuoc_ep", categoryName = "Nước ép", iconUrl = "", displayOrder = 5, isActive = true, description = "Nước ép hoa quả tươi, sinh tố, detox")
-        )
-    }
-}
-````
-
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Chef.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -43694,145 +43626,6 @@ object GoogleMapUtils {
         }.take(8)
     }
 }
-````
-
-## File: core/src/main/res/drawable/ic_bun_dau.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Mẹt tre tròn -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,21 C16.97,21 21,16.97 21,12 C21,7.03 16.97,3 12,3 C7.03,3 3,7.03 3,12 C3,16.97 7.03,21 12,21 Z" />
-    <!-- Chén mắm tôm ở tâm mẹt -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M12,14.5 C13.38,14.5 14.5,13.38 14.5,12 C14.5,10.62 13.38,9.5 12,9.5 C10.62,9.5 9.5,10.62 9.5,12 C9.5,13.38 10.62,14.5 12,14.5 Z" />
-    <!-- Đậu hũ rán góc trên -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,5.5 L14,5.5 L14,8 L10,8 Z" />
-    <!-- Chả cốm / dồi góc phải -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M16,10 L18.5,10 L18.5,14 L16,14 Z" />
-    <!-- Bún lá góc trái -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5.5,10 L8,10 L8,14 L5.5,14 Z" />
-    <!-- Rau sống góc dưới -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M10,16 L14,16 L14,18.5 L10,18.5 Z" />
-</vector>
-````
-
-## File: core/src/main/res/drawable/ic_juice.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Thân ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M7,6 L8.5,19.2 C8.6,20.2 9.5,21 10.5,21 L13.5,21 C14.5,21 15.4,20.2 15.5,19.2 L17,6 Z" />
-    <!-- Miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,6 L18,6" />
-    <!-- Ống hút -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M13,6 L16,2" />
-    <!-- Lát cam / chanh cài miệng ly -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6.5,8.5 A 3.5,3.5 0 0 1 6.5,2.5 A 3.5,3.5 0 0 1 6.5,8.5 Z" />
-    <!-- Mực nước ép bên trong -->
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.4"
-        android:strokeLineCap="round"
-        android:pathData="M8.2,11 L15.8,11" />
-</vector>
-````
-
-## File: core/src/main/res/drawable/ic_milktea.xml
-````xml
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M6,8 L7.8,20.2 C7.9,21.2 8.8,22 9.8,22 L14.2,22 C15.2,22 16.1,21.2 16.2,20.2 L18,8 Z" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M5,8 L19,8" />
-    <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="1.8"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M14,8 L17,2" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M9.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M12,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M14.5,18.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M10.8,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M13.2,15.5 m -1,0 a 1,1 0 1,0 2,0 a 1,1 0 1,0 -2,0" />
-</vector>
 ````
 
 ## File: core/src/main/res/xml/file_paths.xml
@@ -56993,6 +56786,164 @@ class AdminStoreViewModel @Inject constructor(
 </ScrollView>
 ````
 
+## File: app-admin/src/main/res/layout/fragment_admin_category_list.xml
+````xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/swipeRefreshCategory"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <!-- Elevated Taxonomy Studio Header Card -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="14dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginBottom="8dp"
+            app:cardBackgroundColor="@color/white"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="2dp"
+            app:strokeColor="@color/border"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <FrameLayout
+                        android:layout_width="42dp"
+                        android:layout_height="42dp"
+                        android:background="@drawable/bg_circle_icon_purple">
+
+                        <ImageView
+                            android:importantForAccessibility="no"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_gravity="center"
+                            android:src="@drawable/ic_tag"
+                            app:tint="@color/purple" />
+                    </FrameLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:letterSpacing="0.02"
+                            android:text="DANH MỤC ẨM THỰC TOÀN SÀN"
+                            android:textColor="@color/text_primary"
+                            android:textSize="16.5sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvCategoryStats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:textColor="@color/purple"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            tools:text="Tổng: 5 nhóm món • 5 đang hiển thị trên app Khách" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Action Toolbar -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAddCategory"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1.15"
+                        android:backgroundTint="@color/primary"
+                        android:text="Thêm Danh Mục"
+                        android:textColor="@color/white"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        app:icon="@drawable/ic_plus"
+                        app:iconGravity="textStart"
+                        app:iconSize="18dp"
+                        app:iconTint="@color/white"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnRestoreCategoryDefaults"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="48dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="Khôi Phục 12 Mẫu"
+                        android:textColor="@color/secondary"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        app:icon="@drawable/ic_refresh"
+                        app:iconGravity="textStart"
+                        app:iconSize="16dp"
+                        app:iconTint="@color/secondary"
+                        app:strokeColor="@color/secondary"
+                        app:strokeWidth="1.5dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Category RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvCategories"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="28dp"
+            tools:listitem="@layout/item_admin_category" />
+
+    </LinearLayout>
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+````
+
 ## File: app-admin/src/main/res/layout/fragment_admin_monitor.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -58094,6 +58045,599 @@ class AdminStoreViewModel @Inject constructor(
         <item name="android:textColorHint">@color/text_secondary</item>
     </style>
 </resources>
+````
+
+## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
+````kotlin
+package com.chuyen_de_2.foodorder.customer.ui.home
+
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class HomeViewModel @Inject constructor(
+    private val firebaseRepository: FirebaseRepository
+) : ViewModel() {
+
+    private val _stores = MutableLiveData<List<Store>>(emptyList())
+    val stores: LiveData<List<Store>> = _stores
+    val restaurants: LiveData<List<Store>> get() = _stores
+
+    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
+    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
+    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
+
+    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
+    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
+    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
+
+    enum class HotTab {
+        BEST_SELLER,
+        FAVORITE
+    }
+
+    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
+    val currentHotTab: LiveData<HotTab> = _currentHotTab
+
+    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
+    private var topBestSellerDishes = listOf<HotDish>()
+    private var topFavoriteDishes = listOf<HotDish>()
+
+    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
+    val hotDishes: LiveData<List<HotDish>> = _hotDishes
+
+    // Danh sách danh mục nền tảng thời gian thực từ Firebase
+    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
+    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
+
+    private val _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+
+    private val _error = MutableLiveData<String?>()
+    val error: LiveData<String?> = _error
+
+    private var masterDishList = listOf<HomeDishItem>()
+    private var currentQuery: String? = null
+    private var currentCategory: String? = null
+    private var currentNearbyOnly: Boolean = false
+    var currentNearbyMaxDistanceKm: Double = 1.5
+        private set
+    var currentMinPrice: Long? = null
+        private set
+    var currentMaxPrice: Long? = null
+        private set
+    var currentMinRating: Float = 1.0f
+        private set
+    var currentMaxRating: Float = 5.0f
+        private set
+    private var currentPriceSort: PriceSort = PriceSort.NONE
+    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
+        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
+
+    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
+
+    fun setUserLocation(lat: Double, lng: Double) {
+        if (lat != 0.0 && lng != 0.0) {
+            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
+            _stores.value?.let { processStoresAndDishes(it) }
+        }
+    }
+
+    init {
+        loadStores()
+    }
+
+    fun loadStores() {
+        _isLoading.value = true
+        _error.value = null
+
+        viewModelScope.launch {
+            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
+            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
+                _isLoading.value = false
+                _stores.value = firebaseStores
+                processStoresAndDishes(firebaseStores)
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
+            firebaseRepository.observeAllOrders().collectLatest { orders ->
+                cachedOrders = orders
+                _stores.value?.let { recalculateHotDishes(it) }
+            }
+        }
+
+        viewModelScope.launch {
+            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
+            firebaseRepository.observeCategories().collectLatest { cats ->
+                _platformCategories.value = cats
+            }
+        }
+    }
+
+    private fun processStoresAndDishes(storeList: List<Store>) {
+        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
+        val nearbyList = activeStores.map { store ->
+            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
+                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
+                "$baseTime-${baseTime + 10} phút"
+            } else "15-25 phút"
+            val emoji = when {
+                store.name.contains("Trà", true) -> "🍵"
+                store.name.contains("Cơm", true) -> "🍛"
+                store.name.contains("Gà", true) -> "🍗"
+                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
+                else -> "🍲"
+            }
+            NearbyStoreItem(
+                id = store.id,
+                name = store.name,
+                address = store.address.ifBlank { "TP.HCM" },
+                distanceKm = roundedDist,
+                eta = eta,
+                rating = store.ratingAvg,
+                imageUrl = store.imageUrl,
+                emoji = emoji,
+                originalStore = store,
+                isClosed = isClosed
+            )
+        }
+
+        val sortedNearbyList = nearbyList.sortedWith(
+            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
+                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
+                .thenBy { it.distanceKm }
+        )
+        _nearbyStores.value = sortedNearbyList
+
+        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
+        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+        val allDishes = mutableListOf<HomeDishItem>()
+
+        openStores.forEach { store ->
+            val storeLatLng = resolveStoreLatLng(store)
+            val roundedDist = calculateDistanceForStore(storeLatLng)
+
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+
+            availableDishes.forEach { dish ->
+                val platformCat = dish.platformCategory.ifBlank {
+                    inferPlatformCategory(dish.name, dish.category)
+                }
+                val emoji = when {
+                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
+                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
+                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
+                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
+                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
+                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
+                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
+                    platformCat.contains("Chay", true) -> "🥗"
+                    platformCat.contains("Hải sản", true) -> "🦐"
+                    platformCat.contains("Ăn vặt", true) -> "🍟"
+                    platformCat.contains("Tráng miệng", true) -> "🍰"
+                    platformCat.contains("Lẩu", true) -> "🍲"
+                    else -> "🍽️"
+                }
+                allDishes.add(
+                    HomeDishItem(
+                        id = dish.id,
+                        name = dish.name,
+                        price = dish.basePrice,
+                        originalPrice = dish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = emoji,
+                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
+                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
+                        distanceKm = roundedDist,
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
+                    )
+                )
+            }
+        }
+
+        masterDishList = allDishes
+        applyFilters()
+
+        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
+        recalculateHotDishes(activeStores)
+    }
+
+    private fun recalculateHotDishes(storeList: List<Store>) {
+        val activeStores = storeList.filter { store ->
+            val st = store.storeStatus.uppercase()
+            val pt = store.penaltyTier.uppercase()
+            st != Store.StoreStatus.LOCKED &&
+            pt != Store.PenaltyTier.LOCK &&
+            pt != Store.PenaltyTier.HIDE
+        }
+
+        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
+        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
+        val weeklyDishSales = mutableMapOf<String, Int>()
+        cachedOrders.filter { order ->
+            val ts = order.effectiveTimestamp
+            ts >= oneWeekAgo &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
+            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
+        }.forEach { order ->
+            order.items.values.forEach { item ->
+                if (item.dishId.isNotBlank()) {
+                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
+                }
+            }
+        }
+
+        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
+        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
+
+        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
+        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val bestDish = availableDishes.maxWithOrNull(
+                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
+                )
+                if (bestDish != null) {
+                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
+                    val totalCount = bestDish.soldCount
+                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
+                    val badgeText = when {
+                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
+                        totalCount > 0 -> "🔥 $totalCount đã bán"
+                        else -> "🔥 Bán chạy"
+                    }
+                    val hotDish = HotDish(
+                        id = bestDish.id,
+                        name = bestDish.name,
+                        price = bestDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    bestSellerList.add(Pair(hotDish, salesScore))
+                }
+            }
+        }
+        topBestSellerDishes = bestSellerList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
+        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
+        openStores.forEach { store ->
+            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
+            if (availableDishes.isNotEmpty()) {
+                val topRatedDish = availableDishes.maxWithOrNull(
+                    compareBy(
+                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
+                        { it.reviewCount },
+                        { it.soldCount }
+                    )
+                )
+                if (topRatedDish != null) {
+                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
+                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
+                        else 5.0f
+                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
+                    val badgeText = "⭐ $formattedRating"
+                    val hotDish = HotDish(
+                        id = topRatedDish.id,
+                        name = topRatedDish.name,
+                        price = topRatedDish.basePrice,
+                        storeId = store.id,
+                        storeName = store.name,
+                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
+                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
+                        badgeText = badgeText
+                    )
+                    favoriteList.add(Pair(hotDish, rating))
+                }
+            }
+        }
+        topFavoriteDishes = favoriteList
+            .sortedByDescending { it.second }
+            .map { it.first }
+
+        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    fun switchHotTab(tab: HotTab) {
+        if (_currentHotTab.value == tab) return
+        _currentHotTab.value = tab
+        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
+    }
+
+    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
+        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
+        return when {
+            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
+            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
+            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
+            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
+            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
+            else -> "🍽️"
+        }
+    }
+
+    enum class PriceSort {
+        NONE, ASC, DESC
+    }
+
+    /** Lọc danh sách món ăn */
+    fun filterDishes(
+        query: String? = null,
+        category: String? = null,
+        nearbyOnly: Boolean? = null,
+        maxDistanceKm: Double? = null,
+        minPrice: Long? = null,
+        maxPrice: Long? = null,
+        minRating: Float? = null,
+        maxRating: Float? = null,
+        resetPrice: Boolean = false,
+        resetRating: Boolean = false,
+        priceSort: PriceSort? = null
+    ) {
+        if (query != null) currentQuery = query
+        if (category != null) currentCategory = if (category == "ALL") null else category
+        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
+        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
+        if (resetPrice) {
+            currentMinPrice = null
+            currentMaxPrice = null
+            currentPriceSort = PriceSort.NONE
+        } else {
+            if (minPrice != null || maxPrice != null) {
+                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
+                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
+            }
+            if (priceSort != null) {
+                currentPriceSort = priceSort
+            }
+        }
+        if (resetRating) {
+            currentMinRating = 1.0f
+            currentMaxRating = 5.0f
+        } else {
+            if (minRating != null) currentMinRating = minRating
+            if (maxRating != null) currentMaxRating = maxRating
+        }
+        applyFilters()
+    }
+
+    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
+    fun getFilteredDishesCount(
+        minPrice: Long?,
+        maxPrice: Long?,
+        minRating: Float,
+        maxRating: Float
+    ): Int {
+        var list = masterDishList
+
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            list = list.filter { matchesCategory(it, cat) }
+        }
+
+        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
+            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+        }
+
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            list = list.filter { matchesSearch(it, q) }
+        }
+
+        if (minPrice != null && minPrice > 0) {
+            list = list.filter { it.price >= minPrice }
+        }
+        if (maxPrice != null && maxPrice > 0) {
+            list = list.filter { it.price <= maxPrice }
+        }
+
+        if (minRating > 1.05f || maxRating < 4.95f) {
+            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
+        }
+
+        return list.size
+    }
+
+    /**
+     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
+     */
+    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
+        val qClean = query.trim().lowercase()
+        if (qClean.isBlank()) return true
+
+        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
+
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val cat = dish.category.lowercase()
+        val platCat = dish.platformCategory.lowercase()
+
+        val fullWithAccent = "$name $store $cat $platCat"
+        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
+
+        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
+        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
+            return true
+        }
+
+        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
+        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
+        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun applyFilters() {
+        var filtered = masterDishList
+
+        // 1. Lọc theo cự ly gần
+        if (currentNearbyOnly) {
+            val maxDist = currentNearbyMaxDistanceKm
+            filtered = if (maxDist >= 999.0) {
+                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+            } else {
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
+            }
+        }
+
+        // 2. Lọc theo danh mục
+        val cat = currentCategory
+        if (!cat.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesCategory(dish, cat)
+            }
+        }
+
+        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
+        val q = currentQuery?.trim()
+        if (!q.isNullOrBlank()) {
+            filtered = filtered.filter { dish ->
+                matchesSearch(dish, q)
+            }
+        }
+
+        // 4. Lọc theo khoảng giá tiền
+        val minP = currentMinPrice
+        val maxP = currentMaxPrice
+        if (minP != null || maxP != null) {
+            filtered = filtered.filter { dish ->
+                val p = dish.price
+                (minP == null || p >= minP) && (maxP == null || p <= maxP)
+            }
+        }
+
+        // 5. Lọc theo khoảng sao đánh giá
+        val minR = currentMinRating
+        val maxR = currentMaxRating
+        if (minR > 1.05f || maxR < 4.95f) {
+            filtered = filtered.filter { dish ->
+                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
+            }
+        }
+
+        // 5. Sắp xếp theo giá tiền nếu có
+        when (currentPriceSort) {
+            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
+            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
+            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
+        }
+
+        _homeDishes.value = filtered
+    }
+
+    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
+        val target = filterCat.trim().lowercase()
+        val pCat = dish.platformCategory.lowercase()
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm") || combined.contains("com")
+        }
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
+        }
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
+        }
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
+        }
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
+    }
+
+    private fun inferPlatformCategory(name: String, category: String): String {
+        val text = "$name $category".lowercase()
+        return when {
+            text.contains("cơm") -> "Cơm"
+            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
+            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
+            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
+            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
+            text.contains("trà") -> "Trà sữa"
+            else -> "Cơm"
+        }
+    }
+
+    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
+        if (store.latitude != 0.0 && store.longitude != 0.0) {
+            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
+        }
+        val distName = store.district.trim()
+        if (distName.isNotBlank()) {
+            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
+            if (exact != null) return exact
+            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
+                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
+            if (fuzzy != null) return fuzzy
+        }
+        return null
+    }
+
+    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
+        if (storeLatLng == null) return 0.0
+        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
+            currentUserLatLng,
+            storeLatLng
+        ).toDouble()
+        return Math.round(dist * 10.0) / 10.0
+    }
+
+    fun loadRestaurants() = loadStores()
+}
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/menu/MenuActivity.kt
@@ -64705,154 +65249,6 @@ class OrderHistoryFragment : Fragment() {
 </LinearLayout>
 ````
 
-## File: app-customer/src/main/res/layout/item_cart.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    style="@style/Widget.FoodOrder.Card"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginBottom="10dp"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="1dp"
-    app:strokeColor="@color/border_light"
-    app:strokeWidth="1dp">
-
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="12dp">
-
-        <!-- Thumbnail món ăn 54x54 -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/thumbBox"
-            android:layout_width="54dp"
-            android:layout_height="54dp"
-            app:cardCornerRadius="10dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/cat_orange_bg"
-            app:strokeWidth="0dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
-
-            <ImageView
-                android:importantForAccessibility="no"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-               
-                app:srcCompat="@drawable/ic_soup" />
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Tên món ăn -->
-        <TextView
-            android:id="@+id/tvName"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:layout_marginEnd="8dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            tools:text="Phở Tái Nạm Gầu"
-            app:layout_constraintEnd_toStartOf="@id/tvSubtotal"
-            app:layout_constraintStart_toEndOf="@id/thumbBox"
-            app:layout_constraintTop_toTopOf="@id/thumbBox" />
-
-        <!-- Đơn giá món -->
-        <TextView
-            android:id="@+id/tvPrice"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
-            tools:text="55.000₫"
-            app:layout_constraintStart_toStartOf="@id/tvName"
-            app:layout_constraintTop_toBottomOf="@id/tvName" />
-
-        <!-- Thành tiền món (màu cam đậm Oishi) -->
-        <TextView
-            android:id="@+id/tvSubtotal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@color/primary"
-            android:textSize="14.5sp"
-            android:textStyle="bold"
-            tools:text="110.000₫"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@id/thumbBox" />
-
-        <!-- Bộ tăng giảm số lượng -->
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="30dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toBottomOf="@id/thumbBox"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <!-- Nút trừ -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnDecrease"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
-                android:text="−"
-                android:textColor="@color/text_secondary"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                app:strokeColor="@color/border"
-                android:minHeight="0dp"
-                android:minWidth="0dp" />
-
-            <!-- Số lượng -->
-            <TextView
-                android:id="@+id/tvQuantity"
-                android:layout_width="32dp"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:textColor="@color/text_primary"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                tools:text="2" />
-
-            <!-- Nút cộng -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnIncrease"
-                style="@style/Widget.Material3.Button"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:backgroundTint="@color/primary"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
-                android:text="+"
-                android:textColor="@color/on_primary"
-                android:textSize="15sp"
-                android:textStyle="bold"
-                app:cornerRadius="8dp"
-                android:minHeight="0dp"
-                android:minWidth="0dp" />
-        </LinearLayout>
-
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</com.google.android.material.card.MaterialCardView>
-````
-
 ## File: app-customer/src/main/res/layout/item_customer_address.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -68014,6 +68410,22 @@ class ShipperFragment : Fragment() {
             }
         }
 
+        viewModel.driverProfile.observe(viewLifecycleOwner) { driver ->
+            val vehicleModel = driver?.vehicleModel?.trim().orEmpty()
+            val vehiclePlate = driver?.vehiclePlate?.trim().orEmpty()
+            val vehicleText = when {
+                vehicleModel.isNotBlank() && vehiclePlate.isNotBlank() -> "$vehicleModel • $vehiclePlate"
+                vehiclePlate.isNotBlank() -> vehiclePlate
+                vehicleModel.isNotBlank() -> vehicleModel
+                else -> ""
+            }
+            binding.tvDriverSub.text = if (vehicleText.isNotBlank()) {
+                "Tài xế chuyên quán • $vehicleText"
+            } else {
+                "Tài xế chuyên quán"
+            }
+        }
+
         viewModel.storePendingOrders.observe(viewLifecycleOwner) { pendingOrders ->
             val hasActive = activeAdapter.itemCount > 0
             pendingAdapter.submitList(pendingOrders, activeAdapter.itemCount)
@@ -68089,6 +68501,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Driver
 import com.chuyen_de_2.foodorder.core.data.model.Order
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -68115,6 +68528,9 @@ class ShipperViewModel @Inject constructor(
     private val _shipperStore = MutableLiveData<Pair<String, String>>() // storeId, storeName
     val shipperStore: LiveData<Pair<String, String>> = _shipperStore
 
+    private val _driverProfile = MutableLiveData<Driver?>()
+    val driverProfile: LiveData<Driver?> = _driverProfile
+
     private val _isOnline = MutableLiveData(true)
     val isOnline: LiveData<Boolean> = _isOnline
 
@@ -68132,6 +68548,11 @@ class ShipperViewModel @Inject constructor(
         val shipperId = auth.currentUser?.uid.orEmpty()
         viewModelScope.launch {
             if (shipperId.isNotBlank()) {
+                launch {
+                    firebaseRepository.observeDriver(shipperId).collectLatest { driver ->
+                        _driverProfile.value = driver
+                    }
+                }
                 firebaseRepository.setupDriverPresence(shipperId)
                 val isCurrentlyOnline = _isOnline.value ?: true
                 val initialStatus = if (isCurrentlyOnline) com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.AVAILABLE else com.chuyen_de_2.foodorder.core.data.model.Driver.DutyStatus.OFF_DUTY
@@ -68350,6 +68771,1091 @@ class ShipperViewModel @Inject constructor(
                 onResult?.invoke(false)
             }
         }
+    }
+}
+````
+
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/MenuManageFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import android.app.Dialog
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Bundle
+import android.util.Base64
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.Spinner
+import android.widget.TextView
+import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.core.widget.doAfterTextChanged
+import androidx.fragment.app.Fragment
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.lifecycle.lifecycleScope
+import com.bumptech.glide.Glide
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Dish
+import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentMenuManageBinding
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Quản Lý Thực Đơn & Điểm Danh Mở Ca Quán (Menu Management)
+ * Cách hoạt động:
+ *  - Cung cấp tính năng Check-in mở ca bán hàng / tạm nghỉ ngơi cho Quán.
+ *  - Lắng nghe danh sách món ăn từ sub-collection Firestore `stores/{storeId}/dishes`.
+ *  - Cho phép thêm món ăn mới hoặc chỉnh sửa món hiện có (tên, giá, phân loại, mô tả, ảnh từ thư viện hoặc URL).
+ *  - Hỗ trợ xóa món ăn khỏi thực đơn và cập nhật Realtime sang app Khách hàng.
+ * Luồng hướng tới:
+ *  - Dữ liệu món ăn đồng bộ trực tiếp tới Menu của app Customer.
+ *  - Bấm banner đơn hàng mới -> Chuyển hướng sang tab Quản lý đơn hàng ([OrderListFragment]).
+ */
+@AndroidEntryPoint
+class MenuManageFragment : Fragment() {
+
+    private var _binding: FragmentMenuManageBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    private lateinit var adapter: ManageDishAdapter
+    private val dishList = mutableListOf<Dish>()
+    private var currentStoreId = ""
+    private var storeCategories: MutableList<String> = mutableListOf("Món chính")
+    private var selectedStoreCategory: String = "ALL"
+    private var platformCategories: MutableList<String> = mutableListOf(
+        "Cơm", "Phở", "Trà sữa", "Bún đậu", "Nước ép", "Món Khác"
+    )
+    private var platformCategoryObjects: List<com.chuyen_de_2.foodorder.core.data.model.Category> = emptyList()
+
+    var onNavigateToOrdersListener: (() -> Unit)? = null
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentMenuManageBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View quản lý thực đơn
+     * Cách hoạt động: Gắn sự kiện các nút chức năng, khởi tạo RecyclerView và truy vấn storeId của tài khoản.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupUI()
+        setupRecyclerView()
+        resolveCurrentStoreIdAndObserve()
+        observePlatformCategories()
+    }
+
+    /**
+     * Tên chức năng: Định danh Cửa hàng và giám sát món ăn
+     * Cách hoạt động: Lấy UID người dùng hiện tại để resolve ra storeId tương ứng, sau đó lắng nghe Firestore snapshot.
+     * Luồng hướng tới: Gọi [observeStoreDishes].
+     */
+    private fun resolveCurrentStoreIdAndObserve() {
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        val uid = auth.currentUser?.uid.orEmpty()
+        viewLifecycle.lifecycleScope.launch {
+            val resolvedStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+            if (_binding == null || view == null || !isAdded) return@launch
+            currentStoreId = resolvedStoreId
+            observeStoreDishes()
+            observeStoreCategories()
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe danh mục nội bộ của quán theo thời gian thực
+     */
+    private fun observeStoreCategories() {
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
+            if (currentStoreId.isBlank() || _binding == null) return@launch
+            firebaseRepository.observeStoreCategories(currentStoreId).collectLatest { cats ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
+                if (cats.isNotEmpty()) {
+                    storeCategories.clear()
+                    storeCategories.addAll(cats)
+                    setupCategoryFilterChips()
+                    updateList()
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe danh sách món ăn theo thời gian thực (Realtime Menu Observer)
+     * Cách hoạt động: Lắng nghe flow từ `firebaseRepository.observeStoreDishes`. Nếu quán mới chưa có món, tự động sinh bộ món mẫu.
+     * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
+     */
+    private fun observePlatformCategories() {
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
+            firebaseRepository.observeCategories(includeInactive = false).collectLatest { cats ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
+                if (cats.isNotEmpty()) {
+                    platformCategoryObjects = cats
+                    val names = cats.map { it.categoryName }.toMutableList()
+                    if (!names.contains("Món Khác")) names.add("Món Khác")
+                    platformCategories = names
+                }
+            }
+        }
+    }
+
+    private fun observeStoreDishes() {
+        if (_binding == null || view == null || !isAdded) return
+        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
+        viewLifecycle.lifecycleScope.launch {
+            if (currentStoreId.isBlank() || _binding == null) return@launch
+            firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
+                if (_binding == null || view == null || !isAdded) return@collectLatest
+                dishList.clear()
+                dishList.addAll(dishes)
+                updateList()
+                setupCategoryFilterChips()
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập giao diện điều khiển và các nút thao tác menu
+     * Cách hoạt động: Bắt sự kiện Check-in mở ca, chuyển nhanh sang đơn hàng, thêm món ăn và tạo combo.
+     * Luồng hướng tới: Tương tác người dùng với thực đơn.
+     */
+    private fun setupUI() {
+        // 1. Nút Quản lý danh mục quán
+        binding.btnManageCategories.setOnClickListener {
+            showManageCategoriesDialog()
+        }
+
+        // 2. Nút Tạo Combo & Thêm Món
+        binding.btnCreateCombo.setOnClickListener {
+            showCreateComboDialog()
+        }
+
+        binding.btnAddFood.setOnClickListener {
+            showDishDialog(null)
+        }
+
+        updateDishCountText()
+    }
+
+    private fun createCategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit): Chip {
+        val chip = layoutInflater.inflate(R.layout.item_store_category_chip, binding.chipGroupStoreCategories, false) as Chip
+        chip.text = label
+        chip.isChecked = isSelected
+        chip.setOnClickListener { onClick() }
+        return chip
+    }
+
+    /**
+     * Tên chức năng: Thiết lập các chip lọc danh mục quán
+     */
+    private fun setupCategoryFilterChips() {
+        try {
+            binding.chipGroupStoreCategories.removeAllViews()
+
+            val allChip = createCategoryChip("Tất cả (${dishList.size})", selectedStoreCategory == "ALL") {
+                selectedStoreCategory = "ALL"
+                updateList()
+            }
+            binding.chipGroupStoreCategories.addView(allChip)
+
+            storeCategories.forEach { catName ->
+                val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
+                val label = if (count > 0) "$catName ($count)" else catName
+                val chip = createCategoryChip(label, selectedStoreCategory.equals(catName, ignoreCase = true)) {
+                    selectedStoreCategory = catName
+                    updateList()
+                }
+                binding.chipGroupStoreCategories.addView(chip)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MenuManageFragment", "Error setting up category chips", e)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập danh sách RecyclerView món ăn
+     * Cách hoạt động: Khởi tạo [ManageDishAdapter] với các callback Chỉnh sửa món và Xóa món.
+     * Luồng hướng tới: Render các thẻ món ăn [item_manage_dish.xml].
+     */
+    private fun setupRecyclerView() {
+        adapter = ManageDishAdapter(
+            onEditClick = { dish -> showDishDialog(dish) },
+            onDeleteClick = { dish -> confirmDeleteDish(dish) }
+        )
+
+        binding.rvDishes.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = this@MenuManageFragment.adapter
+        }
+
+        updateList()
+    }
+
+    /**
+     * Tên chức năng: Làm mới danh sách hiển thị món ăn có lọc theo danh mục
+     */
+    private fun updateList() {
+        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
+            dishList
+        } else {
+            dishList.filter { it.category.equals(selectedStoreCategory, ignoreCase = true) }
+        }
+        adapter.submitList(filtered.toList())
+        binding.layoutEmptyDishes.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
+        binding.rvDishes.visibility = if (filtered.isNotEmpty()) View.VISIBLE else View.GONE
+        updateDishCountText()
+    }
+
+    private fun updateDishCountText() {
+        val total = dishList.size
+        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) total else dishList.count { it.category.equals(selectedStoreCategory, ignoreCase = true) }
+        binding.tvDishTotalCount.text = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
+            "$total món đang mở bán"
+        } else {
+            "$filtered/$total món • $selectedStoreCategory"
+        }
+    }
+
+    private var onImagePickedCallback: ((String) -> Unit)? = null
+
+    private val pickImageLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            val base64 = convertUriToBase64(uri)
+            if (base64 != null) {
+                onImagePickedCallback?.invoke(base64)
+            } else {
+                Toast.makeText(requireContext(), "Không thể tải ảnh, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Nén và chuyển đổi ảnh Uri sang Base64
+     * Cách hoạt động: Đọc Stream từ Uri, scale kích thước về tối đa 450px và nén JPEG 80% để lưu trữ trực tiếp vào Firestore dạng chuỗi base64 nhẹ.
+     * Luồng hướng tới: Cung cấp dữ liệu ảnh lưu trữ cho Dish.
+     */
+    private fun convertUriToBase64(uri: Uri): String? {
+        return try {
+            val inputStream = requireContext().contentResolver.openInputStream(uri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap == null) return null
+
+            val maxDim = 450
+            val width = originalBitmap.width
+            val height = originalBitmap.height
+            val scale = (maxDim.toFloat() / maxOf(width, height)).coerceAtMost(1.0f)
+            val scaledWidth = (width * scale).toInt()
+            val scaledHeight = (height * scale).toInt()
+
+            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, scaledWidth, scaledHeight, true)
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
+            val byteArray = outputStream.toByteArray()
+            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * Tên chức năng: Tải và hiển thị ảnh xem trước món ăn
+     * Cách hoạt động: Dùng Glide tải ảnh từ Base64 hoặc URL trực tuyến với cơ chế fallback icon mặc định.
+     * Luồng hướng tới: Cập nhật ImageView trong modal chỉnh sửa món.
+     */
+    private fun loadPreviewImage(targetView: ImageView, urlOrBase64: String) {
+        if (urlOrBase64.isBlank()) {
+            targetView.setImageResource(R.drawable.bg_badge_orange)
+            return
+        }
+        if (urlOrBase64.startsWith("data:image") || urlOrBase64.length > 500) {
+            try {
+                val clean = if (urlOrBase64.contains(",")) urlOrBase64.substringAfter(",") else urlOrBase64
+                val decoded = Base64.decode(clean, Base64.DEFAULT)
+                Glide.with(this)
+                    .asBitmap()
+                    .load(decoded)
+                    .placeholder(R.drawable.bg_badge_orange)
+                    .error(R.drawable.bg_badge_orange)
+                    .centerCrop()
+                    .into(targetView)
+                return
+            } catch (_: Exception) {}
+        }
+        Glide.with(this)
+            .load(urlOrBase64)
+            .placeholder(R.drawable.bg_badge_orange)
+            .error(R.drawable.bg_badge_orange)
+            .centerCrop()
+            .into(targetView)
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Dialog Thêm mới / Chỉnh sửa Món ăn
+     * Cách hoạt động:
+     *  - Nếu editingDish != null: Nạp thông tin hiện có để sửa.
+     *  - Nếu editingDish == null: Mở form trống để tạo món mới.
+     *  - Hỗ trợ chọn ảnh từ máy hoặc nhập URL trực tuyến.
+     *  - Khi bấm Lưu: Gọi [FirebaseRepository.saveStoreDish] để đẩy lên Firestore.
+     * Luồng hướng tới: Cập nhật trực tiếp thực đơn trên Firestore và thông báo thành công.
+     */
+    /** Rung lắc cảnh báo trường nhập liệu bị thiếu hoặc không hợp lệ */
+    private fun shakeView(view: View) {
+        val shake = android.view.animation.TranslateAnimation(0f, 14f, 0f, 0f).apply {
+            duration = 400
+            interpolator = android.view.animation.CycleInterpolator(3f)
+        }
+        view.startAnimation(shake)
+    }
+
+    private fun showDishDialog(editingDish: Dish?) {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_edit_dish)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val tvTitle = dialog.findViewById<TextView>(R.id.tvModalTitle)
+        val cardPreview = dialog.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardDishPreview)
+        val ivPreview = dialog.findViewById<ImageView>(R.id.ivDishPreview)
+        val btnPickImage = dialog.findViewById<MaterialButton>(R.id.btnPickDishImage)
+        val tvImageStatus = dialog.findViewById<TextView>(R.id.tvImageStatusNotice)
+        val tvNameCount = dialog.findViewById<TextView>(R.id.tvDishNameCount)
+        val etName = dialog.findViewById<EditText>(R.id.etDishName)
+        val tvPriceFormatted = dialog.findViewById<TextView>(R.id.tvPriceFormatted)
+        val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
+        val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
+        val spinnerPlatformCategory = dialog.findViewById<Spinner>(R.id.spinnerPlatformCategory)
+        val tvDescCount = dialog.findViewById<TextView>(R.id.tvDishDescCount)
+        val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
+        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
+        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
+
+        var currentImageUrl = editingDish?.imageUrl.orEmpty()
+
+        val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories.toTypedArray())
+        spinnerCategory.adapter = storeAdapter
+
+        val tvQuickManage = dialog.findViewById<TextView>(R.id.tvQuickManageCategories)
+        tvQuickManage?.setOnClickListener {
+            showQuickAddCategoryDialog { newCat ->
+                val updatedAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories.toTypedArray())
+                spinnerCategory.adapter = updatedAdapter
+                val newIndex = storeCategories.indexOfFirst { it.equals(newCat, ignoreCase = true) }
+                if (newIndex >= 0) spinnerCategory.setSelection(newIndex)
+            }
+        }
+
+        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories.toTypedArray())
+        spinnerPlatformCategory.adapter = platformAdapter
+
+        var userSelectedPlatformCategory = false
+        spinnerPlatformCategory.setOnTouchListener { _, _ ->
+            userSelectedPlatformCategory = true
+            false
+        }
+
+        // Tự động đếm ký tự & gợi ý danh mục nền tảng khi gõ tên món
+        etName.doAfterTextChanged { text ->
+            val inputLength = text?.length ?: 0
+            tvNameCount.text = "$inputLength/60"
+            etName.error = null
+
+            if (!userSelectedPlatformCategory && editingDish == null) {
+                val input = text?.toString().orEmpty().lowercase()
+                val suggestedIndex = when {
+                    input.contains("cơm") -> platformCategories.indexOfFirst { it.contains("cơm", true) }
+                    input.contains("bún đậu") || (input.contains("bún") && input.contains("đậu")) -> platformCategories.indexOfFirst { it.contains("bún đậu", true) }
+                    input.contains("phở") || input.contains("bún") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("phở", true) }
+                    input.contains("trà sữa") || input.contains("tra sua") || input.contains("trà") -> platformCategories.indexOfFirst { it.contains("trà sữa", true) }
+                    input.contains("nước ép") || input.contains("sinh tố") || input.contains("nước") || input.contains("ép") -> platformCategories.indexOfFirst { it.contains("nước ép", true) }
+                    else -> -1
+                }
+                if (suggestedIndex >= 0) {
+                    spinnerPlatformCategory.setSelection(suggestedIndex)
+                }
+            }
+        }
+
+        // Định dạng số tiền real-time khi gõ giá bán
+        etPrice.doAfterTextChanged { text ->
+            etPrice.error = null
+            val raw = text?.toString()?.trim().orEmpty()
+            val amount = raw.toLongOrNull()
+            if (amount != null && amount > 0L) {
+                tvPriceFormatted.text = "= ${amount.toVndCurrency()}"
+            } else {
+                tvPriceFormatted.text = ""
+            }
+        }
+
+        // Đếm ký tự mô tả
+        etDescription.doAfterTextChanged { text ->
+            val inputLength = text?.length ?: 0
+            tvDescCount.text = "$inputLength/200"
+            etDescription.error = null
+        }
+
+        // Thiết lập dữ liệu ban đầu
+        if (editingDish != null) {
+            tvTitle.text = "Chỉnh Sửa Món Ăn"
+            etName.setText(editingDish.name)
+            val currentPrice = if (editingDish.basePrice > 0) editingDish.basePrice else editingDish.price
+            etPrice.setText(currentPrice.toString())
+            tvPriceFormatted.text = if (currentPrice > 0L) "= ${currentPrice.toVndCurrency()}" else ""
+            etDescription.setText(editingDish.description)
+            tvNameCount.text = "${editingDish.name.length}/60"
+            tvDescCount.text = "${editingDish.description.length}/200"
+
+            loadPreviewImage(ivPreview, editingDish.imageUrl)
+            if (editingDish.imageUrl.isNotBlank()) {
+                tvImageStatus.text = "Đã có ảnh món ăn"
+                tvImageStatus.setTextColor(Color.parseColor("#059669"))
+                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+            } else {
+                tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
+                tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
+            }
+
+            val catIndex = storeCategories.indexOfFirst { it.equals(editingDish.category, ignoreCase = true) }
+            if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
+
+            val platIndex = platformCategories.indexOfFirst {
+                it.equals(editingDish.platformCategory, ignoreCase = true) ||
+                it.equals(editingDish.categoryId, ignoreCase = true)
+            }
+            if (platIndex >= 0) {
+                spinnerPlatformCategory.setSelection(platIndex)
+            } else {
+                val fallbackIndex = platformCategories.indexOfFirst {
+                    editingDish.platformCategory.isNotBlank() && it.contains(editingDish.platformCategory, true)
+                }
+                if (fallbackIndex >= 0) spinnerPlatformCategory.setSelection(fallbackIndex)
+            }
+        } else {
+            tvTitle.text = "Thêm Món Mới Vào Menu"
+            tvNameCount.text = "0/60"
+            tvDescCount.text = "0/200"
+            tvPriceFormatted.text = ""
+            tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
+            tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
+            loadPreviewImage(ivPreview, "")
+        }
+
+        // Tải ảnh từ thư viện thiết bị (Bắt buộc)
+        btnPickImage.setOnClickListener {
+            onImagePickedCallback = { base64Data ->
+                currentImageUrl = base64Data
+                loadPreviewImage(ivPreview, base64Data)
+                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
+                tvImageStatus.text = "Đã có ảnh món ăn"
+                tvImageStatus.setTextColor(Color.parseColor("#059669"))
+                Toast.makeText(requireContext(), "Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
+            }
+            pickImageLauncher.launch("image/*")
+        }
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+
+        btnSave.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val priceStr = etPrice.text.toString().trim()
+            val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
+            val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
+            val description = etDescription.text.toString().trim()
+            val finalImageUrl = currentImageUrl.trim()
+
+            // 1. Kiểm tra ảnh món ăn (Bắt buộc)
+            if (finalImageUrl.isBlank()) {
+                cardPreview.strokeColor = Color.parseColor("#DC2626")
+                shakeView(cardPreview)
+                Toast.makeText(requireContext(), "Hình ảnh món ăn là bắt buộc. Vui lòng tải ảnh từ thiết bị!", Toast.LENGTH_LONG).show()
+                return@setOnClickListener
+            }
+
+            // 2. Kiểm tra tên món ăn (Bắt buộc, 2 - 60 ký tự)
+            if (name.isBlank()) {
+                etName.error = "Vui lòng nhập tên món ăn"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Vui lòng nhập tên món ăn!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (name.length < 2) {
+                etName.error = "Tên món ăn quá ngắn (tối thiểu 2 ký tự)"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Tên món ăn quá ngắn (tối thiểu 2 ký tự)!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (name.length > 60) {
+                etName.error = "Tên món ăn tối đa 60 ký tự"
+                shakeView(etName)
+                etName.requestFocus()
+                Toast.makeText(requireContext(), "Tên món ăn không được vượt quá 60 ký tự!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 3. Kiểm tra giá bán (Bắt buộc, 1.000 đ - 50.000.000 đ)
+            if (priceStr.isBlank()) {
+                etPrice.error = "Vui lòng nhập giá bán"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Vui lòng nhập giá bán của món!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val price = priceStr.toLongOrNull() ?: 0L
+            if (price < 1000L) {
+                etPrice.error = "Giá bán tối thiểu là 1.000 đ"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Giá bán tối thiểu là 1.000 đ!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (price > 50000000L) {
+                etPrice.error = "Giá bán không vượt quá 50.000.000 đ"
+                shakeView(etPrice)
+                etPrice.requestFocus()
+                Toast.makeText(requireContext(), "Giá bán tối đa là 50.000.000 đ!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // 4. Kiểm tra mô tả món ăn (Tối đa 200 ký tự)
+            if (description.length > 200) {
+                etDescription.error = "Mô tả không được vượt quá 200 ký tự"
+                shakeView(etDescription)
+                etDescription.requestFocus()
+                Toast.makeText(requireContext(), "Mô tả món ăn không được vượt quá 200 ký tự!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val matchedCategory = platformCategoryObjects.find { it.categoryName.equals(platformCategory, ignoreCase = true) }
+            val finalCategoryId = matchedCategory?.categoryId?.ifBlank { null } ?: "cat_other"
+
+            if (editingDish != null) {
+                // Sửa món
+                val updated = editingDish.copy(
+                    name = name,
+                    basePrice = price,
+                    category = category,
+                    platformCategory = platformCategory,
+                    categoryId = finalCategoryId,
+                    description = description,
+                    imageUrl = finalImageUrl,
+                    storeId = currentStoreId
+                )
+                val index = dishList.indexOfFirst { it.id == editingDish.id }
+                if (index >= 0) {
+                    dishList[index] = updated
+                }
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                    firebaseRepository.saveStoreDish(currentStoreId, updated)
+                }
+                Toast.makeText(requireContext(), "Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
+            } else {
+                // Thêm món mới
+                val newDishId = "dish_${currentStoreId}_${System.currentTimeMillis()}"
+                val newDish = Dish(
+                    id = newDishId,
+                    storeId = currentStoreId,
+                    name = name,
+                    basePrice = price,
+                    category = category,
+                    platformCategory = platformCategory,
+                    categoryId = finalCategoryId,
+                    description = description,
+                    imageUrl = finalImageUrl,
+                    isAvailable = true
+                )
+                dishList.add(newDish)
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                    firebaseRepository.saveStoreDish(currentStoreId, newDish)
+                }
+                Toast.makeText(requireContext(), "Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
+            }
+
+            updateList()
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại xác nhận và Xóa món ăn
+     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa món trên Firestore via [FirebaseRepository.deleteStoreDish].
+     * Luồng hướng tới: Gỡ bỏ món khỏi thực đơn của quán.
+     */
+    private fun confirmDeleteDish(dish: Dish) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xác Nhận Xóa")
+            .setMessage("Bạn có chắc chắn muốn xóa món [${dish.name}] khỏi thực đơn quán?")
+            .setPositiveButton("Xóa") { _, _ ->
+                dishList.removeAll { it.id == dish.id }
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                    firebaseRepository.deleteStoreDish(currentStoreId, dish.id)
+                }
+                updateList()
+                Toast.makeText(requireContext(), "Đã xóa món khỏi thực đơn!", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại Quản lý danh mục quán (Thêm, Sửa tên, Xóa, Khôi phục)
+     */
+    private fun showManageCategoriesDialog() {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_manage_store_categories)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etNewCategory = dialog.findViewById<EditText>(R.id.etNewCategory)
+        val btnAddCategory = dialog.findViewById<MaterialButton>(R.id.btnAddCategory)
+        val rvCategories = dialog.findViewById<RecyclerView>(R.id.rvStoreCategories)
+        val layoutEmpty = dialog.findViewById<View>(R.id.layoutEmptyCategories)
+        val btnDone = dialog.findViewById<MaterialButton>(R.id.btnDone)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseDialog)
+
+        lateinit var catAdapter: ManageStoreCategoryAdapter
+
+        fun refreshCategoryList() {
+            val items = storeCategories.map { cat ->
+                StoreCategoryItem(cat, dishList.count { it.category.equals(cat, ignoreCase = true) })
+            }
+            catAdapter.submitList(items)
+            layoutEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
+            rvCategories.visibility = if (items.isNotEmpty()) View.VISIBLE else View.GONE
+        }
+
+        catAdapter = ManageStoreCategoryAdapter(
+            onEditClick = { oldName ->
+                showRenameCategoryDialog(oldName) {
+                    refreshCategoryList()
+                }
+            },
+            onDeleteClick = { catName, dishCount ->
+                confirmDeleteCategory(catName, dishCount) {
+                    refreshCategoryList()
+                }
+            }
+        )
+
+        rvCategories.layoutManager = LinearLayoutManager(requireContext())
+        rvCategories.adapter = catAdapter
+        refreshCategoryList()
+
+        btnAddCategory.setOnClickListener {
+            val newName = etNewCategory.text.toString().trim()
+            if (newName.isBlank()) {
+                Toast.makeText(requireContext(), "Vui lòng nhập tên danh mục!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (storeCategories.any { it.equals(newName, ignoreCase = true) }) {
+                Toast.makeText(requireContext(), "Danh mục [$newName] đã tồn tại!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                val result = firebaseRepository.addStoreCategory(currentStoreId, newName)
+                if (result.isSuccess) {
+                    if (!storeCategories.contains(newName)) {
+                        storeCategories.add(newName)
+                    }
+                    etNewCategory.setText("")
+                    refreshCategoryList()
+                    setupCategoryFilterChips()
+                    Toast.makeText(requireContext(), "✓ Đã thêm danh mục [$newName]!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val dismissAction = View.OnClickListener { dialog.dismiss() }
+        btnClose.setOnClickListener(dismissAction)
+        btnDone.setOnClickListener(dismissAction)
+
+        dialog.show()
+    }
+
+    /**
+     * Hộp thoại Đổi tên danh mục
+     */
+    private fun showRenameCategoryDialog(oldName: String, onUpdated: () -> Unit) {
+        val renameDialog = Dialog(requireContext())
+        renameDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        renameDialog.setContentView(R.layout.dialog_edit_category_name)
+        renameDialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        renameDialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.88).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etRename = renameDialog.findViewById<EditText>(R.id.etRenameCategory)
+        val btnCancel = renameDialog.findViewById<MaterialButton>(R.id.btnCancelRename)
+        val btnConfirm = renameDialog.findViewById<MaterialButton>(R.id.btnConfirmRename)
+
+        etRename.setText(oldName)
+        etRename.setSelection(oldName.length)
+
+        btnCancel.setOnClickListener { renameDialog.dismiss() }
+
+        btnConfirm.setOnClickListener {
+            val newName = etRename.text.toString().trim()
+            if (newName.isBlank()) {
+                Toast.makeText(requireContext(), "Tên danh mục không được để trống!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            if (newName.equals(oldName, ignoreCase = true)) {
+                renameDialog.dismiss()
+                return@setOnClickListener
+            }
+
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                val result = firebaseRepository.renameStoreCategory(currentStoreId, oldName, newName)
+                if (result.isSuccess) {
+                    val idx = storeCategories.indexOfFirst { it.equals(oldName, ignoreCase = true) }
+                    if (idx != -1) storeCategories[idx] = newName
+                    if (selectedStoreCategory.equals(oldName, ignoreCase = true)) {
+                        selectedStoreCategory = newName
+                    }
+                    // Cập nhật cục bộ các món ăn
+                    dishList.forEachIndexed { i, dish ->
+                        if (dish.category.equals(oldName, ignoreCase = true)) {
+                            dishList[i] = dish.copy(category = newName)
+                        }
+                    }
+                    setupCategoryFilterChips()
+                    updateList()
+                    onUpdated()
+                    renameDialog.dismiss()
+                    Toast.makeText(requireContext(), "✓ Đã đổi tên thành [$newName]!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        renameDialog.show()
+    }
+
+    /**
+     * Xác nhận và xóa danh mục quán
+     */
+    private fun confirmDeleteCategory(catName: String, dishCount: Int, onDeleted: () -> Unit) {
+        val msg = if (dishCount > 0) {
+            "Danh mục [$catName] đang có $dishCount món ăn. Khi xóa danh mục này, các món ăn trên sẽ được tự động chuyển sang nhóm 'Món Khác'."
+        } else {
+            "Bạn có chắc chắn muốn xóa danh mục [$catName]?"
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Xác Nhận Xóa Danh Mục")
+            .setMessage(msg)
+            .setPositiveButton("Xóa") { _, _ ->
+                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                    val res = firebaseRepository.deleteStoreCategory(currentStoreId, catName)
+                    if (res.isSuccess) {
+                        storeCategories.removeAll { it.equals(catName, ignoreCase = true) }
+                        if (selectedStoreCategory.equals(catName, ignoreCase = true)) {
+                            selectedStoreCategory = "ALL"
+                        }
+                        // Chuyển các món thuộc catName sang "Món Khác"
+                        if (dishCount > 0) {
+                            dishList.forEachIndexed { i, dish ->
+                                if (dish.category.equals(catName, ignoreCase = true)) {
+                                    val updated = dish.copy(category = "Món Khác")
+                                    dishList[i] = updated
+                                    firebaseRepository.saveStoreDish(currentStoreId, updated)
+                                }
+                            }
+                        }
+                        setupCategoryFilterChips()
+                        updateList()
+                        onDeleted()
+                        Toast.makeText(requireContext(), "Đã xóa danh mục [$catName]!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Thêm nhanh danh mục khi đang tạo/sửa món ăn
+     */
+    private fun showQuickAddCategoryDialog(onCategoryAdded: (String) -> Unit) {
+        val input = EditText(requireContext()).apply {
+            hint = "Nhập tên danh mục mới (vd: Trà Hoa Quả)"
+            setSingleLine(true)
+            setPadding(40, 30, 40, 30)
+        }
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Thêm Nhanh Danh Mục Mới")
+            .setView(input)
+            .setPositiveButton("Thêm") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotBlank()) {
+                    if (storeCategories.any { it.equals(newName, ignoreCase = true) }) {
+                        onCategoryAdded(newName)
+                        return@setPositiveButton
+                    }
+                    (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                        val res = firebaseRepository.addStoreCategory(currentStoreId, newName)
+                        if (res.isSuccess) {
+                            if (!storeCategories.contains(newName)) {
+                                storeCategories.add(newName)
+                            }
+                            setupCategoryFilterChips()
+                            onCategoryAdded(newName)
+                            Toast.makeText(requireContext(), "✓ Đã thêm danh mục [$newName]!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(requireContext(), res.exceptionOrNull()?.message ?: "Lỗi thêm danh mục", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Hủy", null)
+            .show()
+    }
+
+    /**
+     * Tên chức năng: Hộp thoại Tạo Combo Món Mới
+     * Đặc điểm:
+     *  - Quán chọn các món lẻ đưa vào combo kèm số lượng.
+     *  - Hệ thống tự động tính tổng giá gốc của các món lẻ.
+     *  - Quán TỰ DO CHỈNH GIÁ BÁN combo theo ý muốn.
+     *  - Hệ thống tính toán và hiển thị % tiết kiệm cho khách hàng.
+     */
+    private fun showCreateComboDialog() {
+        val availableDishes = dishList.filter { !it.isCombo }
+        if (availableDishes.size < 2) {
+            Toast.makeText(requireContext(), "Quán cần có ít nhất 2 món lẻ trong thực đơn để tạo Combo!", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_create_combo)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val etComboName = dialog.findViewById<EditText>(R.id.etComboName)
+        val tvSelectCountNote = dialog.findViewById<TextView>(R.id.tvSelectCountNote)
+        val rvSelectDishes = dialog.findViewById<RecyclerView>(R.id.rvSelectDishes)
+        val tvOriginalPriceTotal = dialog.findViewById<TextView>(R.id.tvOriginalPriceTotal)
+        val etComboPrice = dialog.findViewById<EditText>(R.id.etComboPrice)
+        val tvSavingsNote = dialog.findViewById<TextView>(R.id.tvSavingsNote)
+        val ivComboPreview = dialog.findViewById<ImageView>(R.id.ivComboPreview)
+        val btnPickComboImage = dialog.findViewById<MaterialButton>(R.id.btnPickComboImage)
+        val etComboDescription = dialog.findViewById<EditText>(R.id.etComboDescription)
+        val btnCancelCombo = dialog.findViewById<MaterialButton>(R.id.btnCancelCombo)
+        val btnSaveCombo = dialog.findViewById<MaterialButton>(R.id.btnSaveCombo)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseComboDialog)
+
+        var pickedImageBase64: String = ""
+
+        lateinit var comboAdapter: SelectComboDishAdapter
+
+        fun updatePriceCalculation() {
+            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
+            tvOriginalPriceTotal.text = totalOriginal.toVndCurrency()
+            val selected = comboAdapter.getSelectedItems()
+            tvSelectCountNote.text = if (selected.isEmpty()) {
+                "Chọn ít nhất 2 món ăn / thức uống"
+            } else {
+                "Đã chọn ${selected.size} món (tổng ${selected.sumOf { it.quantity }} phần)"
+            }
+
+            val priceInput = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
+            if (priceInput > 0L && totalOriginal > priceInput) {
+                val diff = totalOriginal - priceInput
+                val pct = ((diff.toDouble() / totalOriginal.toDouble()) * 100).toInt()
+                tvSavingsNote.text = "🎉 Tiết kiệm ${diff.toVndCurrency()} (-$pct%) cho khách!"
+                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            } else if (priceInput >= totalOriginal && totalOriginal > 0L) {
+                tvSavingsNote.text = "💡 Giá bán nên thấp hơn tổng giá gốc để thu hút khách mua hơn"
+                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.primary))
+            } else {
+                tvSavingsNote.text = "💡 Giá bán Combo do Quán tự quyết định theo ý muốn"
+                tvSavingsNote.setTextColor(Color.parseColor("#9A3412"))
+            }
+
+            // Nếu chưa chọn ảnh và có chọn món, lấy ảnh món đầu tiên làm preview
+            if (pickedImageBase64.isBlank()) {
+                val firstWithImg = selected.firstOrNull { it.dish.imageUrl.isNotBlank() }
+                if (firstWithImg != null) {
+                    ivComboPreview.setPadding(0, 0, 0, 0)
+                    ivComboPreview.imageTintList = null
+                    loadPreviewImage(ivComboPreview, firstWithImg.dish.imageUrl)
+                } else {
+                    val pad = (12 * resources.displayMetrics.density).toInt()
+                    ivComboPreview.setPadding(pad, pad, pad, pad)
+                    ivComboPreview.setImageResource(R.drawable.ic_utensils_crossed)
+                    ivComboPreview.imageTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
+                }
+            }
+        }
+
+        comboAdapter = SelectComboDishAdapter {
+            updatePriceCalculation()
+        }
+
+        rvSelectDishes.layoutManager = LinearLayoutManager(requireContext())
+        rvSelectDishes.adapter = comboAdapter
+        comboAdapter.submitDishes(availableDishes)
+
+        etComboPrice.doAfterTextChanged {
+            updatePriceCalculation()
+        }
+
+        btnPickComboImage.setOnClickListener {
+            onImagePickedCallback = { base64 ->
+                pickedImageBase64 = base64
+                ivComboPreview.setPadding(0, 0, 0, 0)
+                ivComboPreview.imageTintList = null
+                loadPreviewImage(ivComboPreview, base64)
+            }
+            pickImageLauncher.launch("image/*")
+        }
+
+        btnCancelCombo.setOnClickListener { dialog.dismiss() }
+        btnClose.setOnClickListener { dialog.dismiss() }
+
+        btnSaveCombo.setOnClickListener {
+            val name = etComboName.text.toString().trim()
+            if (name.isBlank()) {
+                Toast.makeText(requireContext(), "Vui lòng nhập tên Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val selectedItems = comboAdapter.getSelectedItems()
+            if (selectedItems.size < 2) {
+                Toast.makeText(requireContext(), "Vui lòng chọn ít nhất 2 món đưa vào Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val price = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
+            if (price <= 0L) {
+                Toast.makeText(requireContext(), "Vui lòng nhập giá bán hợp lệ của Combo!", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
+            val desc = etComboDescription.text.toString().trim()
+            val finalImageUrl = if (pickedImageBase64.isNotBlank()) {
+                pickedImageBase64
+            } else {
+                selectedItems.firstOrNull { it.dish.imageUrl.isNotBlank() }?.dish?.imageUrl.orEmpty()
+            }
+
+            val comboItemsList = selectedItems.map {
+                com.chuyen_de_2.foodorder.core.data.model.ComboItem(
+                    dishId = it.dish.id,
+                    name = it.dish.name,
+                    quantity = it.quantity,
+                    price = if (it.dish.basePrice > 0) it.dish.basePrice else it.dish.price
+                )
+            }
+
+            val comboDish = Dish(
+                id = "combo_${System.currentTimeMillis()}",
+                storeId = currentStoreId,
+                name = name,
+                description = desc,
+                imageUrl = finalImageUrl,
+                basePrice = price,
+                originalPrice = totalOriginal,
+                isCombo = true,
+                comboItems = comboItemsList,
+                category = "Combo",
+                platformCategory = "Combo",
+                isAvailable = true
+            )
+
+            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
+                try {
+                    firebaseRepository.saveStoreDish(currentStoreId, comboDish)
+                    if (!storeCategories.contains("Combo")) {
+                        firebaseRepository.addStoreCategory(currentStoreId, "Combo")
+                        storeCategories.add("Combo")
+                        setupCategoryFilterChips()
+                    }
+                    dishList.add(comboDish)
+                    updateList()
+                    Toast.makeText(requireContext(), "✓ Đã tạo Combo [$name] thành công!", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Lỗi tạo Combo: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        dialog.show()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    companion object {
+        fun newInstance() = MenuManageFragment()
     }
 }
 ````
@@ -72838,6 +74344,7 @@ class ShipperViewModel @Inject constructor(
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background"
@@ -72945,7 +74452,8 @@ class ShipperViewModel @Inject constructor(
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="0908 123 456 • Sirius 59-T1 882.91"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="0908 123 456 • Sirius 59-T1 882.91"
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
@@ -73054,7 +74562,8 @@ class ShipperViewModel @Inject constructor(
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="Sirius FI"
+                        android:text="Chưa cập nhật"
+                        tools:text="Sirius FI"
                         android:textColor="@color/text_primary"
                         android:textSize="12.5sp"
                         android:textStyle="bold" />
@@ -73625,7 +75134,8 @@ class ShipperViewModel @Inject constructor(
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
-                        android:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
+                        android:text="Tài xế chuyên quán"
+                        tools:text="Tài xế chuyên quán • Sirius 59-T1 882.91"
                         android:textColor="@color/text_secondary"
                         android:textSize="11.5sp" />
                 </LinearLayout>
@@ -75005,6 +76515,11 @@ backup_*.json
 
 # Office temp lock files
 ~$*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
 ````
 
 ## File: app-admin/src/main/res/layout/dialog_edit_order.xml
@@ -76660,112 +78175,155 @@ backup_*.json
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 ````
 
-## File: app-admin/src/main/res/layout/fragment_admin_category_list.xml
+## File: app-admin/src/main/res/layout/fragment_admin_dashboard.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefreshCategory"
+    android:id="@+id/swipeRefresh"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <LinearLayout
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
+        android:fillViewport="true">
 
-        <!-- Elevated Taxonomy Studio Header Card -->
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="14dp"
-            android:layout_marginTop="14dp"
-            android:layout_marginBottom="8dp"
-            app:cardBackgroundColor="@color/white"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="2dp"
-            app:strokeColor="@color/border"
-            app:strokeWidth="1dp">
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="18dp"
+            android:paddingBottom="28dp">
 
+            <!-- Executive Telemetry Header -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="20dp"
+                    android:background="@color/primary" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:letterSpacing="0.03"
+                        android:text="TRUNG TÂM ĐIỀU HÀNH SÀN"
+                        android:textColor="@color/text_primary"
+                        android:textSize="17sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="1dp"
+                        android:text="Số liệu giám sát trực tiếp từ Realtime Database"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="11.5sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvLiveStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_badge_green"
+                    android:paddingHorizontal="10dp"
+                    android:paddingVertical="5dp"
+                    android:text="● LIVE SYNC"
+                    android:textColor="@color/brand_green"
+                    android:textSize="10.5sp"
+                    android:textStyle="bold"
+                    android:singleLine="true"
+                    android:ellipsize="end" />
+            </LinearLayout>
+
+            <!-- Urgent Attention Priority Banner -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardUrgentBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/brand_orange_bg"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/brand_orange"
+                app:strokeWidth="1.5dp"
+                tools:visibility="visible">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:orientation="horizontal"
+                    android:padding="14dp">
 
                     <FrameLayout
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:background="@drawable/bg_circle_icon_purple">
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_circle_icon_orange">
 
                         <ImageView
                             android:importantForAccessibility="no"
-                            android:layout_width="20dp"
-                            android:layout_height="20dp"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
                             android:layout_gravity="center"
-                            android:src="@drawable/ic_tag"
-                            app:tint="@color/purple" />
+                            android:src="@drawable/ic_alert_triangle"
+                            app:tint="@color/brand_orange" />
                     </FrameLayout>
 
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="12dp"
+                        android:layout_marginEnd="8dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:letterSpacing="0.02"
-                            android:text="DANH MỤC ẨM THỰC TOÀN SÀN"
-                            android:textColor="@color/text_primary"
-                            android:textSize="16.5sp"
+                            android:letterSpacing="0.05"
+                            android:text="⚡ HỒ SƠ CẦN PHÊ DUYỆT NGAY"
+                            android:textColor="@color/brand_orange"
+                            android:textSize="10.5sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/tvCategoryStats"
+                            android:id="@+id/tvUrgentMessage"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:textColor="@color/purple"
-                            android:textSize="12sp"
+                            android:textColor="@color/text_primary"
+                            android:textSize="13sp"
                             android:textStyle="bold"
-                            tools:text="Tổng: 5 nhóm món • 5 đang hiển thị trên app Khách" />
+                            tools:text="Có 2 quán chờ duyệt CCCD và 1 khiếu nại chưa xử lý." />
                     </LinearLayout>
-                </LinearLayout>
-
-                <!-- Action Toolbar -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="horizontal">
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnAddCategory"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_marginEnd="6dp"
-                        android:layout_weight="1.15"
+                        android:id="@+id/btnQuickHandleUrgent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="40dp"
                         android:backgroundTint="@color/primary"
-                        android:text="Thêm Danh Mục"
+                        android:text="Xử lý"
                         android:textColor="@color/white"
-                        android:textSize="12.5sp"
+                        android:textSize="11.5sp"
                         android:textStyle="bold"
-                        app:cornerRadius="12dp"
-                        app:icon="@drawable/ic_plus"
-                        app:iconGravity="textStart"
-                        app:iconSize="18dp"
-                        app:iconTint="@color/white"
+                        app:cornerRadius="10dp"
                         android:insetTop="0dp"
                         android:insetBottom="0dp"
                         android:minHeight="0dp"
@@ -76774,22 +78332,848 @@ backup_*.json
                         android:paddingEnd="12dp"
                         android:paddingTop="0dp"
                         android:paddingBottom="0dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Executive GMV Financial Hero Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardRevenue"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardCornerRadius="22dp"
+                app:cardElevation="6dp"
+                app:strokeColor="#334155"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_kpi_card_revenue"
+                    android:orientation="vertical"
+                    android:padding="22dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_glass_pill">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_banknote"
+                                app:tint="#FF7849" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:letterSpacing="0.06"
+                                android:text="TỔNG GIÁ TRỊ GIAO DỊCH (GMV)"
+                                android:textColor="#CBD5E1"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Doanh thu lũy kế từ các đơn hoàn tất"
+                                android:textColor="@color/text_muted"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+
+                        <FrameLayout
+                            android:layout_width="32dp"
+                            android:layout_height="32dp"
+                            android:background="@drawable/bg_glass_pill">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="16dp"
+                                android:layout_height="16dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_chevron_right"
+                                app:tint="@color/white" />
+                        </FrameLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvRevenue"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:textColor="@color/white"
+                        android:textSize="34sp"
+                        android:textStyle="bold"
+                        tools:text="15.820.000 đ" />
+
+                    <!-- Glassmorphic Order Breakdown Pills -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_pill"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="8dp">
+
+                            <TextView
+                                android:id="@+id/tvCompletedOrdersChip"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🟢 42 Đơn hoàn tất"
+                                android:textColor="#6EE7B7"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_glass_pill"
+                            android:gravity="center_vertical"
+                            android:paddingHorizontal="12dp"
+                            android:paddingVertical="8dp">
+
+                            <TextView
+                                android:id="@+id/tvBoomOrdersChip"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="🔴 6 Đơn huỷ/boom"
+                                android:textColor="#FDA4AF"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Bento KPI Grid: Row 1 (Stores & Complaints) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <!-- 🏪 Quán Ăn Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardStores"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_orange_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_orange" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_orange">
+
+                                    <ImageView
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_store"
+                                        app:tint="@color/brand_orange" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Đối tác Quán"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:importantForAccessibility="no"
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvActiveStores"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="12" />
+
+                            <TextView
+                                android:id="@+id/tvPendingStores"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_orange"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_orange"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="3 chờ duyệt CCCD"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 🚨 Khiếu Nại Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardComplaints"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/danger_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/danger" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_red">
+
+                                    <ImageView
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_shield_alert"
+                                        app:tint="@color/danger" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Khiếu nại"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:importantForAccessibility="no"
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvPendingComplaints"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/danger"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="2" />
+
+                            <TextView
+                                android:id="@+id/tvComplaintSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_red"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:text="Chờ phán quyết"
+                                android:textColor="@color/danger"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                android:singleLine="true"
+                                android:ellipsize="end" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Bento KPI Grid: Row 2 (Orders & Users) -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="18dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <!-- 📦 Đơn Hàng Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardOrders"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_green_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_green" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_green">
+
+                                    <ImageView
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_package"
+                                        app:tint="@color/brand_green" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Tổng Đơn"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:importantForAccessibility="no"
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvTotalOrders"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="48" />
+
+                            <TextView
+                                android:id="@+id/tvOrderSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_green"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_green"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="42 hoàn thành • 6 huỷ" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- 👥 Người Dùng Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardUsers"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="2dp"
+                    app:rippleColor="@color/brand_blue_bg"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="4dp"
+                            android:background="@color/brand_blue" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:padding="15dp">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <FrameLayout
+                                    android:layout_width="36dp"
+                                    android:layout_height="36dp"
+                                    android:background="@drawable/bg_circle_icon_blue">
+
+                                    <ImageView
+                                        android:importantForAccessibility="no"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:src="@drawable/ic_users"
+                                        app:tint="@color/brand_blue" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginStart="10dp"
+                                    android:layout_weight="1"
+                                    android:text="Người dùng"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="12.5sp"
+                                    android:textStyle="bold" />
+
+                                <ImageView
+                                    android:importantForAccessibility="no"
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:src="@drawable/ic_chevron_right"
+                                    app:tint="@color/text_muted" />
+                            </LinearLayout>
+
+                            <TextView
+                                android:id="@+id/tvTotalUsers"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="10dp"
+                                android:textColor="@color/text_primary"
+                                android:textSize="26sp"
+                                android:textStyle="bold"
+                                tools:text="28" />
+
+                            <TextView
+                                android:id="@+id/tvUserSubtext"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:background="@drawable/bg_badge_blue"
+                                android:ellipsize="end"
+                                android:maxLines="1"
+                                android:paddingHorizontal="8dp"
+                                android:paddingVertical="3dp"
+                                android:textColor="@color/brand_blue"
+                                android:textSize="10.5sp"
+                                android:textStyle="bold"
+                                tools:text="20 Khách • 8 Tài xế" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Quick Command Launcher Dock -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.04"
+                android:text="BẢNG ĐIỀU PHỐI TÁC VỤ NHANH"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickApproveStore"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_green">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_check_circle"
+                                app:tint="@color/brand_green" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Duyệt Quán"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickComplaints"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_red">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_shield_alert"
+                                app:tint="@color/danger" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Xử Phạt"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickAddCategory"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_purple">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_tag"
+                                app:tint="@color/purple" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Danh Mục"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/actionQuickMonitor"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/white"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="1dp"
+                    app:strokeColor="@color/border"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:orientation="vertical"
+                        android:paddingVertical="14dp"
+                        android:paddingHorizontal="6dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_circle_icon_blue">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_package"
+                                app:tint="@color/brand_blue" />
+                        </FrameLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="8dp"
+                            android:text="Đơn &amp; User"
+                            android:textColor="@color/text_primary"
+                            android:textSize="11.5sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- System Taxonomy Synchronization Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/border"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_circle_icon_indigo">
+
+                            <ImageView
+                                android:importantForAccessibility="no"
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:layout_gravity="center"
+                                android:src="@drawable/ic_sparkles"
+                                app:tint="@color/secondary" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Khởi tạo &amp; Đồng bộ 5 Danh Mục Chuẩn"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14.5sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Taxonomy Synchronization Engine"
+                                android:textColor="@color/secondary"
+                                android:textSize="11sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="14dp"
+                        android:text="Tự động đồng bộ 5 nhóm ẩm thực chuẩn (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnRestoreCategoryDefaults"
+                        android:id="@+id/btnRestoreCategories"
                         style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
+                        android:layout_width="match_parent"
                         android:layout_height="48dp"
-                        android:layout_marginStart="6dp"
-                        android:layout_weight="1"
-                        android:text="Khôi Phục 12 Mẫu"
+                        android:text="ĐỒNG BỘ 5 DANH MỤC CHUẨN NGAY"
                         android:textColor="@color/secondary"
-                        android:textSize="12sp"
+                        android:textSize="12.5sp"
                         android:textStyle="bold"
                         app:cornerRadius="12dp"
                         app:icon="@drawable/ic_refresh"
                         app:iconGravity="textStart"
-                        app:iconSize="16dp"
                         app:iconTint="@color/secondary"
                         app:strokeColor="@color/secondary"
                         app:strokeWidth="1.5dp"
@@ -76802,19 +79186,105 @@ backup_*.json
                         android:paddingTop="0dp"
                         android:paddingBottom="0dp" />
                 </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+            </com.google.android.material.card.MaterialCardView>
 
-        <!-- Category RecyclerView -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvCategories"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="28dp"
-            tools:listitem="@layout/item_admin_category" />
+            <!-- Card Cấu hình thời gian đếm ngược bom hàng / sự cố -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:layout_marginBottom="24dp"
+                app:cardBackgroundColor="@color/white"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="2dp"
+                app:strokeColor="@color/danger_bg"
+                app:strokeWidth="1dp">
 
-    </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:background="@drawable/bg_circle_icon_orange">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_gravity="center"
+                                android:text="⏱️"
+                                android:textSize="18sp" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="12dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Đếm ngược sự cố / Khách bom hàng"
+                                android:textColor="@color/text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvCurrentCountdownConfig"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Lần 1: 15 phút • Lần 2 (gia hạn): 15 phút"
+                                android:textColor="@color/brand_orange"
+                                android:textSize="11.5sp"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="14dp"
+                        android:text="Thiết lập thời gian đếm ngược Lần 1 và Lần 2 khi khách không nhận đơn / không nghe máy. Hệ thống tự động áp dụng thời gian thực cho Shipper và Khách hàng."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnConfigureCountdown"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="⏱️ CHỈNH SỬA THỜI GIAN ĐẾM NGƯỢC"
+                        android:textColor="@color/brand_orange"
+                        android:textSize="12.5sp"
+                        android:textStyle="bold"
+                        app:cornerRadius="12dp"
+                        app:strokeColor="@color/brand_orange"
+                        app:strokeWidth="1.5dp"
+                        android:insetTop="0dp"
+                        android:insetBottom="0dp"
+                        android:minHeight="0dp"
+                        android:minWidth="0dp"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="0dp"
+                        android:paddingBottom="0dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
 </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 ````
 
@@ -78075,599 +80545,6 @@ class CheckoutActivity : AppCompatActivity() {
 
 
 
-}
-````
-
-## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/home/HomeViewModel.kt
-````kotlin
-package com.chuyen_de_2.foodorder.customer.ui.home
-
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class HomeViewModel @Inject constructor(
-    private val firebaseRepository: FirebaseRepository
-) : ViewModel() {
-
-    private val _stores = MutableLiveData<List<Store>>(emptyList())
-    val stores: LiveData<List<Store>> = _stores
-    val restaurants: LiveData<List<Store>> get() = _stores
-
-    // Danh sách món ăn chính hiển thị trên trang chủ (100% từ dữ liệu thật do quán tự thêm)
-    private val _homeDishes = MutableLiveData<List<HomeDishItem>>(emptyList())
-    val homeDishes: LiveData<List<HomeDishItem>> = _homeDishes
-
-    // Danh sách quán ăn gần đây hiển thị trong Bottom Sheet Modal (100% từ quán thật)
-    private val _nearbyStores = MutableLiveData<List<NearbyStoreItem>>(emptyList())
-    val nearbyStores: LiveData<List<NearbyStoreItem>> = _nearbyStores
-
-    enum class HotTab {
-        BEST_SELLER,
-        FAVORITE
-    }
-
-    private val _currentHotTab = MutableLiveData(HotTab.BEST_SELLER)
-    val currentHotTab: LiveData<HotTab> = _currentHotTab
-
-    private var cachedOrders = listOf<com.chuyen_de_2.foodorder.core.data.model.Order>()
-    private var topBestSellerDishes = listOf<HotDish>()
-    private var topFavoriteDishes = listOf<HotDish>()
-
-    private val _hotDishes = MutableLiveData<List<HotDish>>(emptyList())
-    val hotDishes: LiveData<List<HotDish>> = _hotDishes
-
-    // Danh sách danh mục nền tảng thời gian thực từ Firebase
-    private val _platformCategories = MutableLiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>>(emptyList())
-    val platformCategories: LiveData<List<com.chuyen_de_2.foodorder.core.data.model.Category>> = _platformCategories
-
-    private val _isLoading = MutableLiveData(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
-    private var masterDishList = listOf<HomeDishItem>()
-    private var currentQuery: String? = null
-    private var currentCategory: String? = null
-    private var currentNearbyOnly: Boolean = false
-    var currentNearbyMaxDistanceKm: Double = 1.5
-        private set
-    var currentMinPrice: Long? = null
-        private set
-    var currentMaxPrice: Long? = null
-        private set
-    var currentMinRating: Float = 1.0f
-        private set
-    var currentMaxRating: Float = 5.0f
-        private set
-    private var currentPriceSort: PriceSort = PriceSort.NONE
-    private var currentUserLatLng: com.google.android.gms.maps.model.LatLng =
-        com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DEFAULT_HCMC_LATLNG
-
-    fun getUserLocation(): com.google.android.gms.maps.model.LatLng = currentUserLatLng
-
-    fun setUserLocation(lat: Double, lng: Double) {
-        if (lat != 0.0 && lng != 0.0) {
-            currentUserLatLng = com.google.android.gms.maps.model.LatLng(lat, lng)
-            _stores.value?.let { processStoresAndDishes(it) }
-        }
-    }
-
-    init {
-        loadStores()
-    }
-
-    fun loadStores() {
-        _isLoading.value = true
-        _error.value = null
-
-        viewModelScope.launch {
-            // Lắng nghe dữ liệu quán ăn thật theo thời gian thực từ Firebase Realtime Database
-            firebaseRepository.observeAllStores().collectLatest { firebaseStores ->
-                _isLoading.value = false
-                _stores.value = firebaseStores
-                processStoresAndDishes(firebaseStores)
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe đơn hàng để tính toán món bán chạy trong tuần
-            firebaseRepository.observeAllOrders().collectLatest { orders ->
-                cachedOrders = orders
-                _stores.value?.let { recalculateHotDishes(it) }
-            }
-        }
-
-        viewModelScope.launch {
-            // Lắng nghe danh mục nền tảng theo thời gian thực từ Firebase (quản lý bởi Admin)
-            firebaseRepository.observeCategories().collectLatest { cats ->
-                _platformCategories.value = cats
-            }
-        }
-    }
-
-    private fun processStoresAndDishes(storeList: List<Store>) {
-        // Chỉ loại bỏ quán bị Admin khóa do vi phạm (LOCKED / LOCK / HIDE)
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // 1. Quán gần đây (Sắp xếp theo thứ tự: Quán đang mở trước, khoảng cách từ gần đến xa)
-        val nearbyList = activeStores.map { store ->
-            val isClosed = store.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true)
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-            val eta = if (store.prepTime.isNotBlank()) store.prepTime else if (roundedDist > 0.0) {
-                val baseTime = (10 + (roundedDist * 4).toInt()).coerceAtLeast(15)
-                "$baseTime-${baseTime + 10} phút"
-            } else "15-25 phút"
-            val emoji = when {
-                store.name.contains("Trà", true) -> "🍵"
-                store.name.contains("Cơm", true) -> "🍛"
-                store.name.contains("Gà", true) -> "🍗"
-                store.name.contains("Bún", true) || store.name.contains("Phở", true) -> "🍜"
-                else -> "🍲"
-            }
-            NearbyStoreItem(
-                id = store.id,
-                name = store.name,
-                address = store.address.ifBlank { "TP.HCM" },
-                distanceKm = roundedDist,
-                eta = eta,
-                rating = store.ratingAvg,
-                imageUrl = store.imageUrl,
-                emoji = emoji,
-                originalStore = store,
-                isClosed = isClosed
-            )
-        }
-
-        val sortedNearbyList = nearbyList.sortedWith(
-            compareBy<NearbyStoreItem> { if (it.isClosed) 1 else 0 }
-                .thenBy { if (it.distanceKm > 0.0) 0 else 1 }
-                .thenBy { it.distanceKm }
-        )
-        _nearbyStores.value = sortedNearbyList
-
-        // 2. Thu thập các món ăn của quán - CHỈ HIỂN THỊ MÓN CỦA CÁC QUÁN ĐANG MỞ CỬA (OPEN)
-        // Khi quán tạm đóng, ẩn toàn bộ món khỏi danh sách gợi ý trang chủ
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-        val allDishes = mutableListOf<HomeDishItem>()
-
-        openStores.forEach { store ->
-            val storeLatLng = resolveStoreLatLng(store)
-            val roundedDist = calculateDistanceForStore(storeLatLng)
-
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-
-            availableDishes.forEach { dish ->
-                val platformCat = dish.platformCategory.ifBlank {
-                    inferPlatformCategory(dish.name, dish.category)
-                }
-                val emoji = when {
-                    platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
-                    platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
-                    platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
-                    platformCat.contains("Bún", true) || platformCat.contains("Phở", true) || dish.name.contains("Bún", true) || dish.name.contains("Phở", true) || dish.category.contains("Bún", true) -> "🍜"
-                    platformCat.contains("Bánh mì", true) || dish.name.contains("Bánh mì", true) || dish.category.contains("Bánh mì", true) -> "🥖"
-                    platformCat.contains("Pizza", true) || dish.name.contains("Pizza", true) || dish.category.contains("Pizza", true) -> "🍕"
-                    platformCat.contains("Cà phê", true) || dish.name.contains("Cà phê", true) || dish.category.contains("Cà phê", true) -> "☕"
-                    platformCat.contains("Chay", true) -> "🥗"
-                    platformCat.contains("Hải sản", true) -> "🦐"
-                    platformCat.contains("Ăn vặt", true) -> "🍟"
-                    platformCat.contains("Tráng miệng", true) -> "🍰"
-                    platformCat.contains("Lẩu", true) -> "🍲"
-                    else -> "🍽️"
-                }
-                allDishes.add(
-                    HomeDishItem(
-                        id = dish.id,
-                        name = dish.name,
-                        price = dish.basePrice,
-                        originalPrice = dish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = emoji,
-                        rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
-                        soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
-                        distanceKm = roundedDist,
-                        promoBadge = "",
-                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
-                        tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = dish.category.ifBlank { store.category },
-                        platformCategory = platformCat
-                    )
-                )
-            }
-        }
-
-        masterDishList = allDishes
-        applyFilters()
-
-        // Cập nhật danh sách món hot theo tab (Top Bán Chạy / Top Yêu Thích - 1 món mỗi quán)
-        recalculateHotDishes(activeStores)
-    }
-
-    private fun recalculateHotDishes(storeList: List<Store>) {
-        val activeStores = storeList.filter { store ->
-            val st = store.storeStatus.uppercase()
-            val pt = store.penaltyTier.uppercase()
-            st != Store.StoreStatus.LOCKED &&
-            pt != Store.PenaltyTier.LOCK &&
-            pt != Store.PenaltyTier.HIDE
-        }
-
-        // Tính lượt bán trong 7 ngày gần nhất từ các đơn hàng
-        val oneWeekAgo = System.currentTimeMillis() - 7 * 24 * 60 * 60 * 1000L
-        val weeklyDishSales = mutableMapOf<String, Int>()
-        cachedOrders.filter { order ->
-            val ts = order.effectiveTimestamp
-            ts >= oneWeekAgo &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.CANCELLED &&
-            order.effectiveStatus != com.chuyen_de_2.foodorder.core.data.model.Order.Status.BOOM
-        }.forEach { order ->
-            order.items.values.forEach { item ->
-                if (item.dishId.isNotBlank()) {
-                    weeklyDishSales[item.dishId] = (weeklyDishSales[item.dishId] ?: 0) + item.quantity
-                }
-            }
-        }
-
-        // Chỉ tính món hot từ các quán ĐANG MỞ CỬA (OPEN)
-        val openStores = activeStores.filter { !it.storeStatus.equals(Store.StoreStatus.CLOSED, ignoreCase = true) }
-
-        // 1. Top Bán Chạy: Mỗi quán chỉ lên 1 món có lượt bán cao nhất trong tuần
-        val bestSellerList = mutableListOf<Pair<HotDish, Long>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val bestDish = availableDishes.maxWithOrNull(
-                    compareBy({ weeklyDishSales[it.id] ?: 0 }, { it.soldCount })
-                )
-                if (bestDish != null) {
-                    val weekCount = weeklyDishSales[bestDish.id] ?: 0
-                    val totalCount = bestDish.soldCount
-                    val salesScore = weekCount.toLong() * 10000L + totalCount.toLong()
-                    val badgeText = when {
-                        weekCount > 0 -> "🔥 $weekCount bán/tuần"
-                        totalCount > 0 -> "🔥 $totalCount đã bán"
-                        else -> "🔥 Bán chạy"
-                    }
-                    val hotDish = HotDish(
-                        id = bestDish.id,
-                        name = bestDish.name,
-                        price = bestDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = bestDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(bestDish.name, bestDish.category, bestDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    bestSellerList.add(Pair(hotDish, salesScore))
-                }
-            }
-        }
-        topBestSellerDishes = bestSellerList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        // 2. Top Yêu Thích: Mỗi quán chỉ lên 1 món có đánh giá cao nhất
-        val favoriteList = mutableListOf<Pair<HotDish, Float>>()
-        openStores.forEach { store ->
-            val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
-            if (availableDishes.isNotEmpty()) {
-                val topRatedDish = availableDishes.maxWithOrNull(
-                    compareBy(
-                        { if (it.ratingAvg > 0f) it.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.5f },
-                        { it.reviewCount },
-                        { it.soldCount }
-                    )
-                )
-                if (topRatedDish != null) {
-                    val rating = if (topRatedDish.ratingAvg > 0f) topRatedDish.ratingAvg
-                        else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat()
-                        else 5.0f
-                    val formattedRating = String.format(java.util.Locale.US, "%.1f", rating)
-                    val badgeText = "⭐ $formattedRating"
-                    val hotDish = HotDish(
-                        id = topRatedDish.id,
-                        name = topRatedDish.name,
-                        price = topRatedDish.basePrice,
-                        storeId = store.id,
-                        storeName = store.name,
-                        imageUrl = topRatedDish.imageUrl.ifBlank { store.imageUrl },
-                        emoji = inferDishEmoji(topRatedDish.name, topRatedDish.category, topRatedDish.platformCategory),
-                        badgeText = badgeText
-                    )
-                    favoriteList.add(Pair(hotDish, rating))
-                }
-            }
-        }
-        topFavoriteDishes = favoriteList
-            .sortedByDescending { it.second }
-            .map { it.first }
-
-        _hotDishes.value = if (_currentHotTab.value == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    fun switchHotTab(tab: HotTab) {
-        if (_currentHotTab.value == tab) return
-        _currentHotTab.value = tab
-        _hotDishes.value = if (tab == HotTab.BEST_SELLER) topBestSellerDishes else topFavoriteDishes
-    }
-
-    private fun inferDishEmoji(dishName: String, category: String, platformCat: String): String {
-        val cat = platformCat.ifBlank { inferPlatformCategory(dishName, category) }
-        return when {
-            cat.contains("Trà sữa", true) || dishName.contains("Trà sữa", true) -> "🧋"
-            cat.contains("Nước ép", true) || dishName.contains("Nước ép", true) || dishName.contains("Sinh tố", true) || cat.contains("Nước", true) -> "🍹"
-            cat.contains("Cơm", true) || dishName.contains("Cơm", true) -> "🍚"
-            cat.contains("Bún đậu", true) || dishName.contains("Bún đậu", true) -> "🥢"
-            cat.contains("Phở", true) || dishName.contains("Phở", true) || cat.contains("Bún", true) -> "🍜"
-            else -> "🍽️"
-        }
-    }
-
-    enum class PriceSort {
-        NONE, ASC, DESC
-    }
-
-    /** Lọc danh sách món ăn */
-    fun filterDishes(
-        query: String? = null,
-        category: String? = null,
-        nearbyOnly: Boolean? = null,
-        maxDistanceKm: Double? = null,
-        minPrice: Long? = null,
-        maxPrice: Long? = null,
-        minRating: Float? = null,
-        maxRating: Float? = null,
-        resetPrice: Boolean = false,
-        resetRating: Boolean = false,
-        priceSort: PriceSort? = null
-    ) {
-        if (query != null) currentQuery = query
-        if (category != null) currentCategory = if (category == "ALL") null else category
-        if (nearbyOnly != null) currentNearbyOnly = nearbyOnly
-        if (maxDistanceKm != null) currentNearbyMaxDistanceKm = maxDistanceKm
-        if (resetPrice) {
-            currentMinPrice = null
-            currentMaxPrice = null
-            currentPriceSort = PriceSort.NONE
-        } else {
-            if (minPrice != null || maxPrice != null) {
-                currentMinPrice = if (minPrice != null && minPrice > 0L) minPrice else null
-                currentMaxPrice = if (maxPrice != null && maxPrice > 0L) maxPrice else null
-            }
-            if (priceSort != null) {
-                currentPriceSort = priceSort
-            }
-        }
-        if (resetRating) {
-            currentMinRating = 1.0f
-            currentMaxRating = 5.0f
-        } else {
-            if (minRating != null) currentMinRating = minRating
-            if (maxRating != null) currentMaxRating = maxRating
-        }
-        applyFilters()
-    }
-
-    /** Tính số lượng món phù hợp với bộ lọc trước khi bấm Áp Dụng (phục vụ Bottom Sheet) */
-    fun getFilteredDishesCount(
-        minPrice: Long?,
-        maxPrice: Long?,
-        minRating: Float,
-        maxRating: Float
-    ): Int {
-        var list = masterDishList
-
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            list = list.filter { matchesCategory(it, cat) }
-        }
-
-        if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
-            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
-        }
-
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            list = list.filter { matchesSearch(it, q) }
-        }
-
-        if (minPrice != null && minPrice > 0) {
-            list = list.filter { it.price >= minPrice }
-        }
-        if (maxPrice != null && maxPrice > 0) {
-            list = list.filter { it.price <= maxPrice }
-        }
-
-        if (minRating > 1.05f || maxRating < 4.95f) {
-            list = list.filter { it.rating in (minRating - 0.05f)..(maxRating + 0.05f) }
-        }
-
-        return list.size
-    }
-
-    /**
-     * Khớp tìm kiếm thông minh: Hỗ trợ tiếng Việt có dấu, không dấu và tìm đa từ khóa (token search)
-     */
-    private fun matchesSearch(dish: HomeDishItem, query: String): Boolean {
-        val qClean = query.trim().lowercase()
-        if (qClean.isBlank()) return true
-
-        val qNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(qClean)
-
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val cat = dish.category.lowercase()
-        val platCat = dish.platformCategory.lowercase()
-
-        val fullWithAccent = "$name $store $cat $platCat"
-        val fullNoAccent = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.removeAccent(fullWithAccent)
-
-        // 1. Khớp cụm từ trực tiếp (có dấu hoặc không dấu)
-        if (fullWithAccent.contains(qClean) || fullNoAccent.contains(qNoAccent)) {
-            return true
-        }
-
-        // 2. Khớp tất cả các từ khóa nhập vào (token search - không phụ thuộc thứ tự từ)
-        val tokens = qNoAccent.split("\\s+".toRegex()).filter { it.length > 1 }
-        if (tokens.isNotEmpty() && tokens.all { token -> fullNoAccent.contains(token) }) {
-            return true
-        }
-
-        return false
-    }
-
-    private fun applyFilters() {
-        var filtered = masterDishList
-
-        // 1. Lọc theo cự ly gần
-        if (currentNearbyOnly) {
-            val maxDist = currentNearbyMaxDistanceKm
-            filtered = if (maxDist >= 999.0) {
-                filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-            } else {
-                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
-                if (nearbyDishes.isNotEmpty()) {
-                    nearbyDishes.sortedBy { it.distanceKm }
-                } else {
-                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
-                }
-            }
-        }
-
-        // 2. Lọc theo danh mục
-        val cat = currentCategory
-        if (!cat.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesCategory(dish, cat)
-            }
-        }
-
-        // 3. Lọc theo từ khóa tìm kiếm (thông minh, không dấu, đa từ)
-        val q = currentQuery?.trim()
-        if (!q.isNullOrBlank()) {
-            filtered = filtered.filter { dish ->
-                matchesSearch(dish, q)
-            }
-        }
-
-        // 4. Lọc theo khoảng giá tiền
-        val minP = currentMinPrice
-        val maxP = currentMaxPrice
-        if (minP != null || maxP != null) {
-            filtered = filtered.filter { dish ->
-                val p = dish.price
-                (minP == null || p >= minP) && (maxP == null || p <= maxP)
-            }
-        }
-
-        // 5. Lọc theo khoảng sao đánh giá
-        val minR = currentMinRating
-        val maxR = currentMaxRating
-        if (minR > 1.05f || maxR < 4.95f) {
-            filtered = filtered.filter { dish ->
-                dish.rating in (minR - 0.05f)..(maxR + 0.05f)
-            }
-        }
-
-        // 5. Sắp xếp theo giá tiền nếu có
-        when (currentPriceSort) {
-            PriceSort.ASC -> filtered = filtered.sortedBy { it.price }
-            PriceSort.DESC -> filtered = filtered.sortedByDescending { it.price }
-            PriceSort.NONE -> { /* Giữ nguyên thứ tự */ }
-        }
-
-        _homeDishes.value = filtered
-    }
-
-    private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim().lowercase()
-        val pCat = dish.platformCategory.lowercase()
-        val sCat = dish.category.lowercase()
-        val name = dish.name.lowercase()
-        val store = dish.storeName.lowercase()
-        val combined = "$name $pCat $sCat $store"
-
-        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
-        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
-        if (name.contains(target)) return true
-
-        if (target.contains("cơm")) {
-            return combined.contains("cơm") || combined.contains("com")
-        }
-        if (target.contains("bún đậu")) {
-            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
-        }
-        if (target.contains("phở")) {
-            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
-        }
-        if (target.contains("trà sữa")) {
-            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
-        }
-        if (target.contains("nước ép")) {
-            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
-        }
-
-        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
-        return keywords.any { kw -> combined.contains(kw) }
-    }
-
-    private fun inferPlatformCategory(name: String, category: String): String {
-        val text = "$name $category".lowercase()
-        return when {
-            text.contains("cơm") -> "Cơm"
-            text.contains("bún đậu") || (text.contains("bún") && text.contains("đậu")) -> "Bún đậu"
-            text.contains("phở") || text.contains("bún") || text.contains("hủ tiếu") || text.contains("mì") -> "Phở"
-            text.contains("trà sữa") || text.contains("tra sua") || text.contains("trân châu") -> "Trà sữa"
-            text.contains("nước ép") || text.contains("nuoc ep") || text.contains("sinh tố") || text.contains("nước") || text.contains("ép") -> "Nước ép"
-            text.contains("trà") -> "Trà sữa"
-            else -> "Cơm"
-        }
-    }
-
-    private fun resolveStoreLatLng(store: Store): com.google.android.gms.maps.model.LatLng? {
-        if (store.latitude != 0.0 && store.longitude != 0.0) {
-            return com.google.android.gms.maps.model.LatLng(store.latitude, store.longitude)
-        }
-        val distName = store.district.trim()
-        if (distName.isNotBlank()) {
-            val exact = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES[distName]
-            if (exact != null) return exact
-            val fuzzy = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.DISTRICT_COORDINATES.entries
-                .find { distName.contains(it.key, ignoreCase = true) || it.key.contains(distName, ignoreCase = true) }?.value
-            if (fuzzy != null) return fuzzy
-        }
-        return null
-    }
-
-    private fun calculateDistanceForStore(storeLatLng: com.google.android.gms.maps.model.LatLng?): Double {
-        if (storeLatLng == null) return 0.0
-        val dist = com.chuyen_de_2.foodorder.core.util.GoogleMapUtils.calculateDistanceKm(
-            currentUserLatLng,
-            storeLatLng
-        ).toDouble()
-        return Math.round(dist * 10.0) / 10.0
-    }
-
-    fun loadRestaurants() = loadStores()
 }
 ````
 
@@ -80477,1091 +82354,6 @@ class OrderSuccessActivity : AppCompatActivity() {
 
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/MenuManageFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
-
-import android.app.Dialog
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.net.Uri
-import android.os.Bundle
-import android.util.Base64
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.view.Window
-import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.Spinner
-import android.widget.TextView
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.core.widget.doAfterTextChanged
-import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import androidx.lifecycle.lifecycleScope
-import com.bumptech.glide.Glide
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Dish
-import com.chuyen_de_2.foodorder.core.util.ImagePickerUtils
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentMenuManageBinding
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.chip.Chip
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Quản Lý Thực Đơn & Điểm Danh Mở Ca Quán (Menu Management)
- * Cách hoạt động:
- *  - Cung cấp tính năng Check-in mở ca bán hàng / tạm nghỉ ngơi cho Quán.
- *  - Lắng nghe danh sách món ăn từ sub-collection Firestore `stores/{storeId}/dishes`.
- *  - Cho phép thêm món ăn mới hoặc chỉnh sửa món hiện có (tên, giá, phân loại, mô tả, ảnh từ thư viện hoặc URL).
- *  - Hỗ trợ xóa món ăn khỏi thực đơn và cập nhật Realtime sang app Khách hàng.
- * Luồng hướng tới:
- *  - Dữ liệu món ăn đồng bộ trực tiếp tới Menu của app Customer.
- *  - Bấm banner đơn hàng mới -> Chuyển hướng sang tab Quản lý đơn hàng ([OrderListFragment]).
- */
-@AndroidEntryPoint
-class MenuManageFragment : Fragment() {
-
-    private var _binding: FragmentMenuManageBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    private lateinit var adapter: ManageDishAdapter
-    private val dishList = mutableListOf<Dish>()
-    private var currentStoreId = ""
-    private var storeCategories: MutableList<String> = mutableListOf("Món chính")
-    private var selectedStoreCategory: String = "ALL"
-    private var platformCategories: MutableList<String> = mutableListOf(
-        "Cơm", "Phở", "Trà sữa", "Bún đậu", "Nước ép", "Món Khác"
-    )
-    private var platformCategoryObjects: List<com.chuyen_de_2.foodorder.core.data.model.Category> = emptyList()
-
-    var onNavigateToOrdersListener: (() -> Unit)? = null
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentMenuManageBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View quản lý thực đơn
-     * Cách hoạt động: Gắn sự kiện các nút chức năng, khởi tạo RecyclerView và truy vấn storeId của tài khoản.
-     * Luồng hướng tới: Chuẩn bị hiển thị danh sách món ăn của quán.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupUI()
-        setupRecyclerView()
-        resolveCurrentStoreIdAndObserve()
-        observePlatformCategories()
-    }
-
-    /**
-     * Tên chức năng: Định danh Cửa hàng và giám sát món ăn
-     * Cách hoạt động: Lấy UID người dùng hiện tại để resolve ra storeId tương ứng, sau đó lắng nghe Firestore snapshot.
-     * Luồng hướng tới: Gọi [observeStoreDishes].
-     */
-    private fun resolveCurrentStoreIdAndObserve() {
-        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
-        val uid = auth.currentUser?.uid.orEmpty()
-        viewLifecycle.lifecycleScope.launch {
-            val resolvedStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            if (_binding == null || view == null || !isAdded) return@launch
-            currentStoreId = resolvedStoreId
-            observeStoreDishes()
-            observeStoreCategories()
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe danh mục nội bộ của quán theo thời gian thực
-     */
-    private fun observeStoreCategories() {
-        if (_binding == null || view == null || !isAdded) return
-        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
-        viewLifecycle.lifecycleScope.launch {
-            if (currentStoreId.isBlank() || _binding == null) return@launch
-            firebaseRepository.observeStoreCategories(currentStoreId).collectLatest { cats ->
-                if (_binding == null || view == null || !isAdded) return@collectLatest
-                if (cats.isNotEmpty()) {
-                    storeCategories.clear()
-                    storeCategories.addAll(cats)
-                    setupCategoryFilterChips()
-                    updateList()
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe danh sách món ăn theo thời gian thực (Realtime Menu Observer)
-     * Cách hoạt động: Lắng nghe flow từ `firebaseRepository.observeStoreDishes`. Nếu quán mới chưa có món, tự động sinh bộ món mẫu.
-     * Luồng hướng tới: Cập nhật RecyclerView hiển thị danh sách món.
-     */
-    private fun observePlatformCategories() {
-        if (_binding == null || view == null || !isAdded) return
-        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
-        viewLifecycle.lifecycleScope.launch {
-            firebaseRepository.observeCategories(includeInactive = false).collectLatest { cats ->
-                if (_binding == null || view == null || !isAdded) return@collectLatest
-                if (cats.isNotEmpty()) {
-                    platformCategoryObjects = cats
-                    val names = cats.map { it.categoryName }.toMutableList()
-                    if (!names.contains("Món Khác")) names.add("Món Khác")
-                    platformCategories = names
-                }
-            }
-        }
-    }
-
-    private fun observeStoreDishes() {
-        if (_binding == null || view == null || !isAdded) return
-        val viewLifecycle = viewLifecycleOwnerLiveData.value ?: return
-        viewLifecycle.lifecycleScope.launch {
-            if (currentStoreId.isBlank() || _binding == null) return@launch
-            firebaseRepository.observeStoreDishes(currentStoreId).collectLatest { dishes ->
-                if (_binding == null || view == null || !isAdded) return@collectLatest
-                dishList.clear()
-                dishList.addAll(dishes)
-                updateList()
-                setupCategoryFilterChips()
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập giao diện điều khiển và các nút thao tác menu
-     * Cách hoạt động: Bắt sự kiện Check-in mở ca, chuyển nhanh sang đơn hàng, thêm món ăn và tạo combo.
-     * Luồng hướng tới: Tương tác người dùng với thực đơn.
-     */
-    private fun setupUI() {
-        // 1. Nút Quản lý danh mục quán
-        binding.btnManageCategories.setOnClickListener {
-            showManageCategoriesDialog()
-        }
-
-        // 2. Nút Tạo Combo & Thêm Món
-        binding.btnCreateCombo.setOnClickListener {
-            showCreateComboDialog()
-        }
-
-        binding.btnAddFood.setOnClickListener {
-            showDishDialog(null)
-        }
-
-        updateDishCountText()
-    }
-
-    private fun createCategoryChip(label: String, isSelected: Boolean, onClick: () -> Unit): Chip {
-        val chip = layoutInflater.inflate(R.layout.item_store_category_chip, binding.chipGroupStoreCategories, false) as Chip
-        chip.text = label
-        chip.isChecked = isSelected
-        chip.setOnClickListener { onClick() }
-        return chip
-    }
-
-    /**
-     * Tên chức năng: Thiết lập các chip lọc danh mục quán
-     */
-    private fun setupCategoryFilterChips() {
-        try {
-            binding.chipGroupStoreCategories.removeAllViews()
-
-            val allChip = createCategoryChip("Tất cả (${dishList.size})", selectedStoreCategory == "ALL") {
-                selectedStoreCategory = "ALL"
-                updateList()
-            }
-            binding.chipGroupStoreCategories.addView(allChip)
-
-            storeCategories.forEach { catName ->
-                val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
-                val label = if (count > 0) "$catName ($count)" else catName
-                val chip = createCategoryChip(label, selectedStoreCategory.equals(catName, ignoreCase = true)) {
-                    selectedStoreCategory = catName
-                    updateList()
-                }
-                binding.chipGroupStoreCategories.addView(chip)
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("MenuManageFragment", "Error setting up category chips", e)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập danh sách RecyclerView món ăn
-     * Cách hoạt động: Khởi tạo [ManageDishAdapter] với các callback Chỉnh sửa món và Xóa món.
-     * Luồng hướng tới: Render các thẻ món ăn [item_manage_dish.xml].
-     */
-    private fun setupRecyclerView() {
-        adapter = ManageDishAdapter(
-            onEditClick = { dish -> showDishDialog(dish) },
-            onDeleteClick = { dish -> confirmDeleteDish(dish) }
-        )
-
-        binding.rvDishes.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = this@MenuManageFragment.adapter
-        }
-
-        updateList()
-    }
-
-    /**
-     * Tên chức năng: Làm mới danh sách hiển thị món ăn có lọc theo danh mục
-     */
-    private fun updateList() {
-        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
-            dishList
-        } else {
-            dishList.filter { it.category.equals(selectedStoreCategory, ignoreCase = true) }
-        }
-        adapter.submitList(filtered.toList())
-        binding.layoutEmptyDishes.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
-        binding.rvDishes.visibility = if (filtered.isNotEmpty()) View.VISIBLE else View.GONE
-        updateDishCountText()
-    }
-
-    private fun updateDishCountText() {
-        val total = dishList.size
-        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) total else dishList.count { it.category.equals(selectedStoreCategory, ignoreCase = true) }
-        binding.tvDishTotalCount.text = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
-            "$total món đang mở bán"
-        } else {
-            "$filtered/$total món • $selectedStoreCategory"
-        }
-    }
-
-    private var onImagePickedCallback: ((String) -> Unit)? = null
-
-    private val pickImageLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            val base64 = convertUriToBase64(uri)
-            if (base64 != null) {
-                onImagePickedCallback?.invoke(base64)
-            } else {
-                Toast.makeText(requireContext(), "Không thể tải ảnh, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Nén và chuyển đổi ảnh Uri sang Base64
-     * Cách hoạt động: Đọc Stream từ Uri, scale kích thước về tối đa 450px và nén JPEG 80% để lưu trữ trực tiếp vào Firestore dạng chuỗi base64 nhẹ.
-     * Luồng hướng tới: Cung cấp dữ liệu ảnh lưu trữ cho Dish.
-     */
-    private fun convertUriToBase64(uri: Uri): String? {
-        return try {
-            val inputStream = requireContext().contentResolver.openInputStream(uri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap == null) return null
-
-            val maxDim = 450
-            val width = originalBitmap.width
-            val height = originalBitmap.height
-            val scale = (maxDim.toFloat() / maxOf(width, height)).coerceAtMost(1.0f)
-            val scaledWidth = (width * scale).toInt()
-            val scaledHeight = (height * scale).toInt()
-
-            val scaledBitmap = Bitmap.createScaledBitmap(originalBitmap, scaledWidth, scaledHeight, true)
-            val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
-            val byteArray = outputStream.toByteArray()
-            "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    /**
-     * Tên chức năng: Tải và hiển thị ảnh xem trước món ăn
-     * Cách hoạt động: Dùng Glide tải ảnh từ Base64 hoặc URL trực tuyến với cơ chế fallback icon mặc định.
-     * Luồng hướng tới: Cập nhật ImageView trong modal chỉnh sửa món.
-     */
-    private fun loadPreviewImage(targetView: ImageView, urlOrBase64: String) {
-        if (urlOrBase64.isBlank()) {
-            targetView.setImageResource(R.drawable.bg_badge_orange)
-            return
-        }
-        if (urlOrBase64.startsWith("data:image") || urlOrBase64.length > 500) {
-            try {
-                val clean = if (urlOrBase64.contains(",")) urlOrBase64.substringAfter(",") else urlOrBase64
-                val decoded = Base64.decode(clean, Base64.DEFAULT)
-                Glide.with(this)
-                    .asBitmap()
-                    .load(decoded)
-                    .placeholder(R.drawable.bg_badge_orange)
-                    .error(R.drawable.bg_badge_orange)
-                    .centerCrop()
-                    .into(targetView)
-                return
-            } catch (_: Exception) {}
-        }
-        Glide.with(this)
-            .load(urlOrBase64)
-            .placeholder(R.drawable.bg_badge_orange)
-            .error(R.drawable.bg_badge_orange)
-            .centerCrop()
-            .into(targetView)
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Dialog Thêm mới / Chỉnh sửa Món ăn
-     * Cách hoạt động:
-     *  - Nếu editingDish != null: Nạp thông tin hiện có để sửa.
-     *  - Nếu editingDish == null: Mở form trống để tạo món mới.
-     *  - Hỗ trợ chọn ảnh từ máy hoặc nhập URL trực tuyến.
-     *  - Khi bấm Lưu: Gọi [FirebaseRepository.saveStoreDish] để đẩy lên Firestore.
-     * Luồng hướng tới: Cập nhật trực tiếp thực đơn trên Firestore và thông báo thành công.
-     */
-    /** Rung lắc cảnh báo trường nhập liệu bị thiếu hoặc không hợp lệ */
-    private fun shakeView(view: View) {
-        val shake = android.view.animation.TranslateAnimation(0f, 14f, 0f, 0f).apply {
-            duration = 400
-            interpolator = android.view.animation.CycleInterpolator(3f)
-        }
-        view.startAnimation(shake)
-    }
-
-    private fun showDishDialog(editingDish: Dish?) {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_edit_dish)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val tvTitle = dialog.findViewById<TextView>(R.id.tvModalTitle)
-        val cardPreview = dialog.findViewById<com.google.android.material.card.MaterialCardView>(R.id.cardDishPreview)
-        val ivPreview = dialog.findViewById<ImageView>(R.id.ivDishPreview)
-        val btnPickImage = dialog.findViewById<MaterialButton>(R.id.btnPickDishImage)
-        val tvImageStatus = dialog.findViewById<TextView>(R.id.tvImageStatusNotice)
-        val tvNameCount = dialog.findViewById<TextView>(R.id.tvDishNameCount)
-        val etName = dialog.findViewById<EditText>(R.id.etDishName)
-        val tvPriceFormatted = dialog.findViewById<TextView>(R.id.tvPriceFormatted)
-        val etPrice = dialog.findViewById<EditText>(R.id.etDishPrice)
-        val spinnerCategory = dialog.findViewById<Spinner>(R.id.spinnerDishCategory)
-        val spinnerPlatformCategory = dialog.findViewById<Spinner>(R.id.spinnerPlatformCategory)
-        val tvDescCount = dialog.findViewById<TextView>(R.id.tvDishDescCount)
-        val etDescription = dialog.findViewById<EditText>(R.id.etDishDescription)
-        val btnCancel = dialog.findViewById<MaterialButton>(R.id.btnCancelDish)
-        val btnSave = dialog.findViewById<MaterialButton>(R.id.btnSaveDish)
-
-        var currentImageUrl = editingDish?.imageUrl.orEmpty()
-
-        val storeAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories.toTypedArray())
-        spinnerCategory.adapter = storeAdapter
-
-        val tvQuickManage = dialog.findViewById<TextView>(R.id.tvQuickManageCategories)
-        tvQuickManage?.setOnClickListener {
-            showQuickAddCategoryDialog { newCat ->
-                val updatedAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, storeCategories.toTypedArray())
-                spinnerCategory.adapter = updatedAdapter
-                val newIndex = storeCategories.indexOfFirst { it.equals(newCat, ignoreCase = true) }
-                if (newIndex >= 0) spinnerCategory.setSelection(newIndex)
-            }
-        }
-
-        val platformAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_dropdown_item, platformCategories.toTypedArray())
-        spinnerPlatformCategory.adapter = platformAdapter
-
-        var userSelectedPlatformCategory = false
-        spinnerPlatformCategory.setOnTouchListener { _, _ ->
-            userSelectedPlatformCategory = true
-            false
-        }
-
-        // Tự động đếm ký tự & gợi ý danh mục nền tảng khi gõ tên món
-        etName.doAfterTextChanged { text ->
-            val inputLength = text?.length ?: 0
-            tvNameCount.text = "$inputLength/60"
-            etName.error = null
-
-            if (!userSelectedPlatformCategory && editingDish == null) {
-                val input = text?.toString().orEmpty().lowercase()
-                val suggestedIndex = when {
-                    input.contains("cơm") -> platformCategories.indexOfFirst { it.contains("cơm", true) }
-                    input.contains("bún đậu") || (input.contains("bún") && input.contains("đậu")) -> platformCategories.indexOfFirst { it.contains("bún đậu", true) }
-                    input.contains("phở") || input.contains("bún") || input.contains("hủ tiếu") || input.contains("mì") -> platformCategories.indexOfFirst { it.contains("phở", true) }
-                    input.contains("trà sữa") || input.contains("tra sua") || input.contains("trà") -> platformCategories.indexOfFirst { it.contains("trà sữa", true) }
-                    input.contains("nước ép") || input.contains("sinh tố") || input.contains("nước") || input.contains("ép") -> platformCategories.indexOfFirst { it.contains("nước ép", true) }
-                    else -> -1
-                }
-                if (suggestedIndex >= 0) {
-                    spinnerPlatformCategory.setSelection(suggestedIndex)
-                }
-            }
-        }
-
-        // Định dạng số tiền real-time khi gõ giá bán
-        etPrice.doAfterTextChanged { text ->
-            etPrice.error = null
-            val raw = text?.toString()?.trim().orEmpty()
-            val amount = raw.toLongOrNull()
-            if (amount != null && amount > 0L) {
-                tvPriceFormatted.text = "= ${amount.toVndCurrency()}"
-            } else {
-                tvPriceFormatted.text = ""
-            }
-        }
-
-        // Đếm ký tự mô tả
-        etDescription.doAfterTextChanged { text ->
-            val inputLength = text?.length ?: 0
-            tvDescCount.text = "$inputLength/200"
-            etDescription.error = null
-        }
-
-        // Thiết lập dữ liệu ban đầu
-        if (editingDish != null) {
-            tvTitle.text = "Chỉnh Sửa Món Ăn"
-            etName.setText(editingDish.name)
-            val currentPrice = if (editingDish.basePrice > 0) editingDish.basePrice else editingDish.price
-            etPrice.setText(currentPrice.toString())
-            tvPriceFormatted.text = if (currentPrice > 0L) "= ${currentPrice.toVndCurrency()}" else ""
-            etDescription.setText(editingDish.description)
-            tvNameCount.text = "${editingDish.name.length}/60"
-            tvDescCount.text = "${editingDish.description.length}/200"
-
-            loadPreviewImage(ivPreview, editingDish.imageUrl)
-            if (editingDish.imageUrl.isNotBlank()) {
-                tvImageStatus.text = "Đã có ảnh món ăn"
-                tvImageStatus.setTextColor(Color.parseColor("#059669"))
-                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
-            } else {
-                tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
-                tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
-            }
-
-            val catIndex = storeCategories.indexOfFirst { it.equals(editingDish.category, ignoreCase = true) }
-            if (catIndex >= 0) spinnerCategory.setSelection(catIndex)
-
-            val platIndex = platformCategories.indexOfFirst {
-                it.equals(editingDish.platformCategory, ignoreCase = true) ||
-                it.equals(editingDish.categoryId, ignoreCase = true)
-            }
-            if (platIndex >= 0) {
-                spinnerPlatformCategory.setSelection(platIndex)
-            } else {
-                val fallbackIndex = platformCategories.indexOfFirst {
-                    editingDish.platformCategory.isNotBlank() && it.contains(editingDish.platformCategory, true)
-                }
-                if (fallbackIndex >= 0) spinnerPlatformCategory.setSelection(fallbackIndex)
-            }
-        } else {
-            tvTitle.text = "Thêm Món Mới Vào Menu"
-            tvNameCount.text = "0/60"
-            tvDescCount.text = "0/200"
-            tvPriceFormatted.text = ""
-            tvImageStatus.text = "Chưa có ảnh (bắt buộc tải ảnh)"
-            tvImageStatus.setTextColor(Color.parseColor("#DC2626"))
-            loadPreviewImage(ivPreview, "")
-        }
-
-        // Tải ảnh từ thư viện thiết bị (Bắt buộc)
-        btnPickImage.setOnClickListener {
-            onImagePickedCallback = { base64Data ->
-                currentImageUrl = base64Data
-                loadPreviewImage(ivPreview, base64Data)
-                cardPreview.strokeColor = ContextCompat.getColor(requireContext(), R.color.border)
-                tvImageStatus.text = "Đã có ảnh món ăn"
-                tvImageStatus.setTextColor(Color.parseColor("#059669"))
-                Toast.makeText(requireContext(), "Đã chọn ảnh món ăn thành công!", Toast.LENGTH_SHORT).show()
-            }
-            pickImageLauncher.launch("image/*")
-        }
-
-        btnCancel.setOnClickListener { dialog.dismiss() }
-
-        btnSave.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val priceStr = etPrice.text.toString().trim()
-            val category = spinnerCategory.selectedItem?.toString().orEmpty().ifBlank { "Món chính" }
-            val platformCategory = spinnerPlatformCategory.selectedItem?.toString().orEmpty().ifBlank { "Món Khác" }
-            val description = etDescription.text.toString().trim()
-            val finalImageUrl = currentImageUrl.trim()
-
-            // 1. Kiểm tra ảnh món ăn (Bắt buộc)
-            if (finalImageUrl.isBlank()) {
-                cardPreview.strokeColor = Color.parseColor("#DC2626")
-                shakeView(cardPreview)
-                Toast.makeText(requireContext(), "Hình ảnh món ăn là bắt buộc. Vui lòng tải ảnh từ thiết bị!", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
-            }
-
-            // 2. Kiểm tra tên món ăn (Bắt buộc, 2 - 60 ký tự)
-            if (name.isBlank()) {
-                etName.error = "Vui lòng nhập tên món ăn"
-                shakeView(etName)
-                etName.requestFocus()
-                Toast.makeText(requireContext(), "Vui lòng nhập tên món ăn!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (name.length < 2) {
-                etName.error = "Tên món ăn quá ngắn (tối thiểu 2 ký tự)"
-                shakeView(etName)
-                etName.requestFocus()
-                Toast.makeText(requireContext(), "Tên món ăn quá ngắn (tối thiểu 2 ký tự)!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (name.length > 60) {
-                etName.error = "Tên món ăn tối đa 60 ký tự"
-                shakeView(etName)
-                etName.requestFocus()
-                Toast.makeText(requireContext(), "Tên món ăn không được vượt quá 60 ký tự!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // 3. Kiểm tra giá bán (Bắt buộc, 1.000 đ - 50.000.000 đ)
-            if (priceStr.isBlank()) {
-                etPrice.error = "Vui lòng nhập giá bán"
-                shakeView(etPrice)
-                etPrice.requestFocus()
-                Toast.makeText(requireContext(), "Vui lòng nhập giá bán của món!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val price = priceStr.toLongOrNull() ?: 0L
-            if (price < 1000L) {
-                etPrice.error = "Giá bán tối thiểu là 1.000 đ"
-                shakeView(etPrice)
-                etPrice.requestFocus()
-                Toast.makeText(requireContext(), "Giá bán tối thiểu là 1.000 đ!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (price > 50000000L) {
-                etPrice.error = "Giá bán không vượt quá 50.000.000 đ"
-                shakeView(etPrice)
-                etPrice.requestFocus()
-                Toast.makeText(requireContext(), "Giá bán tối đa là 50.000.000 đ!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // 4. Kiểm tra mô tả món ăn (Tối đa 200 ký tự)
-            if (description.length > 200) {
-                etDescription.error = "Mô tả không được vượt quá 200 ký tự"
-                shakeView(etDescription)
-                etDescription.requestFocus()
-                Toast.makeText(requireContext(), "Mô tả món ăn không được vượt quá 200 ký tự!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val matchedCategory = platformCategoryObjects.find { it.categoryName.equals(platformCategory, ignoreCase = true) }
-            val finalCategoryId = matchedCategory?.categoryId?.ifBlank { null } ?: "cat_other"
-
-            if (editingDish != null) {
-                // Sửa món
-                val updated = editingDish.copy(
-                    name = name,
-                    basePrice = price,
-                    category = category,
-                    platformCategory = platformCategory,
-                    categoryId = finalCategoryId,
-                    description = description,
-                    imageUrl = finalImageUrl,
-                    storeId = currentStoreId
-                )
-                val index = dishList.indexOfFirst { it.id == editingDish.id }
-                if (index >= 0) {
-                    dishList[index] = updated
-                }
-                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                    firebaseRepository.saveStoreDish(currentStoreId, updated)
-                }
-                Toast.makeText(requireContext(), "Đã cập nhật món [$name] thành công!", Toast.LENGTH_SHORT).show()
-            } else {
-                // Thêm món mới
-                val newDishId = "dish_${currentStoreId}_${System.currentTimeMillis()}"
-                val newDish = Dish(
-                    id = newDishId,
-                    storeId = currentStoreId,
-                    name = name,
-                    basePrice = price,
-                    category = category,
-                    platformCategory = platformCategory,
-                    categoryId = finalCategoryId,
-                    description = description,
-                    imageUrl = finalImageUrl,
-                    isAvailable = true
-                )
-                dishList.add(newDish)
-                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                    firebaseRepository.saveStoreDish(currentStoreId, newDish)
-                }
-                Toast.makeText(requireContext(), "Đã thêm món [$name] vào thực đơn quán!", Toast.LENGTH_SHORT).show()
-            }
-
-            updateList()
-            dialog.dismiss()
-        }
-
-        dialog.show()
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại xác nhận và Xóa món ăn
-     * Cách hoạt động: Hiển thị AlertDialog cảnh báo; nếu xác nhận, xóa món trên Firestore via [FirebaseRepository.deleteStoreDish].
-     * Luồng hướng tới: Gỡ bỏ món khỏi thực đơn của quán.
-     */
-    private fun confirmDeleteDish(dish: Dish) {
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xác Nhận Xóa")
-            .setMessage("Bạn có chắc chắn muốn xóa món [${dish.name}] khỏi thực đơn quán?")
-            .setPositiveButton("Xóa") { _, _ ->
-                dishList.removeAll { it.id == dish.id }
-                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                    firebaseRepository.deleteStoreDish(currentStoreId, dish.id)
-                }
-                updateList()
-                Toast.makeText(requireContext(), "Đã xóa món khỏi thực đơn!", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại Quản lý danh mục quán (Thêm, Sửa tên, Xóa, Khôi phục)
-     */
-    private fun showManageCategoriesDialog() {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_manage_store_categories)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etNewCategory = dialog.findViewById<EditText>(R.id.etNewCategory)
-        val btnAddCategory = dialog.findViewById<MaterialButton>(R.id.btnAddCategory)
-        val rvCategories = dialog.findViewById<RecyclerView>(R.id.rvStoreCategories)
-        val layoutEmpty = dialog.findViewById<View>(R.id.layoutEmptyCategories)
-        val btnDone = dialog.findViewById<MaterialButton>(R.id.btnDone)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseDialog)
-
-        lateinit var catAdapter: ManageStoreCategoryAdapter
-
-        fun refreshCategoryList() {
-            val items = storeCategories.map { cat ->
-                StoreCategoryItem(cat, dishList.count { it.category.equals(cat, ignoreCase = true) })
-            }
-            catAdapter.submitList(items)
-            layoutEmpty.visibility = if (items.isEmpty()) View.VISIBLE else View.GONE
-            rvCategories.visibility = if (items.isNotEmpty()) View.VISIBLE else View.GONE
-        }
-
-        catAdapter = ManageStoreCategoryAdapter(
-            onEditClick = { oldName ->
-                showRenameCategoryDialog(oldName) {
-                    refreshCategoryList()
-                }
-            },
-            onDeleteClick = { catName, dishCount ->
-                confirmDeleteCategory(catName, dishCount) {
-                    refreshCategoryList()
-                }
-            }
-        )
-
-        rvCategories.layoutManager = LinearLayoutManager(requireContext())
-        rvCategories.adapter = catAdapter
-        refreshCategoryList()
-
-        btnAddCategory.setOnClickListener {
-            val newName = etNewCategory.text.toString().trim()
-            if (newName.isBlank()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập tên danh mục!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (storeCategories.any { it.equals(newName, ignoreCase = true) }) {
-                Toast.makeText(requireContext(), "Danh mục [$newName] đã tồn tại!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                val result = firebaseRepository.addStoreCategory(currentStoreId, newName)
-                if (result.isSuccess) {
-                    if (!storeCategories.contains(newName)) {
-                        storeCategories.add(newName)
-                    }
-                    etNewCategory.setText("")
-                    refreshCategoryList()
-                    setupCategoryFilterChips()
-                    Toast.makeText(requireContext(), "✓ Đã thêm danh mục [$newName]!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        val dismissAction = View.OnClickListener { dialog.dismiss() }
-        btnClose.setOnClickListener(dismissAction)
-        btnDone.setOnClickListener(dismissAction)
-
-        dialog.show()
-    }
-
-    /**
-     * Hộp thoại Đổi tên danh mục
-     */
-    private fun showRenameCategoryDialog(oldName: String, onUpdated: () -> Unit) {
-        val renameDialog = Dialog(requireContext())
-        renameDialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        renameDialog.setContentView(R.layout.dialog_edit_category_name)
-        renameDialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        renameDialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.88).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etRename = renameDialog.findViewById<EditText>(R.id.etRenameCategory)
-        val btnCancel = renameDialog.findViewById<MaterialButton>(R.id.btnCancelRename)
-        val btnConfirm = renameDialog.findViewById<MaterialButton>(R.id.btnConfirmRename)
-
-        etRename.setText(oldName)
-        etRename.setSelection(oldName.length)
-
-        btnCancel.setOnClickListener { renameDialog.dismiss() }
-
-        btnConfirm.setOnClickListener {
-            val newName = etRename.text.toString().trim()
-            if (newName.isBlank()) {
-                Toast.makeText(requireContext(), "Tên danh mục không được để trống!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-            if (newName.equals(oldName, ignoreCase = true)) {
-                renameDialog.dismiss()
-                return@setOnClickListener
-            }
-
-            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                val result = firebaseRepository.renameStoreCategory(currentStoreId, oldName, newName)
-                if (result.isSuccess) {
-                    val idx = storeCategories.indexOfFirst { it.equals(oldName, ignoreCase = true) }
-                    if (idx != -1) storeCategories[idx] = newName
-                    if (selectedStoreCategory.equals(oldName, ignoreCase = true)) {
-                        selectedStoreCategory = newName
-                    }
-                    // Cập nhật cục bộ các món ăn
-                    dishList.forEachIndexed { i, dish ->
-                        if (dish.category.equals(oldName, ignoreCase = true)) {
-                            dishList[i] = dish.copy(category = newName)
-                        }
-                    }
-                    setupCategoryFilterChips()
-                    updateList()
-                    onUpdated()
-                    renameDialog.dismiss()
-                    Toast.makeText(requireContext(), "✓ Đã đổi tên thành [$newName]!", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(requireContext(), "Lỗi: ${result.exceptionOrNull()?.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        renameDialog.show()
-    }
-
-    /**
-     * Xác nhận và xóa danh mục quán
-     */
-    private fun confirmDeleteCategory(catName: String, dishCount: Int, onDeleted: () -> Unit) {
-        val msg = if (dishCount > 0) {
-            "Danh mục [$catName] đang có $dishCount món ăn. Khi xóa danh mục này, các món ăn trên sẽ được tự động chuyển sang nhóm 'Món Khác'."
-        } else {
-            "Bạn có chắc chắn muốn xóa danh mục [$catName]?"
-        }
-
-        AlertDialog.Builder(requireContext())
-            .setTitle("Xác Nhận Xóa Danh Mục")
-            .setMessage(msg)
-            .setPositiveButton("Xóa") { _, _ ->
-                (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                    val res = firebaseRepository.deleteStoreCategory(currentStoreId, catName)
-                    if (res.isSuccess) {
-                        storeCategories.removeAll { it.equals(catName, ignoreCase = true) }
-                        if (selectedStoreCategory.equals(catName, ignoreCase = true)) {
-                            selectedStoreCategory = "ALL"
-                        }
-                        // Chuyển các món thuộc catName sang "Món Khác"
-                        if (dishCount > 0) {
-                            dishList.forEachIndexed { i, dish ->
-                                if (dish.category.equals(catName, ignoreCase = true)) {
-                                    val updated = dish.copy(category = "Món Khác")
-                                    dishList[i] = updated
-                                    firebaseRepository.saveStoreDish(currentStoreId, updated)
-                                }
-                            }
-                        }
-                        setupCategoryFilterChips()
-                        updateList()
-                        onDeleted()
-                        Toast.makeText(requireContext(), "Đã xóa danh mục [$catName]!", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Thêm nhanh danh mục khi đang tạo/sửa món ăn
-     */
-    private fun showQuickAddCategoryDialog(onCategoryAdded: (String) -> Unit) {
-        val input = EditText(requireContext()).apply {
-            hint = "Nhập tên danh mục mới (vd: Trà Hoa Quả)"
-            setSingleLine(true)
-            setPadding(40, 30, 40, 30)
-        }
-
-        AlertDialog.Builder(requireContext())
-            .setTitle("Thêm Nhanh Danh Mục Mới")
-            .setView(input)
-            .setPositiveButton("Thêm") { _, _ ->
-                val newName = input.text.toString().trim()
-                if (newName.isNotBlank()) {
-                    if (storeCategories.any { it.equals(newName, ignoreCase = true) }) {
-                        onCategoryAdded(newName)
-                        return@setPositiveButton
-                    }
-                    (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                        val res = firebaseRepository.addStoreCategory(currentStoreId, newName)
-                        if (res.isSuccess) {
-                            if (!storeCategories.contains(newName)) {
-                                storeCategories.add(newName)
-                            }
-                            setupCategoryFilterChips()
-                            onCategoryAdded(newName)
-                            Toast.makeText(requireContext(), "✓ Đã thêm danh mục [$newName]!", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(requireContext(), res.exceptionOrNull()?.message ?: "Lỗi thêm danh mục", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-            }
-            .setNegativeButton("Hủy", null)
-            .show()
-    }
-
-    /**
-     * Tên chức năng: Hộp thoại Tạo Combo Món Mới
-     * Đặc điểm:
-     *  - Quán chọn các món lẻ đưa vào combo kèm số lượng.
-     *  - Hệ thống tự động tính tổng giá gốc của các món lẻ.
-     *  - Quán TỰ DO CHỈNH GIÁ BÁN combo theo ý muốn.
-     *  - Hệ thống tính toán và hiển thị % tiết kiệm cho khách hàng.
-     */
-    private fun showCreateComboDialog() {
-        val availableDishes = dishList.filter { !it.isCombo }
-        if (availableDishes.size < 2) {
-            Toast.makeText(requireContext(), "Quán cần có ít nhất 2 món lẻ trong thực đơn để tạo Combo!", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_create_combo)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val etComboName = dialog.findViewById<EditText>(R.id.etComboName)
-        val tvSelectCountNote = dialog.findViewById<TextView>(R.id.tvSelectCountNote)
-        val rvSelectDishes = dialog.findViewById<RecyclerView>(R.id.rvSelectDishes)
-        val tvOriginalPriceTotal = dialog.findViewById<TextView>(R.id.tvOriginalPriceTotal)
-        val etComboPrice = dialog.findViewById<EditText>(R.id.etComboPrice)
-        val tvSavingsNote = dialog.findViewById<TextView>(R.id.tvSavingsNote)
-        val ivComboPreview = dialog.findViewById<ImageView>(R.id.ivComboPreview)
-        val btnPickComboImage = dialog.findViewById<MaterialButton>(R.id.btnPickComboImage)
-        val etComboDescription = dialog.findViewById<EditText>(R.id.etComboDescription)
-        val btnCancelCombo = dialog.findViewById<MaterialButton>(R.id.btnCancelCombo)
-        val btnSaveCombo = dialog.findViewById<MaterialButton>(R.id.btnSaveCombo)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseComboDialog)
-
-        var pickedImageBase64: String = ""
-
-        lateinit var comboAdapter: SelectComboDishAdapter
-
-        fun updatePriceCalculation() {
-            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
-            tvOriginalPriceTotal.text = totalOriginal.toVndCurrency()
-            val selected = comboAdapter.getSelectedItems()
-            tvSelectCountNote.text = if (selected.isEmpty()) {
-                "Chọn ít nhất 2 món ăn / thức uống"
-            } else {
-                "Đã chọn ${selected.size} món (tổng ${selected.sumOf { it.quantity }} phần)"
-            }
-
-            val priceInput = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
-            if (priceInput > 0L && totalOriginal > priceInput) {
-                val diff = totalOriginal - priceInput
-                val pct = ((diff.toDouble() / totalOriginal.toDouble()) * 100).toInt()
-                tvSavingsNote.text = "🎉 Tiết kiệm ${diff.toVndCurrency()} (-$pct%) cho khách!"
-                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            } else if (priceInput >= totalOriginal && totalOriginal > 0L) {
-                tvSavingsNote.text = "💡 Giá bán nên thấp hơn tổng giá gốc để thu hút khách mua hơn"
-                tvSavingsNote.setTextColor(ContextCompat.getColor(requireContext(), R.color.primary))
-            } else {
-                tvSavingsNote.text = "💡 Giá bán Combo do Quán tự quyết định theo ý muốn"
-                tvSavingsNote.setTextColor(Color.parseColor("#9A3412"))
-            }
-
-            // Nếu chưa chọn ảnh và có chọn món, lấy ảnh món đầu tiên làm preview
-            if (pickedImageBase64.isBlank()) {
-                val firstWithImg = selected.firstOrNull { it.dish.imageUrl.isNotBlank() }
-                if (firstWithImg != null) {
-                    ivComboPreview.setPadding(0, 0, 0, 0)
-                    ivComboPreview.imageTintList = null
-                    loadPreviewImage(ivComboPreview, firstWithImg.dish.imageUrl)
-                } else {
-                    val pad = (12 * resources.displayMetrics.density).toInt()
-                    ivComboPreview.setPadding(pad, pad, pad, pad)
-                    ivComboPreview.setImageResource(R.drawable.ic_utensils_crossed)
-                    ivComboPreview.imageTintList = ContextCompat.getColorStateList(requireContext(), R.color.primary)
-                }
-            }
-        }
-
-        comboAdapter = SelectComboDishAdapter {
-            updatePriceCalculation()
-        }
-
-        rvSelectDishes.layoutManager = LinearLayoutManager(requireContext())
-        rvSelectDishes.adapter = comboAdapter
-        comboAdapter.submitDishes(availableDishes)
-
-        etComboPrice.doAfterTextChanged {
-            updatePriceCalculation()
-        }
-
-        btnPickComboImage.setOnClickListener {
-            onImagePickedCallback = { base64 ->
-                pickedImageBase64 = base64
-                ivComboPreview.setPadding(0, 0, 0, 0)
-                ivComboPreview.imageTintList = null
-                loadPreviewImage(ivComboPreview, base64)
-            }
-            pickImageLauncher.launch("image/*")
-        }
-
-        btnCancelCombo.setOnClickListener { dialog.dismiss() }
-        btnClose.setOnClickListener { dialog.dismiss() }
-
-        btnSaveCombo.setOnClickListener {
-            val name = etComboName.text.toString().trim()
-            if (name.isBlank()) {
-                Toast.makeText(requireContext(), "Vui lòng nhập tên Combo!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val selectedItems = comboAdapter.getSelectedItems()
-            if (selectedItems.size < 2) {
-                Toast.makeText(requireContext(), "Vui lòng chọn ít nhất 2 món đưa vào Combo!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val price = etComboPrice.text.toString().trim().toLongOrNull() ?: 0L
-            if (price <= 0L) {
-                Toast.makeText(requireContext(), "Vui lòng nhập giá bán hợp lệ của Combo!", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val totalOriginal = comboAdapter.calculateTotalOriginalPrice()
-            val desc = etComboDescription.text.toString().trim()
-            val finalImageUrl = if (pickedImageBase64.isNotBlank()) {
-                pickedImageBase64
-            } else {
-                selectedItems.firstOrNull { it.dish.imageUrl.isNotBlank() }?.dish?.imageUrl.orEmpty()
-            }
-
-            val comboItemsList = selectedItems.map {
-                com.chuyen_de_2.foodorder.core.data.model.ComboItem(
-                    dishId = it.dish.id,
-                    name = it.dish.name,
-                    quantity = it.quantity,
-                    price = if (it.dish.basePrice > 0) it.dish.basePrice else it.dish.price
-                )
-            }
-
-            val comboDish = Dish(
-                id = "combo_${System.currentTimeMillis()}",
-                storeId = currentStoreId,
-                name = name,
-                description = desc,
-                imageUrl = finalImageUrl,
-                basePrice = price,
-                originalPrice = totalOriginal,
-                isCombo = true,
-                comboItems = comboItemsList,
-                category = "Combo",
-                platformCategory = "Combo",
-                isAvailable = true
-            )
-
-            (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
-                try {
-                    firebaseRepository.saveStoreDish(currentStoreId, comboDish)
-                    if (!storeCategories.contains("Combo")) {
-                        firebaseRepository.addStoreCategory(currentStoreId, "Combo")
-                        storeCategories.add("Combo")
-                        setupCategoryFilterChips()
-                    }
-                    dishList.add(comboDish)
-                    updateList()
-                    Toast.makeText(requireContext(), "✓ Đã tạo Combo [$name] thành công!", Toast.LENGTH_SHORT).show()
-                    dialog.dismiss()
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Lỗi tạo Combo: ${e.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-
-        dialog.show()
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-
-    companion object {
-        fun newInstance() = MenuManageFragment()
-    }
-}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreProfileFragment.kt
@@ -87093,1119 +87885,6 @@ class AdminStoreDetailBottomSheetDialogFragment(
         const val TAG = "AdminStoreDetailBottomSheet"
     }
 }
-````
-
-## File: app-admin/src/main/res/layout/fragment_admin_dashboard.xml
-````xml
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefresh"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background">
-
-    <androidx.core.widget.NestedScrollView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="18dp"
-            android:paddingBottom="28dp">
-
-            <!-- Executive Telemetry Header -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <View
-                    android:layout_width="4dp"
-                    android:layout_height="20dp"
-                    android:background="@color/primary" />
-
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:letterSpacing="0.03"
-                        android:text="TRUNG TÂM ĐIỀU HÀNH SÀN"
-                        android:textColor="@color/text_primary"
-                        android:textSize="17sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="1dp"
-                        android:text="Số liệu giám sát trực tiếp từ Realtime Database"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="11.5sp" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvLiveStatus"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_badge_green"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="5dp"
-                    android:text="● LIVE SYNC"
-                    android:textColor="@color/brand_green"
-                    android:textSize="10.5sp"
-                    android:textStyle="bold"
-                    android:singleLine="true"
-                    android:ellipsize="end" />
-            </LinearLayout>
-
-            <!-- Urgent Attention Priority Banner -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardUrgentBanner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:visibility="gone"
-                app:cardBackgroundColor="@color/brand_orange_bg"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/brand_orange"
-                app:strokeWidth="1.5dp"
-                tools:visibility="visible">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="14dp">
-
-                    <FrameLayout
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="@drawable/bg_circle_icon_orange">
-
-                        <ImageView
-                            android:importantForAccessibility="no"
-                            android:layout_width="22dp"
-                            android:layout_height="22dp"
-                            android:layout_gravity="center"
-                            android:src="@drawable/ic_alert_triangle"
-                            app:tint="@color/brand_orange" />
-                    </FrameLayout>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        android:layout_marginEnd="8dp"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:letterSpacing="0.05"
-                            android:text="⚡ HỒ SƠ CẦN PHÊ DUYỆT NGAY"
-                            android:textColor="@color/brand_orange"
-                            android:textSize="10.5sp"
-                            android:textStyle="bold" />
-
-                        <TextView
-                            android:id="@+id/tvUrgentMessage"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:textColor="@color/text_primary"
-                            android:textSize="13sp"
-                            android:textStyle="bold"
-                            tools:text="Có 2 quán chờ duyệt CCCD và 1 khiếu nại chưa xử lý." />
-                    </LinearLayout>
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnQuickHandleUrgent"
-                        android:layout_width="wrap_content"
-                        android:layout_height="40dp"
-                        android:backgroundTint="@color/primary"
-                        android:text="Xử lý"
-                        android:textColor="@color/white"
-                        android:textSize="11.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="10dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:minHeight="0dp"
-                        android:minWidth="0dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:paddingTop="0dp"
-                        android:paddingBottom="0dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Executive GMV Financial Hero Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardRevenue"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:layout_marginBottom="14dp"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardCornerRadius="22dp"
-                app:cardElevation="6dp"
-                app:strokeColor="#334155"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_kpi_card_revenue"
-                    android:orientation="vertical"
-                    android:padding="22dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_glass_pill">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_banknote"
-                                app:tint="#FF7849" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:letterSpacing="0.06"
-                                android:text="TỔNG GIÁ TRỊ GIAO DỊCH (GMV)"
-                                android:textColor="#CBD5E1"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Doanh thu lũy kế từ các đơn hoàn tất"
-                                android:textColor="@color/text_muted"
-                                android:textSize="11sp" />
-                        </LinearLayout>
-
-                        <FrameLayout
-                            android:layout_width="32dp"
-                            android:layout_height="32dp"
-                            android:background="@drawable/bg_glass_pill">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="16dp"
-                                android:layout_height="16dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_chevron_right"
-                                app:tint="@color/white" />
-                        </FrameLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tvRevenue"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:textColor="@color/white"
-                        android:textSize="34sp"
-                        android:textStyle="bold"
-                        tools:text="15.820.000 đ" />
-
-                    <!-- Glassmorphic Order Breakdown Pills -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:orientation="horizontal">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_glass_pill"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="8dp">
-
-                            <TextView
-                                android:id="@+id/tvCompletedOrdersChip"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="🟢 42 Đơn hoàn tất"
-                                android:textColor="#6EE7B7"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_glass_pill"
-                            android:gravity="center_vertical"
-                            android:paddingHorizontal="12dp"
-                            android:paddingVertical="8dp">
-
-                            <TextView
-                                android:id="@+id/tvBoomOrdersChip"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="🔴 6 Đơn huỷ/boom"
-                                android:textColor="#FDA4AF"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Bento KPI Grid: Row 1 (Stores & Complaints) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <!-- 🏪 Quán Ăn Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardStores"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_orange_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_orange" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_orange">
-
-                                    <ImageView
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_store"
-                                        app:tint="@color/brand_orange" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Đối tác Quán"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:importantForAccessibility="no"
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvActiveStores"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="12" />
-
-                            <TextView
-                                android:id="@+id/tvPendingStores"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_orange"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_orange"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="3 chờ duyệt CCCD"
-                                android:singleLine="true"
-                                android:ellipsize="end" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 🚨 Khiếu Nại Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardComplaints"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/danger_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/danger" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_red">
-
-                                    <ImageView
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_shield_alert"
-                                        app:tint="@color/danger" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Khiếu nại"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:importantForAccessibility="no"
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvPendingComplaints"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/danger"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="2" />
-
-                            <TextView
-                                android:id="@+id/tvComplaintSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_red"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:text="Chờ phán quyết"
-                                android:textColor="@color/danger"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                android:singleLine="true"
-                                android:ellipsize="end" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-
-            <!-- Bento KPI Grid: Row 2 (Orders & Users) -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="18dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <!-- 📦 Đơn Hàng Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardOrders"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_green_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_green" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_green">
-
-                                    <ImageView
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_package"
-                                        app:tint="@color/brand_green" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Tổng Đơn"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:importantForAccessibility="no"
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvTotalOrders"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="48" />
-
-                            <TextView
-                                android:id="@+id/tvOrderSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_green"
-                                android:ellipsize="end"
-                                android:maxLines="1"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_green"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="42 hoàn thành • 6 huỷ" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <!-- 👥 Người Dùng Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/cardUsers"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="18dp"
-                    app:cardElevation="2dp"
-                    app:rippleColor="@color/brand_blue_bg"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <View
-                            android:layout_width="match_parent"
-                            android:layout_height="4dp"
-                            android:background="@color/brand_blue" />
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="vertical"
-                            android:padding="15dp">
-
-                            <LinearLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:gravity="center_vertical"
-                                android:orientation="horizontal">
-
-                                <FrameLayout
-                                    android:layout_width="36dp"
-                                    android:layout_height="36dp"
-                                    android:background="@drawable/bg_circle_icon_blue">
-
-                                    <ImageView
-                                        android:importantForAccessibility="no"
-                                        android:layout_width="18dp"
-                                        android:layout_height="18dp"
-                                        android:layout_gravity="center"
-                                        android:src="@drawable/ic_users"
-                                        app:tint="@color/brand_blue" />
-                                </FrameLayout>
-
-                                <TextView
-                                    android:layout_width="0dp"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginStart="10dp"
-                                    android:layout_weight="1"
-                                    android:text="Người dùng"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="12.5sp"
-                                    android:textStyle="bold" />
-
-                                <ImageView
-                                    android:importantForAccessibility="no"
-                                    android:layout_width="14dp"
-                                    android:layout_height="14dp"
-                                    android:src="@drawable/ic_chevron_right"
-                                    app:tint="@color/text_muted" />
-                            </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvTotalUsers"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="10dp"
-                                android:textColor="@color/text_primary"
-                                android:textSize="26sp"
-                                android:textStyle="bold"
-                                tools:text="28" />
-
-                            <TextView
-                                android:id="@+id/tvUserSubtext"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="4dp"
-                                android:background="@drawable/bg_badge_blue"
-                                android:ellipsize="end"
-                                android:maxLines="1"
-                                android:paddingHorizontal="8dp"
-                                android:paddingVertical="3dp"
-                                android:textColor="@color/brand_blue"
-                                android:textSize="10.5sp"
-                                android:textStyle="bold"
-                                tools:text="20 Khách • 8 Tài xế" />
-                        </LinearLayout>
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-
-            <!-- Quick Command Launcher Dock -->
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:letterSpacing="0.04"
-                android:text="BẢNG ĐIỀU PHỐI TÁC VỤ NHANH"
-                android:textColor="@color/text_primary"
-                android:textSize="13sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:baselineAligned="false"
-                android:orientation="horizontal">
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickApproveStore"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_green">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_check_circle"
-                                app:tint="@color/brand_green" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Duyệt Quán"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickComplaints"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_red">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_shield_alert"
-                                app:tint="@color/danger" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Xử Phạt"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickAddCategory"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_purple">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_tag"
-                                app:tint="@color/purple" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Danh Mục"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/actionQuickMonitor"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:layout_weight="1"
-                    android:clickable="true"
-                    android:focusable="true"
-                    app:cardBackgroundColor="@color/white"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="1dp"
-                    app:strokeColor="@color/border"
-                    app:strokeWidth="1dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center"
-                        android:orientation="vertical"
-                        android:paddingVertical="14dp"
-                        android:paddingHorizontal="6dp">
-
-                        <FrameLayout
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:background="@drawable/bg_circle_icon_blue">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_package"
-                                app:tint="@color/brand_blue" />
-                        </FrameLayout>
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="8dp"
-                            android:text="Đơn &amp; User"
-                            android:textColor="@color/text_primary"
-                            android:textSize="11.5sp"
-                            android:textStyle="bold" />
-                    </LinearLayout>
-                </com.google.android.material.card.MaterialCardView>
-            </LinearLayout>
-
-            <!-- System Taxonomy Synchronization Card -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="18dp"
-                app:cardElevation="1dp"
-                app:strokeColor="@color/border"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="18dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_circle_icon_indigo">
-
-                            <ImageView
-                                android:importantForAccessibility="no"
-                                android:layout_width="20dp"
-                                android:layout_height="20dp"
-                                android:layout_gravity="center"
-                                android:src="@drawable/ic_sparkles"
-                                app:tint="@color/secondary" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Khởi tạo &amp; Đồng bộ 5 Danh Mục Chuẩn"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14.5sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Taxonomy Synchronization Engine"
-                                android:textColor="@color/secondary"
-                                android:textSize="11sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:layout_marginBottom="14dp"
-                        android:text="Tự động đồng bộ 5 nhóm ẩm thực chuẩn (Cơm, Phở, Trà sữa, Bún đậu, Nước ép) lên toàn bộ ứng dụng Khách hàng và Chủ quán."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnRestoreCategories"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="ĐỒNG BỘ 5 DANH MỤC CHUẨN NGAY"
-                        android:textColor="@color/secondary"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="12dp"
-                        app:icon="@drawable/ic_refresh"
-                        app:iconGravity="textStart"
-                        app:iconTint="@color/secondary"
-                        app:strokeColor="@color/secondary"
-                        app:strokeWidth="1.5dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:minHeight="0dp"
-                        android:minWidth="0dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:paddingTop="0dp"
-                        android:paddingBottom="0dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card Cấu hình thời gian đếm ngược bom hàng / sự cố -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="24dp"
-                app:cardBackgroundColor="@color/white"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeColor="@color/danger_bg"
-                app:strokeWidth="1dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <FrameLayout
-                            android:layout_width="38dp"
-                            android:layout_height="38dp"
-                            android:background="@drawable/bg_circle_icon_orange">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_gravity="center"
-                                android:text="⏱️"
-                                android:textSize="18sp" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="12dp"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Đếm ngược sự cố / Khách bom hàng"
-                                android:textColor="@color/text_primary"
-                                android:textSize="14sp"
-                                android:textStyle="bold" />
-
-                            <TextView
-                                android:id="@+id/tvCurrentCountdownConfig"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Lần 1: 15 phút • Lần 2 (gia hạn): 15 phút"
-                                android:textColor="@color/brand_orange"
-                                android:textSize="11.5sp"
-                                android:textStyle="bold" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:layout_marginBottom="14dp"
-                        android:text="Thiết lập thời gian đếm ngược Lần 1 và Lần 2 khi khách không nhận đơn / không nghe máy. Hệ thống tự động áp dụng thời gian thực cho Shipper và Khách hàng."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnConfigureCountdown"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="match_parent"
-                        android:layout_height="48dp"
-                        android:text="⏱️ CHỈNH SỬA THỜI GIAN ĐẾM NGƯỢC"
-                        android:textColor="@color/brand_orange"
-                        android:textSize="12.5sp"
-                        android:textStyle="bold"
-                        app:cornerRadius="12dp"
-                        app:strokeColor="@color/brand_orange"
-                        app:strokeWidth="1.5dp"
-                        android:insetTop="0dp"
-                        android:insetBottom="0dp"
-                        android:minHeight="0dp"
-                        android:minWidth="0dp"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp"
-                        android:paddingTop="0dp"
-                        android:paddingBottom="0dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-        </LinearLayout>
-    </androidx.core.widget.NestedScrollView>
-</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/checkout/CheckoutViewModel.kt
@@ -94533,16 +94212,12 @@ class AuthRepository @Inject constructor(
                         name = auth.currentUser?.displayName?.ifBlank { AppConstants.Defaults.DEFAULT_STORE_NAME } ?: AppConstants.Defaults.DEFAULT_STORE_NAME,
                         latitude = defaultCoords.latitude,
                         longitude = defaultCoords.longitude,
-                        lat = defaultCoords.latitude,
-                        lng = defaultCoords.longitude,
                         storeStatus = com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
                     )
                     database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).setValue(store).await()
                     val coordsUpdate = mapOf<String, Any>(
                         "latitude" to defaultCoords.latitude,
-                        "longitude" to defaultCoords.longitude,
-                        "lat" to defaultCoords.latitude,
-                        "lng" to defaultCoords.longitude
+                        "longitude" to defaultCoords.longitude
                     )
                     database.getReference(AppConstants.FirebaseNodes.STORES).child(finalStoreId).updateChildren(coordsUpdate).await()
                 }
@@ -94879,13 +94554,11 @@ data class Store(
     @SerializedName("longitude", alternate = ["lng"])
     var longitude: Double = 0.0,
 
-    @get:com.google.firebase.database.PropertyName("lat")
-    @set:com.google.firebase.database.PropertyName("lat")
+    @get:Exclude
     @SerializedName("lat")
     var lat: Double = 0.0,
 
-    @get:com.google.firebase.database.PropertyName("lng")
-    @set:com.google.firebase.database.PropertyName("lng")
+    @get:Exclude
     @SerializedName("lng")
     var lng: Double = 0.0,
 
@@ -94894,23 +94567,19 @@ data class Store(
     @SerializedName("imageUrl", alternate = ["avatarUrl", "logoUrl", "avatar", "image"])
     var imageUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("avatarUrl")
-    @set:com.google.firebase.database.PropertyName("avatarUrl")
+    @get:Exclude
     @SerializedName("avatarUrl")
     var avatarUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("avatar")
-    @set:com.google.firebase.database.PropertyName("avatar")
+    @get:Exclude
     @SerializedName("avatar")
     var avatar: String = "",
 
-    @get:com.google.firebase.database.PropertyName("logoUrl")
-    @set:com.google.firebase.database.PropertyName("logoUrl")
+    @get:Exclude
     @SerializedName("logoUrl")
     var logoUrl: String = "",
 
-    @get:com.google.firebase.database.PropertyName("image")
-    @set:com.google.firebase.database.PropertyName("image")
+    @get:Exclude
     @SerializedName("image")
     var image: String = "",
 
@@ -102395,6 +102064,59 @@ class OrderAdapter(
 </LinearLayout>
 ````
 
+## File: GEMINI.md
+````markdown
+# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
+# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
+
+---
+
+## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
+- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
+- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
+
+---
+
+## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
+- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
+- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
+- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
+
+---
+
+## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
+- **Đọc file có giới hạn (`view_file`)**:
+  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
+  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
+- **Tìm kiếm có bộ lọc (`grep_search`)**:
+  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
+  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
+  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
+- **Giới hạn Output dòng lệnh (`run_command`)**:
+  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
+  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
+
+---
+
+## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
+- **Kiến trúc 2 Ứng dụng (Multi-module)**:
+  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
+  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
+  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
+- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
+
+---
+
+## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
+- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau6.0` (`git push origin giau6.0`).
+
+---
+
+## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
+- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
+- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/model/Order.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.model
@@ -102746,59 +102468,6 @@ data class OrderItem(
     @get:Exclude
     val dishName: String get() = name
 }
-````
-
-## File: GEMINI.md
-````markdown
-# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
-# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
-
----
-
-## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
-- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
-- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
-
----
-
-## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
-- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
-- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
-- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
-
----
-
-## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
-- **Đọc file có giới hạn (`view_file`)**:
-  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
-  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
-- **Tìm kiếm có bộ lọc (`grep_search`)**:
-  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
-  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
-  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
-- **Giới hạn Output dòng lệnh (`run_command`)**:
-  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
-  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
-
----
-
-## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
-- **Kiến trúc 2 Ứng dụng (Multi-module)**:
-  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
-  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
-  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
-- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
-
----
-
-## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
-- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau6.0` (`git push origin giau6.0`).
-
----
-
-## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
-- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
-- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/tracking/TrackingActivity.kt
@@ -112249,12 +111918,10 @@ class FirebaseRepository @Inject constructor(
     /** Lắng nghe cấu hình thời gian đếm ngược sự cố / bom hàng (Lần 1 và Lần 2) */
     fun observeCountdownConfig(): Flow<com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig> = callbackFlow {
         // Lắng nghe đồng thời cả 3 node để đảm bảo tương thích mọi tầng rules:
-        // 1. orders/system_countdown_config: .read: auth != null, .write: auth != null (Tất cả tài khoản đều truy cập được)
-        // 2. delivery_time_frames/countdown_config: .read: true (Quyền đọc công khai)
-        // 3. system_config/delivery_countdown: node hệ thống gốc
-        val refOrders = database.getReference("orders").child("system_countdown_config")
-        val refTimeFrames = database.getReference("delivery_time_frames").child("countdown_config")
+        // 1. system_config/delivery_countdown: node hệ thống gốc
+        // 2. orders/system_countdown_config: .read: auth != null (dự phòng)
         val refSysConfig = database.getReference("system_config").child("delivery_countdown")
+        val refOrders = database.getReference("orders").child("system_countdown_config")
 
         var latestVersion = 0L
 
@@ -112284,28 +111951,21 @@ class FirebaseRepository @Inject constructor(
             override fun onDataChange(snapshot: DataSnapshot) = handleSnapshot(snapshot)
             override fun onCancelled(error: DatabaseError) {}
         }
-        val l3 = object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) = handleSnapshot(snapshot)
-            override fun onCancelled(error: DatabaseError) {}
-        }
 
-        refOrders.addValueEventListener(l1)
-        refTimeFrames.addValueEventListener(l2)
-        refSysConfig.addValueEventListener(l3)
+        refSysConfig.addValueEventListener(l1)
+        refOrders.addValueEventListener(l2)
 
         awaitClose {
-            refOrders.removeEventListener(l1)
-            refTimeFrames.removeEventListener(l2)
-            refSysConfig.removeEventListener(l3)
+            refSysConfig.removeEventListener(l1)
+            refOrders.removeEventListener(l2)
         }
     }
 
     /** Lấy 1 lần cấu hình thời gian đếm ngược */
     suspend fun getCountdownConfig(): com.chuyen_de_2.foodorder.core.data.model.DeliveryCountdownConfig {
         return try {
-            val snapOrders = try { database.getReference("orders").child("system_countdown_config").get().await() } catch (_: Exception) { null }
-            val snapFrames = if (snapOrders != null && snapOrders.exists()) snapOrders else try { database.getReference("delivery_time_frames").child("countdown_config").get().await() } catch (_: Exception) { null }
-            val snapshot = if (snapFrames != null && snapFrames.exists()) snapFrames else database.getReference("system_config").child("delivery_countdown").get().await()
+            val snapSys = try { database.getReference("system_config").child("delivery_countdown").get().await() } catch (_: Exception) { null }
+            val snapshot = if (snapSys != null && snapSys.exists()) snapSys else database.getReference("orders").child("system_countdown_config").get().await()
             val round1 = parseSafeInt(snapshot, "round1Minutes", 15)
             val round2 = parseSafeInt(snapshot, "round2Minutes", 15)
             val updatedAt = parseSafeLong(snapshot, "updatedAt", 0L)
@@ -112327,10 +111987,8 @@ class FirebaseRepository @Inject constructor(
                 "round2Minutes" to round2Minutes,
                 "updatedAt" to System.currentTimeMillis()
             )
-            // Cập nhật cả 3 node để đảm bảo mọi client đều đọc được tức thì
-            try { database.getReference("orders").child("system_countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
-            try { database.getReference("delivery_time_frames").child("countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             try { database.getReference("system_config").child("delivery_countdown").updateChildren(updates).await() } catch (_: Exception) {}
+            try { database.getReference("orders").child("system_countdown_config").updateChildren(updates).await() } catch (_: Exception) {}
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

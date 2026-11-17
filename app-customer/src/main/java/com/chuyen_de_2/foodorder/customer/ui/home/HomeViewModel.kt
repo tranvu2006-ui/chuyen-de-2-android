@@ -400,7 +400,10 @@ class HomeViewModel @Inject constructor(
         }
 
         if (currentNearbyOnly && currentNearbyMaxDistanceKm < 999.0) {
-            list = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+            val nearby = list.filter { it.distanceKm in 0.001..currentNearbyMaxDistanceKm }
+            if (nearby.isNotEmpty()) {
+                list = nearby
+            }
         }
 
         val q = currentQuery?.trim()

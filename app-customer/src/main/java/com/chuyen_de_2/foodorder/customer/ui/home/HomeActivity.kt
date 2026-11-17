@@ -17,6 +17,8 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
 import com.chuyen_de_2.foodorder.core.data.model.User
@@ -192,7 +194,7 @@ class HomeActivity : AppCompatActivity() {
     }
 
     /**
-     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần (< 1.5 km)
+     * Cập nhật vị trí tùy chọn từ bản đồ hoặc GPS và tự động lọc quán gần
      */
     private fun applyCustomLocation(lat: Double, lng: Double, fullAddr: String, district: String) {
         val displayDistrict = district.ifBlank { GoogleMapUtils.findNearestDistrict(lat, lng) }
@@ -201,13 +203,70 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.setUserLocation(lat, lng)
 
-        isNearbyFiltered = true
-        selectedNearbyDistanceKm = 1.5
-        selectedNearbyDistanceLabel = "< 1.5 km"
-        updateFilterIndicator()
-        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+        // Tính khoảng cách đến quán gần nhất để chọn bán kính hợp lý
+        val stores = viewModel.nearbyStores.value ?: emptyList()
+        val nearestStoreDist = stores.filter { it.distanceKm > 0.0 }.minOfOrNull { it.distanceKm } ?: 0.0
 
-        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict\nĐang lọc quán gần nhất (< 1.5 km)", Toast.LENGTH_SHORT).show()
+        val (radius, label) = when {
+            nearestStoreDist <= 1.5 -> 1.5 to "< 1.5 km"
+            nearestStoreDist <= 3.0 -> 3.0 to "< 3 km"
+            nearestStoreDist <= 5.0 -> 5.0 to "< 5 km"
+            nearestStoreDist <= 10.0 -> 10.0 to "< 10 km"
+            nearestStoreDist <= 15.0 -> 15.0 to "< 15 km"
+            nearestStoreDist <= 20.0 -> 20.0 to "< 20 km"
+            else -> 999.0 to "Gần nhất"
+        }
+        selectedNearbyDistanceKm = radius
+        selectedNearbyDistanceLabel = label
+        isNearbyFiltered = true
+        updateFilterIndicator()
+        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = radius)
+
+        val distHint = if (nearestStoreDist > 0.0) " (Quán gần nhất: ${String.format(java.util.Locale.US, "%.1f", nearestStoreDist)} km)" else ""
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict$distHint", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun showLocationSelectionDialog() {
+        val options = arrayOf(
+            "📍 TP. Thủ Đức (Khu vực ĐH / TDC)",
+            "📍 Quận 1 (Trung tâm Bến Thành)",
+            "📍 Quận 3",
+            "📍 Quận 7",
+            "📍 Quận 10",
+            "📍 Bình Thạnh",
+            "📍 Gò Vấp",
+            "📍 Tân Bình",
+            "🗺️ Mở bản đồ kéo ghim vị trí...",
+            "🎯 Định vị lại GPS thực tế..."
+        )
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Chọn vị trí của bạn")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> applyDistrictQuickLocation("Thủ Đức")
+                    1 -> applyDistrictQuickLocation("Quận 1")
+                    2 -> applyDistrictQuickLocation("Quận 3")
+                    3 -> applyDistrictQuickLocation("Quận 7")
+                    4 -> applyDistrictQuickLocation("Quận 10")
+                    5 -> applyDistrictQuickLocation("Bình Thạnh")
+                    6 -> applyDistrictQuickLocation("Gò Vấp")
+                    7 -> applyDistrictQuickLocation("Tân Bình")
+                    8 -> openSelectLocationMap()
+                    9 -> {
+                        binding.tvLocation.text = "📍 Đang định vị... ▾"
+                        checkGpsPermissionAndFetch {
+                            Toast.makeText(this, "Đã cập nhật vị trí GPS: $currentLocationName", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Đóng", null)
+            .show()
+    }
+
+    private fun applyDistrictQuickLocation(districtName: String) {
+        val coords = GoogleMapUtils.DISTRICT_COORDINATES[districtName] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+        applyCustomLocation(coords.latitude, coords.longitude, "$districtName, TP.HCM", districtName)
     }
 
     /**
@@ -221,7 +280,7 @@ class HomeActivity : AppCompatActivity() {
         }
 
         binding.tvLocation.setOnClickListener {
-            openSelectLocationMap()
+            showLocationSelectionDialog()
         }
 
         binding.tvViewAll.setOnClickListener {
@@ -258,6 +317,7 @@ class HomeActivity : AppCompatActivity() {
      */
     private fun detectUserLocation() {
         lifecycleScope.launch {
+            var locationResolved = false
             try {
                 val uid = FirebaseAuth.getInstance().currentUser?.uid
                 if (!uid.isNullOrBlank()) {
@@ -268,26 +328,41 @@ class HomeActivity : AppCompatActivity() {
                         val shortDistrict = addr.split(",")
                             .map { it.trim() }
                             .firstOrNull { it.contains("Quận", true) || it.contains("Thủ Đức", true) || it.contains("Bình Thạnh", true) || it.contains("Gò Vấp", true) || it.contains("Tân Bình", true) || it.contains("Phú Nhuận", true) }
-                            ?: "TP.HCM"
+                            ?: GoogleMapUtils.findNearestDistrict(GoogleMapUtils.DEFAULT_HCMC_LATLNG.latitude, GoogleMapUtils.DEFAULT_HCMC_LATLNG.longitude)
                         binding.tvLocation.text = "📍 $shortDistrict ▾"
 
-                        val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
+                        var coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
+                        if (coords.latitude == 0.0 || coords.longitude == 0.0) {
+                            val matchedDist = GoogleMapUtils.DISTRICT_COORDINATES.entries.find {
+                                addr.contains(it.key, ignoreCase = true)
+                            }?.value
+                            if (matchedDist != null) {
+                                coords = matchedDist
+                            }
+                        }
                         if (coords.latitude != 0.0 && coords.longitude != 0.0) {
                             viewModel.setUserLocation(coords.latitude, coords.longitude)
-                            if (!hasAutoFilteredNearbyOnce) {
-                                hasAutoFilteredNearbyOnce = true
-                                isNearbyFiltered = true
-                                selectedNearbyDistanceKm = 1.5
-                                selectedNearbyDistanceLabel = "< 1.5 km"
-                                updateFilterIndicator()
-                                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
-                            }
+                            locationResolved = true
                         }
                     }
                 }
             } catch (_: Exception) {}
 
-            checkGpsPermissionAndFetch()
+            checkGpsPermissionAndFetch {
+                locationResolved = true
+            }
+
+            // Nếu sau 2.5s không định vị được GPS/địa chỉ (máy ảo hoặc chưa bật GPS):
+            // Tự động gán vị trí trung tâm TP. Thủ Đức (nơi đặt các cơ sở quán thực nghiệm TDC của đề tài)
+            // để người dùng trải nghiệm ngay cự ly 0.3 - 0.5 km và các bộ lọc cự ly hoạt động chuẩn xác ngay lập tức
+            delay(2500)
+            if (!locationResolved && binding.tvLocation.text.contains("Đang định vị")) {
+                val defaultDistrict = "Thủ Đức"
+                val defaultCoords = GoogleMapUtils.DISTRICT_COORDINATES[defaultDistrict] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                currentLocationName = "$defaultDistrict, TP.HCM"
+                binding.tvLocation.text = "📍 $defaultDistrict ▾"
+                viewModel.setUserLocation(defaultCoords.latitude, defaultCoords.longitude)
+            }
         }
     }
 
@@ -348,15 +423,6 @@ class HomeActivity : AppCompatActivity() {
             } else {
                 "$nearestDistrict, TP.HCM"
             }
-
-            if (!hasAutoFilteredNearbyOnce) {
-                hasAutoFilteredNearbyOnce = true
-                isNearbyFiltered = true
-                selectedNearbyDistanceKm = 1.5
-                selectedNearbyDistanceLabel = "< 1.5 km"
-                updateFilterIndicator()
-                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
-            }
             onComplete?.invoke()
         }
     }
@@ -378,12 +444,12 @@ class HomeActivity : AppCompatActivity() {
 
         sheetBinding.btnChangeLocationSheet.setOnClickListener {
             dialog.dismiss()
-            openSelectLocationMap()
+            showLocationSelectionDialog()
         }
 
         sheetBinding.tvGpsStatusBadge.setOnClickListener {
             dialog.dismiss()
-            openSelectLocationMap()
+            showLocationSelectionDialog()
         }
 
         if (currentLocationName.contains("Đang") || currentLocationName == "TP.HCM") {
@@ -392,8 +458,23 @@ class HomeActivity : AppCompatActivity() {
             }
         }
 
+        val allStores = viewModel.nearbyStores.value ?: emptyList()
+        val nearestStoreDist = allStores.filter { it.distanceKm > 0.0 }.minOfOrNull { it.distanceKm } ?: 0.0
+
         var currentRadius = selectedNearbyDistanceKm
         var currentRadiusLabel = selectedNearbyDistanceLabel
+
+        // Tự động gợi ý bán kính bao quát được quán nếu bán kính hiện tại không chứa quán nào
+        if (allStores.isNotEmpty() && allStores.none { it.distanceKm in 0.001..currentRadius } && currentRadius < 999.0) {
+            when {
+                nearestStoreDist <= 3.0 -> { currentRadius = 3.0; currentRadiusLabel = "< 3 km" }
+                nearestStoreDist <= 5.0 -> { currentRadius = 5.0; currentRadiusLabel = "< 5 km" }
+                nearestStoreDist <= 10.0 -> { currentRadius = 10.0; currentRadiusLabel = "< 10 km" }
+                nearestStoreDist <= 15.0 -> { currentRadius = 15.0; currentRadiusLabel = "< 15 km" }
+                nearestStoreDist <= 20.0 -> { currentRadius = 20.0; currentRadiusLabel = "< 20 km" }
+                else -> { currentRadius = 999.0; currentRadiusLabel = "Tất cả" }
+            }
+        }
 
         val nearbyAdapter = NearbyStoreAdapter { storeItem ->
             dialog.dismiss()
@@ -410,28 +491,35 @@ class HomeActivity : AppCompatActivity() {
             adapter = nearbyAdapter
         }
 
-        fun filterAndDisplayStores(allStores: List<NearbyStoreItem>) {
+        fun filterAndDisplayStores(stores: List<NearbyStoreItem>) {
             val filteredStores = if (currentRadius >= 999.0) {
-                allStores
+                stores.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
             } else {
-                allStores.filter { it.distanceKm in 0.001..currentRadius }
+                stores.filter { it.distanceKm in 0.001..currentRadius }
+                    .sortedBy { it.distanceKm }
             }
             nearbyAdapter.submitList(filteredStores)
 
             if (filteredStores.isEmpty()) {
-                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\nHãy thử chọn bán kính 5 km hoặc 10 km!"
+                val nearestDist = stores.filter { it.distanceKm > 0.0 }.minOfOrNull { it.distanceKm }
+                val hint = if (nearestDist != null) {
+                    "Quán gần nhất cách bạn ${String.format(java.util.Locale.US, "%.1f", nearestDist)} km.\nHãy chọn bán kính lớn hơn (ví dụ < 15 km hoặc Tất cả)!"
+                } else {
+                    "Không tìm thấy quán nào trong phạm vi này.\nHãy thử chọn bán kính rộng hơn hoặc 'Tất cả'!"
+                }
+                sheetBinding.tvEmptyNearby.text = "Không có quán nào trong phạm vi $currentRadiusLabel.\n$hint"
                 sheetBinding.tvEmptyNearby.visibility = View.VISIBLE
                 sheetBinding.tvNearbyStoreCountSummary.visibility = View.GONE
+                sheetBinding.btnFilterNearbyOnly.text = "Xem Tất Cả Quán Gần Nhất (${stores.size} quán)"
             } else {
                 sheetBinding.tvEmptyNearby.visibility = View.GONE
                 sheetBinding.tvNearbyStoreCountSummary.text = "Tìm thấy ${filteredStores.size} quán trong bán kính $currentRadiusLabel"
                 sheetBinding.tvNearbyStoreCountSummary.visibility = View.VISIBLE
-            }
-
-            sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
-                "Áp Dụng Lọc Món Quán Gần (Tất cả)"
-            } else {
-                "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel)"
+                sheetBinding.btnFilterNearbyOnly.text = if (currentRadius >= 999.0) {
+                    "Áp Dụng Lọc Quán Gần Nhất (${filteredStores.size} quán)"
+                } else {
+                    "Áp Dụng Lọc Món Quán Gần ($currentRadiusLabel - ${filteredStores.size} quán)"
+                }
             }
         }
 
@@ -441,6 +529,8 @@ class HomeActivity : AppCompatActivity() {
             3.0 -> sheetBinding.chipDist3.isChecked = true
             5.0 -> sheetBinding.chipDist5.isChecked = true
             10.0 -> sheetBinding.chipDist10.isChecked = true
+            15.0 -> sheetBinding.chipDist15.isChecked = true
+            20.0 -> sheetBinding.chipDist20.isChecked = true
             else -> sheetBinding.chipDistAll.isChecked = true
         }
 
@@ -463,6 +553,14 @@ class HomeActivity : AppCompatActivity() {
                 R.id.chipDist10 -> {
                     currentRadius = 10.0
                     currentRadiusLabel = "< 10 km"
+                }
+                R.id.chipDist15 -> {
+                    currentRadius = 15.0
+                    currentRadiusLabel = "< 15 km"
+                }
+                R.id.chipDist20 -> {
+                    currentRadius = 20.0
+                    currentRadiusLabel = "< 20 km"
                 }
                 R.id.chipDistAll -> {
                     currentRadius = 999.0
@@ -487,8 +585,15 @@ class HomeActivity : AppCompatActivity() {
 
         sheetBinding.btnFilterNearbyOnly.setOnClickListener {
             dialog.dismiss()
-            selectedNearbyDistanceKm = currentRadius
-            selectedNearbyDistanceLabel = currentRadiusLabel
+            val stores = viewModel.nearbyStores.value ?: emptyList()
+            val hasMatchingStores = stores.any { it.distanceKm in 0.001..currentRadius }
+            if (!hasMatchingStores && currentRadius < 999.0) {
+                selectedNearbyDistanceKm = 999.0
+                selectedNearbyDistanceLabel = "Gần nhất"
+            } else {
+                selectedNearbyDistanceKm = currentRadius
+                selectedNearbyDistanceLabel = currentRadiusLabel
+            }
             isNearbyFiltered = true
             updateFilterIndicator()
             viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)

@@ -158,6 +158,22 @@
                     android:textSize="11.5sp" />
 
                 <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist15"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&lt; 15 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/chipDist20"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="&lt; 20 km"
+                    android:textSize="11.5sp" />
+
+                <com.google.android.material.chip.Chip
                     android:id="@+id/chipDistAll"
                     style="@style/Widget.Material3.Chip.Filter"
                     android:layout_width="wrap_content"

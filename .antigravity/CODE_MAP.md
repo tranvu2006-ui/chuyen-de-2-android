@@ -31144,200 +31144,6 @@ google-services = { id = "com.google.gms.google-services", version.ref = "google
 google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
 ````
 
-## File: scripts/build_firebase_doc.py
-````python
-# -*- coding: utf-8 -*-
-"""
-Script tự động sinh tài liệu Word (.docx) chuẩn TDC:
-GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE TRÊN GOOGLE FIREBASE REALTIME DATABASE - DỰ ÁN OISHI FOOD
-"""
-⋮----
-ROOT_DIR = r"c:\DuAn\Chuyen-De-Tot-Nghiep-2-android"
-OUT_DOCX_PATH = os.path.join(ROOT_DIR, "GIAI_THICH_CHI_TIET_CAC_NODE_FIREBASE.docx")
-⋮----
-doc = Document()
-⋮----
-# 1. Cấu hình Margins chuẩn TDC: Trái 3cm (1.18 in), Phải 2cm (0.79 in), Trên 2cm (0.79 in), Dưới 2cm (0.79 in)
-⋮----
-# 2. Cấu hình Style mặc định
-normal_style = doc.styles['Normal']
-⋮----
-# 3. Hàm tiện ích định dạng bảng
-def set_cell_background(cell, fill_hex)
-⋮----
-tcPr = cell._tc.get_or_add_tcPr()
-shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
-⋮----
-def set_cell_margins(cell, top=100, bottom=100, left=140, right=140)
-⋮----
-tcMar = parse_xml(f'''
-⋮----
-def add_title(text, level=1, space_before=14, space_after=6)
-⋮----
-p = doc.add_heading(level=level)
-⋮----
-pPr = p._p.get_or_add_pPr()
-outlineLvl = parse_xml(f'<w:outlineLvl {nsdecls("w")} w:val="{level-1}"/>')
-⋮----
-run = p.add_run(text)
-⋮----
-run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Dark Navy
-⋮----
-def add_p(text, bold_prefix="", italic=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY)
-⋮----
-p = doc.add_paragraph()
-⋮----
-r_bold = p.add_run(bold_prefix)
-⋮----
-def add_bullet(text, bold_prefix="")
-⋮----
-p = doc.add_paragraph(style='List Bullet')
-⋮----
-def create_table(headers, rows, col_widths=None, header_bg="1E293B")
-⋮----
-tbl = doc.add_table(rows=len(rows) + 1, cols=len(headers))
-⋮----
-# Header Row
-hdr_cells = tbl.rows[0].cells
-⋮----
-p = hdr_cells[i].paragraphs[0]
-⋮----
-# Data Rows
-⋮----
-row_cells = tbl.rows[r_idx + 1].cells
-bg_color = "F8FAFC" if r_idx % 2 == 1 else "FFFFFF"
-⋮----
-p = row_cells[c_idx].paragraphs[0]
-⋮----
-# Đặt độ rộng cột nếu có
-⋮----
-def add_code_block(code_text)
-⋮----
-shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F1F5F9"/>')
-⋮----
-run = p.add_run(code_text)
-⋮----
-# ==========================================================
-# TRANG BÌA (COVER PAGE)
-⋮----
-p_school = doc.add_paragraph()
-⋮----
-r = p_school.add_run("ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH\nTRƯỜNG CAO ĐẲNG CÔNG NGHỆ THỦ ĐỨC\nKHOA CÔNG NGHỆ THÔNG TIN")
-⋮----
-# Logo đề tài Oishi Food
-p_logo = doc.add_paragraph()
-⋮----
-logo_path = os.path.join(ROOT_DIR, "logo-app-khach.png")
-⋮----
-run_logo = p_logo.add_run()
-⋮----
-p_line = doc.add_paragraph()
-⋮----
-r_line = p_line.add_run("-------------------***-------------------")
-⋮----
-p_doc_type = doc.add_paragraph()
-⋮----
-r_dt = p_doc_type.add_run("TÀI LIỆU KỸ THUẬT CHUYÊN ĐỀ TỐT NGHIỆP 2")
-⋮----
-r_dt.font.color.rgb = RGBColor(0xEA, 0x58, 0x0C) # Cam Oishi
-⋮----
-p_title = doc.add_paragraph()
-⋮----
-r_title = p_title.add_run("ĐẶC TẢ VÀ GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE\nCƠ SỞ DỮ LIỆU GOOGLE FIREBASE REALTIME DATABASE")
-⋮----
-p_sub = doc.add_paragraph()
-⋮----
-r_sub = p_sub.add_run("HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN OISHI FOOD\n(Hệ sinh thái đa phân hệ: Khách hàng, Quán ăn, Đầu bếp, Tài xế & Quản trị viên)")
-⋮----
-# Thông tin sinh viên & đề tài
-tbl_info = doc.add_table(rows=6, cols=2)
-⋮----
-info_data = [
-⋮----
-row_cells = tbl_info.rows[idx].cells
-⋮----
-p0 = row_cells[0].paragraphs[0]
-p1 = row_cells[1].paragraphs[0]
-⋮----
-p_footer = doc.add_paragraph()
-⋮----
-r_foot = p_footer.add_run("THÀNH PHỐ HỒ CHÍ MINH — NĂM 2026")
-⋮----
-# MỤC LỤC TỰ ĐỘNG
-⋮----
-# Word TOC field
-p_toc = doc.add_paragraph()
-r_toc = p_toc.add_run()
-fldChar1 = parse_xml(r'<w:fldChar %s w:fldCharType="begin"/>' % nsdecls('w'))
-instrText = parse_xml(r'<w:instrText %s xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText>' % nsdecls('w'))
-fldChar2 = parse_xml(r'<w:fldChar %s w:fldCharType="separate"/>' % nsdecls('w'))
-fldChar3 = parse_xml(r'<w:fldChar %s w:fldCharType="end"/>' % nsdecls('w'))
-⋮----
-# PHẦN 1: TỔNG QUAN KIẾN TRÚC DỮ LIỆU FIREBASE REALTIME DATABASE
-⋮----
-config_headers = ["Thuộc tính", "Giá trị cấu hình thực tế", "Ghi chú kỹ thuật"]
-config_rows = [
-⋮----
-tree_schema = """root (chuyen-de-2-2f0bc-default-rtdb)
-⋮----
-# PHẦN 2: BẢNG TỔNG HỢP TOÀN BỘ CÁC ROOT NODES
-⋮----
-summary_headers = ["STT", "Tên Node & Đường dẫn", "Model (core/model)", "Phân nhóm nghiệp vụ", "Quyền Đọc / Ghi (Rules)", "Chỉ mục (indexOn)"]
-summary_rows = [
-⋮----
-# PHẦN 3: ĐẶC TẢ CHI TIẾT TỪNG ROOT NODE
-⋮----
-# --- 3.1 USERS ---
-⋮----
-users_fields = [
-⋮----
-# --- 3.2 CUSTOMERS ---
-⋮----
-cust_fields = [
-⋮----
-# --- 3.3 STORES ---
-⋮----
-store_fields = [
-⋮----
-# --- 3.4 DISHES (CON CỦA STORES) ---
-⋮----
-dish_fields = [
-⋮----
-# --- 3.5 COMBOS ---
-⋮----
-combo_fields = [
-⋮----
-# --- 3.6 ORDERS ---
-⋮----
-order_fields = [
-⋮----
-# --- 3.7 TRACKING & ORDER_CHATS ---
-⋮----
-track_fields = [
-⋮----
-chat_fields = [
-⋮----
-# --- 3.8 COMPLAINTS & TRUST_SCORE_LOGS ---
-⋮----
-cmp_fields = [
-⋮----
-trust_fields = [
-⋮----
-# --- 3.9 SYSTEM_CONFIG & DELIVERY_TIME_FRAMES ---
-⋮----
-sys_fields = [
-⋮----
-# PHẦN 4: CƠ CHẾ KỸ THUẬT ĐẶC THÙ TRÊN FIREBASE
-⋮----
-tx_code = """// Khóa nguyên tử khi Đầu bếp nhận đơn (assignChef)
-⋮----
-# PHẦN 5: PHÂN TÍCH QUY TẮC BẢO MẬT FIREBASE RULES
-⋮----
-rules_summary = [
-⋮----
-# Lưu tài liệu Word
-````
-
 ## File: .firebaserc
 ````
 {
@@ -51632,6 +51438,200 @@ LAYOUT: app-admin\src\main\res\layout\item_admin_store.xml (228 dòng)
 LAYOUT: app-admin\src\main\res\layout\item_admin_user.xml (134 dòng)
 ````
 
+## File: scripts/build_firebase_doc.py
+````python
+# -*- coding: utf-8 -*-
+"""
+Script tự động sinh tài liệu Word (.docx) chuẩn TDC:
+GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE TRÊN GOOGLE FIREBASE REALTIME DATABASE - DỰ ÁN OISHI FOOD
+"""
+⋮----
+ROOT_DIR = r"c:\DuAn\Chuyen-De-Tot-Nghiep-2-android"
+OUT_DOCX_PATH = os.path.join(ROOT_DIR, "GIAI_THICH_CHI_TIET_CAC_NODE_FIREBASE.docx")
+⋮----
+doc = Document()
+⋮----
+# 1. Cấu hình Margins chuẩn TDC: Trái 3cm (1.18 in), Phải 2cm (0.79 in), Trên 2cm (0.79 in), Dưới 2cm (0.79 in)
+⋮----
+# 2. Cấu hình Style mặc định
+normal_style = doc.styles['Normal']
+⋮----
+# 3. Hàm tiện ích định dạng bảng
+def set_cell_background(cell, fill_hex)
+⋮----
+tcPr = cell._tc.get_or_add_tcPr()
+shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+⋮----
+def set_cell_margins(cell, top=100, bottom=100, left=140, right=140)
+⋮----
+tcMar = parse_xml(f'''
+⋮----
+def add_title(text, level=1, space_before=14, space_after=6)
+⋮----
+p = doc.add_heading(level=level)
+⋮----
+pPr = p._p.get_or_add_pPr()
+outlineLvl = parse_xml(f'<w:outlineLvl {nsdecls("w")} w:val="{level-1}"/>')
+⋮----
+run = p.add_run(text)
+⋮----
+run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Dark Navy
+⋮----
+def add_p(text, bold_prefix="", italic=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY)
+⋮----
+p = doc.add_paragraph()
+⋮----
+r_bold = p.add_run(bold_prefix)
+⋮----
+def add_bullet(text, bold_prefix="")
+⋮----
+p = doc.add_paragraph(style='List Bullet')
+⋮----
+def create_table(headers, rows, col_widths=None, header_bg="1E293B")
+⋮----
+tbl = doc.add_table(rows=len(rows) + 1, cols=len(headers))
+⋮----
+# Header Row
+hdr_cells = tbl.rows[0].cells
+⋮----
+p = hdr_cells[i].paragraphs[0]
+⋮----
+# Data Rows
+⋮----
+row_cells = tbl.rows[r_idx + 1].cells
+bg_color = "F8FAFC" if r_idx % 2 == 1 else "FFFFFF"
+⋮----
+p = row_cells[c_idx].paragraphs[0]
+⋮----
+# Đặt độ rộng cột nếu có
+⋮----
+def add_code_block(code_text)
+⋮----
+shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F1F5F9"/>')
+⋮----
+run = p.add_run(code_text)
+⋮----
+# ==========================================================
+# TRANG BÌA (COVER PAGE)
+⋮----
+p_school = doc.add_paragraph()
+⋮----
+r = p_school.add_run("ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH\nTRƯỜNG CAO ĐẲNG CÔNG NGHỆ THỦ ĐỨC\nKHOA CÔNG NGHỆ THÔNG TIN")
+⋮----
+# Logo đề tài Oishi Food
+p_logo = doc.add_paragraph()
+⋮----
+logo_path = os.path.join(ROOT_DIR, "logo-app-khach.png")
+⋮----
+run_logo = p_logo.add_run()
+⋮----
+p_line = doc.add_paragraph()
+⋮----
+r_line = p_line.add_run("-------------------***-------------------")
+⋮----
+p_doc_type = doc.add_paragraph()
+⋮----
+r_dt = p_doc_type.add_run("TÀI LIỆU KỸ THUẬT CHUYÊN ĐỀ TỐT NGHIỆP 2")
+⋮----
+r_dt.font.color.rgb = RGBColor(0xEA, 0x58, 0x0C) # Cam Oishi
+⋮----
+p_title = doc.add_paragraph()
+⋮----
+r_title = p_title.add_run("ĐẶC TẢ VÀ GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE\nCƠ SỞ DỮ LIỆU GOOGLE FIREBASE REALTIME DATABASE")
+⋮----
+p_sub = doc.add_paragraph()
+⋮----
+r_sub = p_sub.add_run("HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN OISHI FOOD\n(Hệ sinh thái đa phân hệ: Khách hàng, Quán ăn, Đầu bếp, Tài xế & Quản trị viên)")
+⋮----
+# Thông tin sinh viên & đề tài
+tbl_info = doc.add_table(rows=6, cols=2)
+⋮----
+info_data = [
+⋮----
+row_cells = tbl_info.rows[idx].cells
+⋮----
+p0 = row_cells[0].paragraphs[0]
+p1 = row_cells[1].paragraphs[0]
+⋮----
+p_footer = doc.add_paragraph()
+⋮----
+r_foot = p_footer.add_run("THÀNH PHỐ HỒ CHÍ MINH — NĂM 2026")
+⋮----
+# MỤC LỤC TỰ ĐỘNG
+⋮----
+# Word TOC field
+p_toc = doc.add_paragraph()
+r_toc = p_toc.add_run()
+fldChar1 = parse_xml(r'<w:fldChar %s w:fldCharType="begin"/>' % nsdecls('w'))
+instrText = parse_xml(r'<w:instrText %s xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText>' % nsdecls('w'))
+fldChar2 = parse_xml(r'<w:fldChar %s w:fldCharType="separate"/>' % nsdecls('w'))
+fldChar3 = parse_xml(r'<w:fldChar %s w:fldCharType="end"/>' % nsdecls('w'))
+⋮----
+# PHẦN 1: TỔNG QUAN KIẾN TRÚC DỮ LIỆU FIREBASE REALTIME DATABASE
+⋮----
+config_headers = ["Thuộc tính", "Giá trị cấu hình thực tế", "Ghi chú kỹ thuật"]
+config_rows = [
+⋮----
+tree_schema = """root (chuyen-de-2-2f0bc-default-rtdb)
+⋮----
+# PHẦN 2: BẢNG TỔNG HỢP TOÀN BỘ CÁC ROOT NODES
+⋮----
+summary_headers = ["STT", "Tên Node & Đường dẫn", "Model (core/model)", "Phân nhóm nghiệp vụ", "Quyền Đọc / Ghi (Rules)", "Chỉ mục (indexOn)"]
+summary_rows = [
+⋮----
+# PHẦN 3: ĐẶC TẢ CHI TIẾT TỪNG ROOT NODE
+⋮----
+# --- 3.1 USERS ---
+⋮----
+users_fields = [
+⋮----
+# --- 3.2 CUSTOMERS ---
+⋮----
+cust_fields = [
+⋮----
+# --- 3.3 STORES ---
+⋮----
+store_fields = [
+⋮----
+# --- 3.4 DISHES (CON CỦA STORES) ---
+⋮----
+dish_fields = [
+⋮----
+# --- 3.5 COMBOS ---
+⋮----
+combo_fields = [
+⋮----
+# --- 3.6 ORDERS ---
+⋮----
+order_fields = [
+⋮----
+# --- 3.7 TRACKING & ORDER_CHATS ---
+⋮----
+track_fields = [
+⋮----
+chat_fields = [
+⋮----
+# --- 3.8 COMPLAINTS & TRUST_SCORE_LOGS ---
+⋮----
+cmp_fields = [
+⋮----
+trust_fields = [
+⋮----
+# --- 3.9 SYSTEM_CONFIG & DELIVERY_TIME_FRAMES ---
+⋮----
+sys_fields = [
+⋮----
+# PHẦN 4: CƠ CHẾ KỸ THUẬT ĐẶC THÙ TRÊN FIREBASE
+⋮----
+tx_code = """// Khóa nguyên tử khi Đầu bếp nhận đơn (assignChef)
+⋮----
+# PHẦN 5: PHÂN TÍCH QUY TẮC BẢO MẬT FIREBASE RULES
+⋮----
+rules_summary = [
+⋮----
+# Lưu tài liệu Word
+````
+
 ## File: scripts/deep_inspect_codebase.py
 ````python
 modules = ["core", "app-customer", "app-internal"]
@@ -59836,12 +59836,13 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.setUserLocation(lat, lng)
 
-        if (isNearbyFiltered) {
-            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
-        }
+        isNearbyFiltered = true
+        selectedNearbyDistanceKm = 1.5
+        selectedNearbyDistanceLabel = "< 1.5 km"
         updateFilterIndicator()
+        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
 
-        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict\nĐang lọc quán gần nhất (< 1.5 km)", Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -59908,7 +59909,14 @@ class HomeActivity : AppCompatActivity() {
                         val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
                         if (coords.latitude != 0.0 && coords.longitude != 0.0) {
                             viewModel.setUserLocation(coords.latitude, coords.longitude)
-                            hasAutoFilteredNearbyOnce = true
+                            if (!hasAutoFilteredNearbyOnce) {
+                                hasAutoFilteredNearbyOnce = true
+                                isNearbyFiltered = true
+                                selectedNearbyDistanceKm = 1.5
+                                selectedNearbyDistanceLabel = "< 1.5 km"
+                                updateFilterIndicator()
+                                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+                            }
                         }
                     }
                 }
@@ -60210,7 +60218,7 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.etSearch.text.isNotBlank()) {
                     binding.etSearch.setText("")
                 }
-                viewModel.filterDishes(category = category.categoryId)
+                viewModel.filterDishes(category = category.name)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
                 updateFilterIndicator()
                 Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
@@ -60611,16 +60619,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.homeDishes.observe(this) { dishes ->
             dishAdapter.submitList(dishes)
             binding.tvDishesCountBadge.text = "(${dishes.size} món)"
-            if (dishes.isEmpty()) {
-                binding.tvEmpty.visibility = View.VISIBLE
-                if (isNearbyFiltered) {
-                    binding.tvEmpty.text = "Không có món ăn nào trong phạm vi $selectedNearbyDistanceLabel.\nHãy thử chọn bán kính 3 km hoặc 5 km trong mục Quán gần đây!"
-                } else {
-                    binding.tvEmpty.setText(R.string.empty_restaurants)
-                }
-            } else {
-                binding.tvEmpty.visibility = View.GONE
-            }
+            binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
         }
 
         viewModel.currentHotTab.observe(this) { tab ->
@@ -60722,9 +60721,7 @@ data class HomeDishItem(
     val tag1: String = "",
     val tag2: String = "",
     val category: String = "",
-    val platformCategory: String = "",
-    val categoryId: String = "",
-    val isCombo: Boolean = false
+    val platformCategory: String = ""
 )
 
 class HomeDishAdapter(
@@ -72477,7 +72474,7 @@ class StoreReportFragment : Fragment() {
             launch {
                 firebaseRepository.observeAllOrders().collectLatest { orders ->
                     allStoreOrders = if (currentStoreId.isNotBlank()) {
-                        orders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
+                        orders.filter { it.shopId == currentStoreId }
                     } else {
                         orders
                     }
@@ -80458,20 +80455,9 @@ class MenuViewModel @Inject constructor(
                     allDishes.clear()
                     allDishes.addAll(visibleDishes)
 
-                    // Tách biệt danh mục riêng của quán và danh mục hệ thống Combo
-                    val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
-                    val uniqueCats = visibleDishes
-                        .filter { !isComboDish(it) }
-                        .map { it.category }
-                        .filter { it.isNotBlank() && !it.equals("Combo", ignoreCase = true) }
+                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
+                        .filter { it.isNotBlank() }
                         .distinct()
-                        .toMutableList()
-
-                    // Nếu quán có món combo, ưu tiên hiển thị tab "Combo" lên đầu tiên
-                    val hasCombo = visibleDishes.any { isComboDish(it) }
-                    if (hasCombo) {
-                        uniqueCats.add(0, "Combo")
-                    }
                     _categories.value = uniqueCats
 
                     applyFilter()
@@ -80512,19 +80498,14 @@ class MenuViewModel @Inject constructor(
     }
 
     private fun applyFilter() {
-        val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
         if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
             _dishes.value = allDishes
-        } else if (currentCategory.equals("Combo", ignoreCase = true)) {
-            // Khi chọn tab Combo: Chỉ hiển thị các gói combo
-            _dishes.value = allDishes.filter { isComboDish(it) }
         } else {
-            // Khi chọn danh mục riêng của quán: Chỉ hiển thị món lẻ thuộc danh mục đó, không để combo lẫn vào
             _dishes.value = allDishes.filter { dish ->
-                !isComboDish(dish) && (
-                    dish.category.equals(currentCategory, ignoreCase = true) ||
-                    dish.category.contains(currentCategory, ignoreCase = true)
-                )
+                dish.category.equals(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
+                dish.category.contains(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.contains(currentCategory, ignoreCase = true)
             }
         }
     }
@@ -91144,6 +91125,53 @@ orders_data = {
 # 7. Hoàn tất
 ````
 
+## File: .gitignore
+````
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.idea/
+.kotlin/
+.DS_Store
+/build
+*/build
+captures/
+.externalNativeBuild
+.cxx
+local.properties
+.wrangler/
+**/node_modules/
+
+# Extracted web prototypes (already in repo root)
+chuyen-de-2-android-main/
+chuyende2/
+
+# Analysis and tool cache
+.claude/
+CLAUDE.md
+graphify-out/
+
+# Antigravity Repomix Code Map
+.antigravity/
+
+# Database backups
+backup_*.json
+
+# Office temp lock files
+~$*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+````
+
 ## File: BAO_CAO_KIEN_TRUC_HE_THONG_MOI_OISHI_FOOD.md
 ````markdown
 # BÁO CÁO THIẾT KẾ & KIẾN TRÚC TOÀN DIỆN HỆ THỐNG MỚI OISHI FOOD
@@ -91817,12 +91845,10 @@ class HomeViewModel @Inject constructor(
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
 
             availableDishes.forEach { dish ->
-                val isCombo = dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true) || dish.id.startsWith("combo_")
-                val platformCat = if (isCombo) "Combo" else dish.platformCategory.ifBlank {
+                val platformCat = dish.platformCategory.ifBlank {
                     inferPlatformCategory(dish.name, dish.category)
                 }
                 val emoji = when {
-                    isCombo -> "🍱"
                     platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
                     platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
                     platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
@@ -91837,21 +91863,12 @@ class HomeViewModel @Inject constructor(
                     platformCat.contains("Lẩu", true) -> "🍲"
                     else -> "🍽️"
                 }
-                val resolvedCatId = when {
-                    isCombo -> "cat_combo"
-                    dish.categoryId.isNotBlank() -> dish.categoryId
-                    platformCat.contains("bánh mì", true) -> "cat_banhmi"
-                    platformCat.contains("trà sữa", true) -> "cat_trasua"
-                    platformCat.contains("bún", true) || platformCat.contains("phở", true) -> "cat_bun"
-                    platformCat.contains("cơm", true) -> "cat_com"
-                    else -> ""
-                }
                 allDishes.add(
                     HomeDishItem(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = if (dish.originalPrice > 0L) dish.originalPrice else dish.basePrice,
+                        originalPrice = dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
@@ -91859,13 +91876,11 @@ class HomeViewModel @Inject constructor(
                         rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
                         soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = if (isCombo) "Combo" else "",
-                        tag1 = if (isCombo) "Combo Tiết Kiệm" else platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
                         tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = if (isCombo) "Combo" else dish.category.ifBlank { store.category },
-                        platformCategory = platformCat,
-                        categoryId = resolvedCatId,
-                        isCombo = isCombo
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
                     )
                 )
             }
@@ -92114,15 +92129,18 @@ class HomeViewModel @Inject constructor(
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (chuẩn xác theo bán kính tối đa)
+        // 1. Lọc theo cự ly gần
         if (currentNearbyOnly) {
             val maxDist = currentNearbyMaxDistanceKm
             filtered = if (maxDist >= 999.0) {
                 filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
             } else {
-                // CHỈ GIỮ LẠI MÓN CÓ KHOẢNG CÁCH THỰC TẾ <= maxDist (không tự tiện fallback nhả toàn bộ 16 món)
-                filtered.filter { it.distanceKm in 0.001..maxDist }
-                    .sortedBy { it.distanceKm }
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
             }
         }
 
@@ -92172,35 +92190,35 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim()
-        if (target.isBlank() || target.equals("ALL", ignoreCase = true)) return true
-
-        // 1. Trường hợp người dùng lọc danh mục cấp sàn "Combo"
-        val isFilterCombo = target.equals("cat_combo", ignoreCase = true) || target.contains("combo", ignoreCase = true)
-        if (isFilterCombo) {
-            return dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)
-        }
-
-        // 2. Trường hợp lọc các danh mục cấp sàn món lẻ: BẮT BUỘC LOẠI TRỪ 100% CÁC MÓN COMBO
-        if (dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)) {
-            return false
-        }
-
-        // 3. SO KHỚP TRỰC TIẾP THEO categoryId (Khóa chính / Foreign Key chuẩn Firebase)
-        if (dish.categoryId.isNotBlank() && dish.categoryId.equals(target, ignoreCase = true)) {
-            return true
-        }
-
-        // 4. Fallback so khớp theo tên danh mục cấp sàn (nếu filter truyền tên thay vì ID)
-        val targetLower = target.lowercase()
+        val target = filterCat.trim().lowercase()
         val pCat = dish.platformCategory.lowercase()
-        return when {
-            targetLower.contains("banhmi") || targetLower.contains("bánh mì") -> dish.categoryId == "cat_banhmi" || pCat.contains("bánh mì")
-            targetLower.contains("trasua") || targetLower.contains("trà sữa") -> dish.categoryId == "cat_trasua" || pCat.contains("trà sữa")
-            targetLower.contains("bun") || targetLower.contains("bún") || targetLower.contains("phở") -> dish.categoryId == "cat_bun" || pCat.contains("bún") || pCat.contains("phở")
-            targetLower.contains("com") || targetLower.contains("cơm") -> dish.categoryId == "cat_com" || pCat.contains("cơm")
-            else -> pCat.equals(targetLower, ignoreCase = true)
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm") || combined.contains("com")
         }
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
+        }
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
+        }
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
+        }
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
     }
 
     private fun inferPlatformCategory(name: String, category: String): String {
@@ -94688,20 +94706,8 @@ class MenuManageFragment : Fragment() {
             }
             binding.chipGroupStoreCategories.addView(allChip)
 
-            // Chip Combo độc lập (Danh mục cấp sàn Oishi Food)
-            val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
-            val comboCount = dishList.count { isComboDish(it) }
-            if (comboCount > 0) {
-                val comboChip = createCategoryChip("🍱 Combo ($comboCount)", selectedStoreCategory == "COMBO_FILTER") {
-                    selectedStoreCategory = "COMBO_FILTER"
-                    updateList()
-                }
-                binding.chipGroupStoreCategories.addView(comboChip)
-            }
-
-            // Các chip danh mục nội bộ riêng của quán (không bao gồm Combo)
-            storeCategories.filter { !it.equals("Combo", ignoreCase = true) }.forEach { catName ->
-                val count = dishList.count { !isComboDish(it) && it.category.equals(catName, ignoreCase = true) }
+            storeCategories.forEach { catName ->
+                val count = dishList.count { it.category.equals(catName, ignoreCase = true) }
                 val label = if (count > 0) "$catName ($count)" else catName
                 val chip = createCategoryChip(label, selectedStoreCategory.equals(catName, ignoreCase = true)) {
                     selectedStoreCategory = catName
@@ -94737,11 +94743,10 @@ class MenuManageFragment : Fragment() {
      * Tên chức năng: Làm mới danh sách hiển thị món ăn có lọc theo danh mục
      */
     private fun updateList() {
-        val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
-        val filtered = when {
-            selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank() -> dishList
-            selectedStoreCategory == "COMBO_FILTER" -> dishList.filter { isComboDish(it) }
-            else -> dishList.filter { !isComboDish(it) && it.category.equals(selectedStoreCategory, ignoreCase = true) }
+        val filtered = if (selectedStoreCategory == "ALL" || selectedStoreCategory.isBlank()) {
+            dishList
+        } else {
+            dishList.filter { it.category.equals(selectedStoreCategory, ignoreCase = true) }
         }
         adapter.submitList(filtered.toList())
         binding.layoutEmptyDishes.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
@@ -95531,15 +95536,18 @@ class MenuManageFragment : Fragment() {
                 comboItems = comboItemsList,
                 category = "Combo",
                 platformCategory = "Combo",
-                categoryId = "cat_combo",
                 isAvailable = true
             )
 
             (viewLifecycleOwnerLiveData.value?.lifecycleScope ?: lifecycleScope).launch {
                 try {
                     firebaseRepository.saveStoreDish(currentStoreId, comboDish)
+                    if (!storeCategories.contains("Combo")) {
+                        firebaseRepository.addStoreCategory(currentStoreId, "Combo")
+                        storeCategories.add("Combo")
+                        setupCategoryFilterChips()
+                    }
                     dishList.add(comboDish)
-                    setupCategoryFilterChips()
                     updateList()
                     Toast.makeText(requireContext(), "✓ Đã tạo Combo [$name] thành công!", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
@@ -98445,53 +98453,6 @@ data class Store(
         const val LOCK = "LOCK"
     }
 }
-````
-
-## File: .gitignore
-````
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.idea/
-.kotlin/
-.DS_Store
-/build
-*/build
-captures/
-.externalNativeBuild
-.cxx
-local.properties
-.wrangler/
-**/node_modules/
-
-# Extracted web prototypes (already in repo root)
-chuyen-de-2-android-main/
-chuyende2/
-
-# Analysis and tool cache
-.claude/
-CLAUDE.md
-graphify-out/
-
-# Antigravity Repomix Code Map
-.antigravity/
-
-# Database backups
-backup_*.json
-
-# Office temp lock files
-~$*
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/OrderAdapter.kt

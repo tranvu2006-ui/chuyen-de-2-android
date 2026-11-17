@@ -201,12 +201,13 @@ class HomeActivity : AppCompatActivity() {
 
         viewModel.setUserLocation(lat, lng)
 
-        if (isNearbyFiltered) {
-            viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = selectedNearbyDistanceKm)
-        }
+        isNearbyFiltered = true
+        selectedNearbyDistanceKm = 1.5
+        selectedNearbyDistanceLabel = "< 1.5 km"
         updateFilterIndicator()
+        viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
 
-        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Đã chọn vị trí: $displayDistrict\nĐang lọc quán gần nhất (< 1.5 km)", Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -273,7 +274,14 @@ class HomeActivity : AppCompatActivity() {
                         val coords = GoogleMapUtils.geocodeAddress(this@HomeActivity, addr)
                         if (coords.latitude != 0.0 && coords.longitude != 0.0) {
                             viewModel.setUserLocation(coords.latitude, coords.longitude)
-                            hasAutoFilteredNearbyOnce = true
+                            if (!hasAutoFilteredNearbyOnce) {
+                                hasAutoFilteredNearbyOnce = true
+                                isNearbyFiltered = true
+                                selectedNearbyDistanceKm = 1.5
+                                selectedNearbyDistanceLabel = "< 1.5 km"
+                                updateFilterIndicator()
+                                viewModel.filterDishes(nearbyOnly = true, maxDistanceKm = 1.5)
+                            }
                         }
                     }
                 }
@@ -575,7 +583,7 @@ class HomeActivity : AppCompatActivity() {
                 if (binding.etSearch.text.isNotBlank()) {
                     binding.etSearch.setText("")
                 }
-                viewModel.filterDishes(category = category.categoryId)
+                viewModel.filterDishes(category = category.name)
                 binding.tvSectionTitle.text = "Món ngon: ${category.name}"
                 updateFilterIndicator()
                 Toast.makeText(this, "Danh mục: ${category.name}", Toast.LENGTH_SHORT).show()
@@ -976,16 +984,7 @@ class HomeActivity : AppCompatActivity() {
         viewModel.homeDishes.observe(this) { dishes ->
             dishAdapter.submitList(dishes)
             binding.tvDishesCountBadge.text = "(${dishes.size} món)"
-            if (dishes.isEmpty()) {
-                binding.tvEmpty.visibility = View.VISIBLE
-                if (isNearbyFiltered) {
-                    binding.tvEmpty.text = "Không có món ăn nào trong phạm vi $selectedNearbyDistanceLabel.\nHãy thử chọn bán kính 3 km hoặc 5 km trong mục Quán gần đây!"
-                } else {
-                    binding.tvEmpty.setText(R.string.empty_restaurants)
-                }
-            } else {
-                binding.tvEmpty.visibility = View.GONE
-            }
+            binding.tvEmpty.visibility = if (dishes.isEmpty()) View.VISIBLE else View.GONE
         }
 
         viewModel.currentHotTab.observe(this) { tab ->

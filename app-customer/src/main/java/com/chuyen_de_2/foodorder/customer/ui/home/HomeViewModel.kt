@@ -172,12 +172,10 @@ class HomeViewModel @Inject constructor(
             val availableDishes = store.dishes.values.filter { !it.isHidden && it.isAvailable }
 
             availableDishes.forEach { dish ->
-                val isCombo = dish.isCombo || dish.platformCategory.equals("Combo", ignoreCase = true) || dish.id.startsWith("combo_")
-                val platformCat = if (isCombo) "Combo" else dish.platformCategory.ifBlank {
+                val platformCat = dish.platformCategory.ifBlank {
                     inferPlatformCategory(dish.name, dish.category)
                 }
                 val emoji = when {
-                    isCombo -> "🍱"
                     platformCat.contains("Trà", true) || platformCat.contains("Nước", true) || dish.name.contains("Trà", true) || dish.category.contains("Trà", true) -> "🧋"
                     platformCat.contains("Cơm", true) || dish.name.contains("Cơm", true) || dish.category.contains("Cơm", true) -> "🍚"
                     platformCat.contains("Gà", true) || dish.name.contains("Gà", true) || dish.category.contains("Gà", true) -> "🍗"
@@ -192,21 +190,12 @@ class HomeViewModel @Inject constructor(
                     platformCat.contains("Lẩu", true) -> "🍲"
                     else -> "🍽️"
                 }
-                val resolvedCatId = when {
-                    isCombo -> "cat_combo"
-                    dish.categoryId.isNotBlank() -> dish.categoryId
-                    platformCat.contains("bánh mì", true) -> "cat_banhmi"
-                    platformCat.contains("trà sữa", true) -> "cat_trasua"
-                    platformCat.contains("bún", true) || platformCat.contains("phở", true) -> "cat_bun"
-                    platformCat.contains("cơm", true) -> "cat_com"
-                    else -> ""
-                }
                 allDishes.add(
                     HomeDishItem(
                         id = dish.id,
                         name = dish.name,
                         price = dish.basePrice,
-                        originalPrice = if (dish.originalPrice > 0L) dish.originalPrice else dish.basePrice,
+                        originalPrice = dish.basePrice,
                         storeId = store.id,
                         storeName = store.name,
                         imageUrl = dish.imageUrl.ifBlank { store.imageUrl },
@@ -214,13 +203,11 @@ class HomeViewModel @Inject constructor(
                         rating = if (dish.ratingAvg > 0f) dish.ratingAvg else if (store.ratingAvg > 0.0) store.ratingAvg.toFloat() else 4.8f,
                         soldCount = if (dish.soldCount > 0) "${dish.soldCount} đã bán" else "",
                         distanceKm = roundedDist,
-                        promoBadge = if (isCombo) "Combo" else "",
-                        tag1 = if (isCombo) "Combo Tiết Kiệm" else platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
+                        promoBadge = "",
+                        tag1 = platformCat.ifBlank { dish.category.ifBlank { "Món của quán" } },
                         tag2 = if (roundedDist in 0.1..3.0) "Gần bạn" else "",
-                        category = if (isCombo) "Combo" else dish.category.ifBlank { store.category },
-                        platformCategory = platformCat,
-                        categoryId = resolvedCatId,
-                        isCombo = isCombo
+                        category = dish.category.ifBlank { store.category },
+                        platformCategory = platformCat
                     )
                 )
             }
@@ -469,15 +456,18 @@ class HomeViewModel @Inject constructor(
     private fun applyFilters() {
         var filtered = masterDishList
 
-        // 1. Lọc theo cự ly gần (chuẩn xác theo bán kính tối đa)
+        // 1. Lọc theo cự ly gần
         if (currentNearbyOnly) {
             val maxDist = currentNearbyMaxDistanceKm
             filtered = if (maxDist >= 999.0) {
                 filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
             } else {
-                // CHỈ GIỮ LẠI MÓN CÓ KHOẢNG CÁCH THỰC TẾ <= maxDist (không tự tiện fallback nhả toàn bộ 16 món)
-                filtered.filter { it.distanceKm in 0.001..maxDist }
-                    .sortedBy { it.distanceKm }
+                val nearbyDishes = filtered.filter { it.distanceKm in 0.001..maxDist }
+                if (nearbyDishes.isNotEmpty()) {
+                    nearbyDishes.sortedBy { it.distanceKm }
+                } else {
+                    filtered.sortedBy { if (it.distanceKm > 0.0) it.distanceKm else 999.0 }
+                }
             }
         }
 
@@ -527,35 +517,35 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun matchesCategory(dish: HomeDishItem, filterCat: String): Boolean {
-        val target = filterCat.trim()
-        if (target.isBlank() || target.equals("ALL", ignoreCase = true)) return true
-
-        // 1. Trường hợp người dùng lọc danh mục cấp sàn "Combo"
-        val isFilterCombo = target.equals("cat_combo", ignoreCase = true) || target.contains("combo", ignoreCase = true)
-        if (isFilterCombo) {
-            return dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)
-        }
-
-        // 2. Trường hợp lọc các danh mục cấp sàn món lẻ: BẮT BUỘC LOẠI TRỪ 100% CÁC MÓN COMBO
-        if (dish.isCombo || dish.categoryId.equals("cat_combo", ignoreCase = true) || dish.platformCategory.equals("Combo", ignoreCase = true)) {
-            return false
-        }
-
-        // 3. SO KHỚP TRỰC TIẾP THEO categoryId (Khóa chính / Foreign Key chuẩn Firebase)
-        if (dish.categoryId.isNotBlank() && dish.categoryId.equals(target, ignoreCase = true)) {
-            return true
-        }
-
-        // 4. Fallback so khớp theo tên danh mục cấp sàn (nếu filter truyền tên thay vì ID)
-        val targetLower = target.lowercase()
+        val target = filterCat.trim().lowercase()
         val pCat = dish.platformCategory.lowercase()
-        return when {
-            targetLower.contains("banhmi") || targetLower.contains("bánh mì") -> dish.categoryId == "cat_banhmi" || pCat.contains("bánh mì")
-            targetLower.contains("trasua") || targetLower.contains("trà sữa") -> dish.categoryId == "cat_trasua" || pCat.contains("trà sữa")
-            targetLower.contains("bun") || targetLower.contains("bún") || targetLower.contains("phở") -> dish.categoryId == "cat_bun" || pCat.contains("bún") || pCat.contains("phở")
-            targetLower.contains("com") || targetLower.contains("cơm") -> dish.categoryId == "cat_com" || pCat.contains("cơm")
-            else -> pCat.equals(targetLower, ignoreCase = true)
+        val sCat = dish.category.lowercase()
+        val name = dish.name.lowercase()
+        val store = dish.storeName.lowercase()
+        val combined = "$name $pCat $sCat $store"
+
+        if (pCat.isNotBlank() && (pCat.contains(target) || target.contains(pCat))) return true
+        if (sCat.isNotBlank() && (sCat.contains(target) || target.contains(sCat))) return true
+        if (name.contains(target)) return true
+
+        if (target.contains("cơm")) {
+            return combined.contains("cơm") || combined.contains("com")
         }
+        if (target.contains("bún đậu")) {
+            return combined.contains("bún đậu") || combined.contains("bun dau") || (combined.contains("bún") && combined.contains("đậu"))
+        }
+        if (target.contains("phở")) {
+            return combined.contains("phở") || combined.contains("pho") || (combined.contains("bún") && !combined.contains("đậu")) || combined.contains("hủ tiếu") || combined.contains("mì")
+        }
+        if (target.contains("trà sữa")) {
+            return combined.contains("trà sữa") || combined.contains("tra sua") || combined.contains("trân châu") || combined.contains("milktea") || (combined.contains("trà") && !combined.contains("nước ép"))
+        }
+        if (target.contains("nước ép")) {
+            return combined.contains("nước ép") || combined.contains("nuoc ep") || combined.contains("sinh tố") || combined.contains("sinh to") || combined.contains("juice") || combined.contains("nước cam") || combined.contains("nước mía") || combined.contains("nước dừa") || combined.contains("detox") || combined.contains("ép")
+        }
+
+        val keywords = target.split(" ", "-", "/", "&", ",").map { it.trim() }.filter { it.length > 1 }
+        return keywords.any { kw -> combined.contains(kw) }
     }
 
     private fun inferPlatformCategory(name: String, category: String): String {

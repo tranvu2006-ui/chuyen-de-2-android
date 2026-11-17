@@ -152,20 +152,9 @@ class MenuViewModel @Inject constructor(
                     allDishes.clear()
                     allDishes.addAll(visibleDishes)
 
-                    // Tách biệt danh mục riêng của quán và danh mục hệ thống Combo
-                    val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
-                    val uniqueCats = visibleDishes
-                        .filter { !isComboDish(it) }
-                        .map { it.category }
-                        .filter { it.isNotBlank() && !it.equals("Combo", ignoreCase = true) }
+                    val uniqueCats = visibleDishes.map { it.category.ifBlank { it.platformCategory } }
+                        .filter { it.isNotBlank() }
                         .distinct()
-                        .toMutableList()
-
-                    // Nếu quán có món combo, ưu tiên hiển thị tab "Combo" lên đầu tiên
-                    val hasCombo = visibleDishes.any { isComboDish(it) }
-                    if (hasCombo) {
-                        uniqueCats.add(0, "Combo")
-                    }
                     _categories.value = uniqueCats
 
                     applyFilter()
@@ -206,19 +195,14 @@ class MenuViewModel @Inject constructor(
     }
 
     private fun applyFilter() {
-        val isComboDish = { d: Dish -> d.isCombo || d.platformCategory.equals("Combo", ignoreCase = true) || d.id.startsWith("combo_") }
         if (currentCategory.equals("ALL", ignoreCase = true) || currentCategory.isEmpty()) {
             _dishes.value = allDishes
-        } else if (currentCategory.equals("Combo", ignoreCase = true)) {
-            // Khi chọn tab Combo: Chỉ hiển thị các gói combo
-            _dishes.value = allDishes.filter { isComboDish(it) }
         } else {
-            // Khi chọn danh mục riêng của quán: Chỉ hiển thị món lẻ thuộc danh mục đó, không để combo lẫn vào
             _dishes.value = allDishes.filter { dish ->
-                !isComboDish(dish) && (
-                    dish.category.equals(currentCategory, ignoreCase = true) ||
-                    dish.category.contains(currentCategory, ignoreCase = true)
-                )
+                dish.category.equals(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.equals(currentCategory, ignoreCase = true) ||
+                dish.category.contains(currentCategory, ignoreCase = true) ||
+                dish.platformCategory.contains(currentCategory, ignoreCase = true)
             }
         }
     }

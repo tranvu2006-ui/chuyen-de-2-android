@@ -71073,6 +71073,636 @@ class ChefViewModel @Inject constructor(
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/dashboard/DashboardActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.dashboard
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity
+import com.chuyen_de_2.foodorder.core.data.model.Store
+import com.chuyen_de_2.foodorder.core.data.model.User
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
+import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperFragment
+import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperIncomeFragment
+import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperProfileFragment
+import com.chuyen_de_2.foodorder.internal.ui.shop.MenuManageFragment
+import com.chuyen_de_2.foodorder.internal.ui.shop.OrderListFragment
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Bảng điều khiển Trung tâm Phân quyền (Role-Based Dashboard)
+ * Cách hoạt động:
+ *  - Phân tích quyền tài khoản (RBAC): MERCHANT / MANAGER (Quán ăn) hoặc SHIPPER / DRIVER (Tài xế giao hàng).
+ *  - Đối với Quán ăn: Kiểm tra tình trạng xác minh địa chỉ; nếu chưa xong sẽ chuyển hướng sang [StoreVerificationActivity].
+ *  - Cung cấp giao diện BottomNavigationView tương ứng riêng biệt cho Quán và Tài xế.
+ * Luồng hướng tới:
+ *  - MERCHANT: [OrderListFragment] (Quản lý đơn), [MenuManageFragment] (Thực đơn), [DriverListFragment] (Đội ngũ tài xế), [StoreReportFragment] (Báo cáo doanh thu).
+ *  - SHIPPER: [ShipperFragment] (Nhận cuốc/GPS), [ShipperIncomeFragment] (Thu nhập/Ví), [ShipperProfileFragment] (Hồ sơ tài xế).
+ */
+@AndroidEntryPoint
+class DashboardActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityDashboardBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    private var statusBarHeight: Int = 0
+    private var navigationBarHeight: Int = 0
+    private var isMerchantMode = false
+
+    /**
+     * Tên chức năng: Khởi tạo Dashboard và xử lý Insets tràn viền (Edge-to-Edge)
+     * Cách hoạt động: Lắng nghe WindowInsets để tính toán khoảng đệm thanh trạng thái và thanh điều hướng ảo, sau đó gọi loadUserRole().
+     * Luồng hướng tới: Bắt đầu kiểm tra vai trò người dùng tại [loadUserRole].
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (FirebaseAuth.getInstance().currentUser == null) {
+            startActivity(Intent(this, LoginActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            })
+            finish()
+            return
+        }
+
+        InsetUtils.initEdgeToEdge(this, true)
+        binding = ActivityDashboardBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        // Tính chiều cao status bar dự phòng ban đầu
+        statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
+
+        // Lắng nghe Window Insets (Status bar, Tai thỏ / Notch, Navigation bar)
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
+            val statusInsets = windowInsets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.statusBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout()
+            )
+            val navInsets = windowInsets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.navigationBars()
+            )
+
+            if (statusInsets.top > 0) {
+                statusBarHeight = statusInsets.top
+            }
+            if (navInsets.bottom > 0) {
+                navigationBarHeight = navInsets.bottom
+            }
+
+            applyWindowPadding()
+            windowInsets
+        }
+
+        setupToolbar()
+        loadUserRole()
+    }
+
+    /**
+     * Tên chức năng: Áp dụng khoảng đệm an toàn màn hình (Window Padding)
+     * Cách hoạt động: Thêm padding top cho container và padding bottom cho bottom navigation để không bị che khuất bởi phím điều hướng hệ thống.
+     * Luồng hướng tới: Hiển thị nội dung hoàn chỉnh trong vùng an toàn (Safe Area).
+     */
+    private fun applyWindowPadding() {
+        InsetUtils.setLightStatusBar(this, true)
+        binding.root.setBackgroundColor(android.graphics.Color.WHITE)
+        val density = resources.displayMetrics.density
+        val extraSpacing = (10 * density).toInt()
+        val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
+        binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
+        binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
+        binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
+    }
+
+    /**
+     * Tên chức năng: Thiết lập thanh công cụ Toolbar và sự kiện Đăng xuất
+     * Cách hoạt động: Gắn Toolbar và xử lý hộp thoại xác nhận khi người dùng muốn đăng xuất.
+     * Luồng hướng tới: Chuyển về [LoginActivity] và xóa cờ phiên làm việc.
+     */
+    private fun setupToolbar() {
+        setSupportActionBar(binding.toolbar)
+        binding.btnLogout.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    authRepository.logout()
+                    startActivity(Intent(this, LoginActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra(AppConstants.Extras.LOGOUT, true)
+                    })
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+    }
+
+    /**
+     * Xử lý tài khoản BOSSMERCHANT:
+     * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển thẳng sang BossDashboardActivity.
+     * - Chỉ khi Boss mới tinh chưa có bất kỳ chi nhánh nào mới chuyển sang StoreVerificationActivity.
+     * - Nếu đã chọn chi nhánh -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
+     */
+    private fun handleBossRoleAndProceed() {
+        lifecycleScope.launch {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            val prefs = getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, android.content.Context.MODE_PRIVATE)
+            val intentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID)
+            val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
+                prefs.edit().putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, intentStoreId).apply()
+                intentStoreId
+            } else {
+                prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, null)
+            }
+
+            if (selectedBranchId.isNullOrBlank()) {
+                if (uid.isNotBlank()) {
+                    val existingBranches = firebaseRepository.getStoresByBoss(uid).firstOrNull().orEmpty()
+                    val defaultStore = firebaseRepository.getStoreOnce("store_$uid")
+                    val candidateStore = existingBranches.firstOrNull() ?: defaultStore
+
+                    if (candidateStore == null || (candidateStore.cccdNumber.isBlank() && candidateStore.address.isBlank())) {
+                        val newStoreId = "store_$uid"
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & xác thực CCCD.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                            putExtra(AppConstants.Extras.STORE_ID, newStoreId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        startActivity(intent)
+                        finish()
+                        return@launch
+                    }
+
+                    val isRejected = candidateStore.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
+                    if (isRejected) {
+                        val reason = candidateStore.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("❌ Hồ Sơ Bị Từ Chối")
+                            .setMessage("Hồ sơ đăng ký Chủ chuỗi của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
+                            .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
+                                val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                                    putExtra(AppConstants.Extras.STORE_ID, candidateStore.id.ifBlank { "store_$uid" })
+                                }
+                                startActivity(intent)
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                        return@launch
+                    }
+
+                    val isPending = !candidateStore.isVerified || candidateStore.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                    if (isPending) {
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
+                            .setMessage("Hồ sơ đăng ký Chủ chuỗi '${candidateStore.name}' (CCCD: ${candidateStore.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, bạn sẽ có quyền truy cập đầy đủ vào trang quản lý chuỗi cửa hàng.")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                handleBossRoleAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                        return@launch
+                    }
+                }
+                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
+                finish()
+                return@launch
+            }
+
+            val store = firebaseRepository.getStoreOnce(selectedBranchId)
+            if (store == null || (store.bossId.isNotBlank() && store.bossId != uid)) {
+                prefs.edit().remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID).remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME).apply()
+                if (uid.isNotBlank()) {
+                    firebaseRepository.clearActiveStoreForBoss(uid)
+                }
+                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
+                finish()
+                return@launch
+            }
+
+            if (uid.isNotBlank()) {
+                firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
+            }
+
+            val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
+
+            applyWindowPadding()
+            setupMerchantNavigation()
+        }
+    }
+
+    /**
+     * Tên chức năng: Tải và đối soát vai trò tài khoản (Role Dispatcher)
+     * Cách hoạt động:
+     *  - Truy vấn Firestore lấy role hiện tại của user.
+     *  - Nếu là Boss: Quản lý chuỗi chi nhánh tại [handleBossRoleAndProceed].
+     *  - Nếu là Quán ăn: Kiểm tra xác minh hồ sơ quán.
+     *  - Nếu là Tài xế: Thiết lập menu shipper.
+     *  - Nếu tài khoản mới chưa có role: Hiển thị Dialog kích hoạt vai trò tương ứng ngay lập tức.
+     * Luồng hướng tới: [checkMerchantVerificationAndProceed] hoặc [setupShipperNavigation].
+     */
+    private fun loadUserRole() {
+        lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.trim()?.uppercase()
+
+            when (role) {
+                User.Role.BOSSMERCHANT, "BOSS" -> {
+                    handleBossRoleAndProceed()
+                }
+                User.Role.MANAGER, User.Role.MERCHANT, "SHOP", "STORE" -> {
+                    checkMerchantVerificationAndProceed()
+                }
+                User.Role.SHIPPER, User.Role.DRIVER -> {
+                    setupShipperNavigation()
+                }
+                User.Role.CHEF -> {
+                    setupChefNavigation()
+                }
+                User.Role.CUSTOMER -> {
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
+                    androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                        .setTitle("Kích Hoạt Vai Trò Đối Tác")
+                        .setMessage("Tài khoản (${authRepository.currentUser?.email}) hiện đang ở vai trò Khách hàng.\n\nBạn muốn sử dụng tài khoản này trên Oishi Internal với vai trò nào?")
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Đầu Bếp!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
+                            }
+                        }
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                            authRepository.logout()
+                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                putExtra(AppConstants.Extras.LOGOUT, true)
+                            })
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
+                else -> {
+                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
+                    androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                        .setTitle("🏪 Kích Hoạt Vai Trò Đối Tác")
+                        .setMessage("Tài khoản của bạn hiện tại chưa được kích hoạt vai trò Đối Tác trên ứng dụng Oishi Internal.\n\nBạn muốn sử dụng tài khoản này với vai trò gì?")
+                        .setItems(partnerRoles) { _, which ->
+                            when (which) {
+                                0 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.MERCHANT)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
+                                        checkMerchantVerificationAndProceed()
+                                    }
+                                }
+                                1 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.DRIVER)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
+                                        setupShipperNavigation()
+                                    }
+                                }
+                                2 -> {
+                                    lifecycleScope.launch {
+                                        authRepository.setUserRole(User.Role.CHEF)
+                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Đầu Bếp thành công!", Toast.LENGTH_SHORT).show()
+                                        setupChefNavigation()
+                                    }
+                                }
+                            }
+                        }
+                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                            authRepository.logout()
+                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                putExtra(AppConstants.Extras.LOGOUT, true)
+                            })
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Đối soát hồ sơ quán & xác minh thông tin bắt buộc
+     * Cách hoạt động: Kiểm tra tài liệu quán trên Firestore; nếu chưa có địa chỉ hoặc chưa xác minh thì chặn vào Dashboard.
+     * Luồng hướng tới: Chưa hoàn tất -> [StoreVerificationActivity]; Đã hoàn tất -> [setupMerchantNavigation].
+     */
+    private fun checkMerchantVerificationAndProceed() {
+        getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
+        lifecycleScope.launch {
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            if (uid.isNotBlank()) {
+                val userProfile = firebaseRepository.getUserById(uid)
+                val isManagedByBoss = userProfile?.bossId?.isNotBlank() == true
+                val storeId = firebaseRepository.resolveStoreIdForUser(uid)
+                if (storeId.isNotBlank()) {
+                    val store = firebaseRepository.getStoreOnce(storeId)
+                    if (store == null || store.address.isBlank() || store.cccdNumber.isBlank()) {
+                        if (isManagedByBoss) {
+                            setupMerchantNavigation()
+                            return@launch
+                        }
+                        Toast.makeText(
+                            this@DashboardActivity,
+                            "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                            putExtra(AppConstants.Extras.STORE_ID, storeId)
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        }
+                        startActivity(intent)
+                        finish()
+                        return@launch
+                    }
+
+                    if (!isManagedByBoss) {
+                        val isRejected = store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
+                        if (isRejected) {
+                            val reason = store.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
+                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                                .setTitle("❌ Hồ Sơ Bị Từ Chối")
+                                .setMessage("Hồ sơ quán ăn của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
+                                .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
+                                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                                        putExtra(AppConstants.Extras.STORE_ID, storeId)
+                                    }
+                                    startActivity(intent)
+                                }
+                                .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                    authRepository.logout()
+                                    startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        putExtra(AppConstants.Extras.LOGOUT, true)
+                                    })
+                                    finish()
+                                }
+                                .setCancelable(false)
+                                .show()
+                            return@launch
+                        }
+
+                        val isPending = !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                        if (isPending) {
+                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                                .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
+                                .setMessage("Hồ sơ quán '${store.name}' (CCCD: ${store.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, quán sẽ mở cửa nhận đơn bình thường!")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                checkMerchantVerificationAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                            return@launch
+                        }
+                    }
+                } else {
+                    if (isManagedByBoss) {
+                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
+                            .setTitle("⏳ Chưa Được Phân Công Chi Nhánh")
+                            .setMessage("Tài khoản Quản lý của bạn hiện chưa được Chủ chuỗi (Boss) phân công vào chi nhánh nào.\n\nVui lòng liên hệ Chủ chuỗi để được gán chi nhánh làm việc!")
+                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
+                                checkMerchantVerificationAndProceed()
+                            }
+                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
+                                authRepository.logout()
+                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    putExtra(AppConstants.Extras.LOGOUT, true)
+                                })
+                                finish()
+                            }
+                            .setCancelable(false)
+                            .show()
+                        return@launch
+                    }
+                    // Chưa có quán nào -> Tạo ID quán mới cho tài khoản này và chuyển sang màn hình thiết lập thông tin quán
+                    val newStoreId = "store_${uid}"
+                    Toast.makeText(
+                        this@DashboardActivity,
+                        "🏪 Chào mừng bạn! Vui lòng thiết lập thông tin quán ăn mới của bạn.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
+                        putExtra(AppConstants.Extras.STORE_ID, newStoreId)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    }
+                    startActivity(intent)
+                    finish()
+                    return@launch
+                }
+            }
+            setupMerchantNavigation()
+        }
+    }
+
+    /**
+     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Tài xế (Shipper Navigation)
+     * Cách hoạt động: Ẩn thanh công cụ shop, hiện BottomNav Shipper gồm: Nhận đơn, Thu nhập và Hồ sơ tài xế.
+     * Luồng hướng tới: Chuyển đổi giữa [ShipperFragment], [ShipperIncomeFragment], [ShipperProfileFragment].
+     */
+    private fun setupShipperNavigation() {
+        isMerchantMode = false
+        binding.toolbar.visibility = android.view.View.GONE
+        binding.bottomNavMerchant.visibility = android.view.View.GONE
+        binding.bottomNavShipper.visibility = android.view.View.VISIBLE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+
+        binding.bottomNavShipper.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_shipper_orders -> {
+                    loadFragment(ShipperFragment())
+                    true
+                }
+                R.id.nav_shipper_income -> {
+                    loadFragment(ShipperIncomeFragment())
+                    true
+                }
+                R.id.nav_shipper_profile -> {
+                    loadFragment(ShipperProfileFragment())
+                    true
+                }
+                else -> false
+            }
+        }
+
+        binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
+    }
+
+    /**
+     * Thiết lập giao diện điều phối cho Đầu Bếp (Kitchen / Chef Navigation)
+     */
+    private fun setupChefNavigation() {
+        isMerchantMode = false
+        binding.toolbar.visibility = android.view.View.GONE
+        binding.bottomNavMerchant.visibility = android.view.View.GONE
+        binding.bottomNavShipper.visibility = android.view.View.GONE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+        loadFragment(com.chuyen_de_2.foodorder.internal.ui.chef.ChefFragment())
+    }
+
+    /**
+     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Quán ăn (Merchant Navigation)
+     * Cách hoạt động: Ẩn thanh công cụ shipper, hiện BottomNav Quán gồm: Đơn hàng, Thực đơn, Tài xế và Doanh thu.
+     * Luồng hướng tới: Chuyển đổi giữa [OrderListFragment], [MenuManageFragment], [DriverListFragment], [StoreReportFragment].
+     */
+    private fun setupMerchantNavigation() {
+        isMerchantMode = true
+        binding.toolbar.visibility = android.view.View.GONE
+        binding.bottomNavMerchant.visibility = android.view.View.VISIBLE
+        applyWindowPadding()
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+
+        binding.bottomNavMerchant.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_orders -> {
+                    loadFragment(OrderListFragment())
+                    true
+                }
+                R.id.nav_menu -> {
+                    val menuFragment = MenuManageFragment().apply {
+                        onNavigateToOrdersListener = {
+                            binding.bottomNavMerchant.selectedItemId = R.id.nav_orders
+                        }
+                    }
+                    loadFragment(menuFragment)
+                    true
+                }
+                R.id.nav_drivers -> {
+                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.driver.DriverListFragment())
+                    true
+                }
+                R.id.nav_reports -> {
+                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.shop.StoreReportFragment())
+                    true
+                }
+                else -> false
+            }
+        }
+
+        // Mặc định tải tab Thực đơn hoặc Đơn hàng
+        if (binding.bottomNavMerchant.selectedItemId == R.id.nav_menu) {
+            val menuFragment = MenuManageFragment().apply {
+                onNavigateToOrdersListener = {
+                    binding.bottomNavMerchant.selectedItemId = R.id.nav_orders
+                }
+            }
+            loadFragment(menuFragment)
+        } else {
+            loadFragment(OrderListFragment())
+        }
+        checkNotificationAccessPermission()
+    }
+
+    /**
+     * Kiểm tra quyền Notification Access (Truy cập thông báo) để tự động duyệt đơn VietQR.
+     * Nếu chưa cấp quyền -> Hiện popup hướng dẫn và dẫn người dùng sang Settings mở chỉ bằng 1 chạm!
+     */
+    private fun checkNotificationAccessPermission() {
+        if (!com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("🔔 Tự Động Duyệt Tiền VietQR")
+                .setMessage(
+                    "Để hệ thống tự động đọc thông báo biến động số dư ngân hàng và duyệt đơn VietQR ngay lập tức, vui lòng bật quyền 'Truy cập thông báo' cho Oishi Food."
+                )
+                .setPositiveButton("Bật Quyền Ngay") { _, _ ->
+                    com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.openPermissionSettings(this)
+                }
+                .setNegativeButton("Để sau", null)
+                .show()
+        } else {
+            // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức và khởi động Foreground Service
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
+            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
+            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
+        }
+    }
+
+    /**
+     * Tên chức năng: Thay thế Fragment nội dung trong container
+     * Cách hoạt động: Dùng FragmentManager để commit giao dịch replace fragment tương ứng vào framelayout container.
+     * Luồng hướng tới: Cập nhật màn hình con tương ứng trong Dashboard.
+     */
+    private fun loadFragment(fragment: androidx.fragment.app.Fragment) {
+        supportFragmentManager.beginTransaction()
+            .replace(binding.fragmentContainer.id, fragment)
+            .commit()
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DriverActiveOrdersAdapter.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -82348,6 +82978,278 @@ class MenuViewModel @Inject constructor(
 </com.google.android.material.card.MaterialCardView>
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/LoginActivity.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.auth
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.view.MotionEvent
+import android.view.View
+import android.widget.Toast
+import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.chuyen_de_2.foodorder.core.util.InsetUtils
+import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
+import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
+import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
+import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
+import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Màn hình đăng nhập đối tác nội bộ (Chủ quán/Tài xế).
+ * Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang
+ * màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
+ */
+@AndroidEntryPoint
+class LoginActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityLoginInternalBinding
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private val viewModel: AuthViewModel by viewModels()
+
+    private var pendingEmail: String = ""
+    private var pendingPassword: String = ""
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val isLogout = intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)
+        if (isLogout) {
+            try {
+                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
+            } catch (_: Exception) {}
+            authRepository.logout()
+        } else if (authRepository.isLoggedIn) {
+            checkActiveStatusAndNavigate()
+        }
+
+        binding = ActivityLoginInternalBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        InsetUtils.initEdgeToEdge(this, true)
+        InsetUtils.applyImeAndSystemInsets(binding.root)
+
+        setupUI()
+        observeViewModel()
+        syncBypassOtpConfig()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (authRepository.isLoggedIn) {
+            checkActiveStatusAndNavigate()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)) {
+            try {
+                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
+            } catch (_: Exception) {}
+            authRepository.logout()
+        }
+    }
+
+    private fun setupUI() {
+        binding.etEmail.doAfterTextChanged {
+            binding.tilEmail.error = null
+        }
+        binding.etPassword.doAfterTextChanged {
+            binding.tilPassword.error = null
+        }
+
+        // Nút "Đăng nhập"
+        binding.btnLogin.setOnClickListener {
+            if (viewModel.isLoading.value == true) return@setOnClickListener
+            val email = binding.etEmail.text.toString().trim()
+            val password = binding.etPassword.text.toString().trim()
+
+            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
+                binding.etEmail.requestFocus()
+                return@setOnClickListener
+            }
+            if (password.isBlank()) {
+                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
+                binding.etPassword.requestFocus()
+                return@setOnClickListener
+            }
+
+            binding.tilEmail.error = null
+            binding.tilPassword.error = null
+
+            val isAdmin = email.lowercase() == AppConstants.Defaults.ADMIN_EMAIL
+            val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
+
+            if (hasSession) {
+                // Đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
+                viewModel.login(email, password)
+            } else {
+                // Chưa xác minh hoặc hết hạn 24h -> Chuyển sang OtpVerificationActivity
+                pendingEmail = email
+                pendingPassword = password
+
+                val remainingCooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
+                if (remainingCooldown > 0L) {
+                    // Mã OTP vừa gửi vẫn còn hạn/cooldown -> Chuyển thẳng sang OtpVerificationActivity
+                    openOtpVerificationActivity(email, password)
+                } else {
+                    // Gửi mã OTP mới đến email
+                    binding.btnLogin.isEnabled = false
+                    viewModel.requestLoginOtp(email)
+                }
+            }
+        }
+
+        // Chuyển sang màn hình Đăng ký đối tác
+        binding.tvGoToRegister.setOnClickListener {
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
+    }
+
+    private fun syncBypassOtpConfig() {
+        try {
+            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
+                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
+                .addValueEventListener(object : ValueEventListener {
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
+                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
+                    }
+                    override fun onCancelled(error: DatabaseError) {}
+                })
+        } catch (_: Exception) {}
+    }
+
+    private fun observeViewModel() {
+        viewModel.isLoading.observe(this) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            binding.btnLogin.isEnabled = !isLoading
+        }
+
+        viewModel.otpRequestResult.observe(this) { result ->
+            binding.btnLogin.isEnabled = true
+            result.onSuccess {
+                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                openOtpVerificationActivity(pendingEmail, pendingPassword)
+            }.onFailure { error ->
+                val rawMsg = error.message.orEmpty()
+                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
+                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
+                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
+                    openOtpVerificationActivity(pendingEmail, pendingPassword)
+                } else {
+                    val msg = error.message ?: "Không gửi được mã OTP"
+                    if (msg.contains("chưa được đăng ký", ignoreCase = true)) {
+                        binding.tilEmail.error = msg
+                        binding.etEmail.requestFocus()
+                    }
+                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        viewModel.loginResult.observe(this) { result ->
+            result.onSuccess {
+                try {
+                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
+                } catch (_: Exception) {}
+                val email = binding.etEmail.text.toString().trim()
+                OtpSessionManager.markEmailVerified(this, email)
+                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
+                navigateToDashboard()
+            }.onFailure { error ->
+                if (error is com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException) {
+                    val email = binding.etEmail.text.toString().trim()
+                    val password = binding.etPassword.text.toString()
+                    pendingEmail = email
+                    pendingPassword = password
+                    viewModel.requestLoginOtp(email)
+                } else {
+                    val msg = error.message.orEmpty()
+                    val userMsg = if (
+                        msg.contains("password", ignoreCase = true) ||
+                        msg.contains("credential", ignoreCase = true) ||
+                        msg.contains("mật khẩu", ignoreCase = true)
+                    ) {
+                        binding.tilPassword.error = "Mật khẩu không chính xác"
+                        "Mật khẩu không chính xác"
+                    } else if (msg.contains("no user", ignoreCase = true) || msg.contains("user-not-found", ignoreCase = true)) {
+                        binding.tilEmail.error = "Không tìm thấy tài khoản với email này"
+                        "Không tìm thấy tài khoản với email này"
+                    } else {
+                        msg.ifBlank { "Đăng nhập thất bại" }
+                    }
+                    Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun openOtpVerificationActivity(email: String, password: String) {
+        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
+            putExtra(OtpVerificationActivity.EXTRA_FLOW, OtpVerificationActivity.FLOW_LOGIN)
+            putExtra(OtpVerificationActivity.EXTRA_EMAIL, email)
+            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, password)
+        }
+        startActivity(intent)
+    }
+
+    private fun checkActiveStatusAndNavigate() {
+        lifecycleScope.launch {
+            try {
+                val statusCheck = authRepository.checkAccountActiveStatus()
+                if (isFinishing || isDestroyed) return@launch
+                if (statusCheck.isFailure) {
+                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
+                    AlertDialog.Builder(this@LoginActivity)
+                        .setTitle("Tài khoản bị khóa")
+                        .setMessage(reason)
+                        .setPositiveButton("Đóng", null)
+                        .show()
+                } else {
+                    navigateToDashboard()
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun navigateToDashboard() {
+        val intent = Intent(this, DashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        finish()
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
+        return super.dispatchTouchEvent(ev)
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/StoreVerificationActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.auth
@@ -83028,636 +83930,6 @@ class StoreVerificationActivity : AppCompatActivity() {
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
         return super.dispatchTouchEvent(ev)
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/dashboard/DashboardActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.dashboard
-
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.internal.ui.auth.StoreVerificationActivity
-import com.chuyen_de_2.foodorder.core.data.model.Store
-import com.chuyen_de_2.foodorder.core.data.model.User
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityDashboardBinding
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity
-import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperFragment
-import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperIncomeFragment
-import com.chuyen_de_2.foodorder.internal.ui.ship.ShipperProfileFragment
-import com.chuyen_de_2.foodorder.internal.ui.shop.MenuManageFragment
-import com.chuyen_de_2.foodorder.internal.ui.shop.OrderListFragment
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Bảng điều khiển Trung tâm Phân quyền (Role-Based Dashboard)
- * Cách hoạt động:
- *  - Phân tích quyền tài khoản (RBAC): MERCHANT / MANAGER (Quán ăn) hoặc SHIPPER / DRIVER (Tài xế giao hàng).
- *  - Đối với Quán ăn: Kiểm tra tình trạng xác minh địa chỉ; nếu chưa xong sẽ chuyển hướng sang [StoreVerificationActivity].
- *  - Cung cấp giao diện BottomNavigationView tương ứng riêng biệt cho Quán và Tài xế.
- * Luồng hướng tới:
- *  - MERCHANT: [OrderListFragment] (Quản lý đơn), [MenuManageFragment] (Thực đơn), [DriverListFragment] (Đội ngũ tài xế), [StoreReportFragment] (Báo cáo doanh thu).
- *  - SHIPPER: [ShipperFragment] (Nhận cuốc/GPS), [ShipperIncomeFragment] (Thu nhập/Ví), [ShipperProfileFragment] (Hồ sơ tài xế).
- */
-@AndroidEntryPoint
-class DashboardActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityDashboardBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    private var statusBarHeight: Int = 0
-    private var navigationBarHeight: Int = 0
-    private var isMerchantMode = false
-
-    /**
-     * Tên chức năng: Khởi tạo Dashboard và xử lý Insets tràn viền (Edge-to-Edge)
-     * Cách hoạt động: Lắng nghe WindowInsets để tính toán khoảng đệm thanh trạng thái và thanh điều hướng ảo, sau đó gọi loadUserRole().
-     * Luồng hướng tới: Bắt đầu kiểm tra vai trò người dùng tại [loadUserRole].
-     */
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(Intent(this, LoginActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            })
-            finish()
-            return
-        }
-
-        InsetUtils.initEdgeToEdge(this, true)
-        binding = ActivityDashboardBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        // Tính chiều cao status bar dự phòng ban đầu
-        statusBarHeight = InsetUtils.getFallbackStatusBarHeight(this)
-
-        // Lắng nghe Window Insets (Status bar, Tai thỏ / Notch, Navigation bar)
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, windowInsets ->
-            val statusInsets = windowInsets.getInsets(
-                androidx.core.view.WindowInsetsCompat.Type.statusBars() or androidx.core.view.WindowInsetsCompat.Type.displayCutout()
-            )
-            val navInsets = windowInsets.getInsets(
-                androidx.core.view.WindowInsetsCompat.Type.navigationBars()
-            )
-
-            if (statusInsets.top > 0) {
-                statusBarHeight = statusInsets.top
-            }
-            if (navInsets.bottom > 0) {
-                navigationBarHeight = navInsets.bottom
-            }
-
-            applyWindowPadding()
-            windowInsets
-        }
-
-        setupToolbar()
-        loadUserRole()
-    }
-
-    /**
-     * Tên chức năng: Áp dụng khoảng đệm an toàn màn hình (Window Padding)
-     * Cách hoạt động: Thêm padding top cho container và padding bottom cho bottom navigation để không bị che khuất bởi phím điều hướng hệ thống.
-     * Luồng hướng tới: Hiển thị nội dung hoàn chỉnh trong vùng an toàn (Safe Area).
-     */
-    private fun applyWindowPadding() {
-        InsetUtils.setLightStatusBar(this, true)
-        binding.root.setBackgroundColor(android.graphics.Color.WHITE)
-        val density = resources.displayMetrics.density
-        val extraSpacing = (10 * density).toInt()
-        val topPadding = (if (statusBarHeight > 0) statusBarHeight else InsetUtils.getFallbackStatusBarHeight(this)) + extraSpacing
-        binding.fragmentContainer.setPadding(0, topPadding, 0, 0)
-        binding.bottomNavMerchant.setPadding(0, 0, 0, navigationBarHeight)
-        binding.bottomNavShipper.setPadding(0, 0, 0, navigationBarHeight)
-    }
-
-    /**
-     * Tên chức năng: Thiết lập thanh công cụ Toolbar và sự kiện Đăng xuất
-     * Cách hoạt động: Gắn Toolbar và xử lý hộp thoại xác nhận khi người dùng muốn đăng xuất.
-     * Luồng hướng tới: Chuyển về [LoginActivity] và xóa cờ phiên làm việc.
-     */
-    private fun setupToolbar() {
-        setSupportActionBar(binding.toolbar)
-        binding.btnLogout.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    authRepository.logout()
-                    startActivity(Intent(this, LoginActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra(AppConstants.Extras.LOGOUT, true)
-                    })
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-    }
-
-    /**
-     * Xử lý tài khoản BOSSMERCHANT:
-     * - Kiểm tra Session chi nhánh đang chọn. Nếu chưa chọn -> Chuyển thẳng sang BossDashboardActivity.
-     * - Chỉ khi Boss mới tinh chưa có bất kỳ chi nhánh nào mới chuyển sang StoreVerificationActivity.
-     * - Nếu đã chọn chi nhánh -> Đồng bộ storeId để các Fragment chạy mượt mà và hiển thị banner đổi chi nhánh.
-     */
-    private fun handleBossRoleAndProceed() {
-        lifecycleScope.launch {
-            val uid = authRepository.currentUser?.uid.orEmpty()
-            val prefs = getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, android.content.Context.MODE_PRIVATE)
-            val intentStoreId = intent.getStringExtra(AppConstants.Extras.STORE_ID)
-            val selectedBranchId = if (!intentStoreId.isNullOrBlank()) {
-                prefs.edit().putString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, intentStoreId).apply()
-                intentStoreId
-            } else {
-                prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, null)
-            }
-
-            if (selectedBranchId.isNullOrBlank()) {
-                if (uid.isNotBlank()) {
-                    val existingBranches = firebaseRepository.getStoresByBoss(uid).firstOrNull().orEmpty()
-                    val defaultStore = firebaseRepository.getStoreOnce("store_$uid")
-                    val candidateStore = existingBranches.firstOrNull() ?: defaultStore
-
-                    if (candidateStore == null || (candidateStore.cccdNumber.isBlank() && candidateStore.address.isBlank())) {
-                        val newStoreId = "store_$uid"
-                        Toast.makeText(
-                            this@DashboardActivity,
-                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & xác thực CCCD.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra(AppConstants.Extras.STORE_ID, newStoreId)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        }
-                        startActivity(intent)
-                        finish()
-                        return@launch
-                    }
-
-                    val isRejected = candidateStore.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
-                    if (isRejected) {
-                        val reason = candidateStore.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
-                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                            .setTitle("❌ Hồ Sơ Bị Từ Chối")
-                            .setMessage("Hồ sơ đăng ký Chủ chuỗi của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
-                            .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
-                                val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                                    putExtra(AppConstants.Extras.STORE_ID, candidateStore.id.ifBlank { "store_$uid" })
-                                }
-                                startActivity(intent)
-                            }
-                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                                authRepository.logout()
-                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra(AppConstants.Extras.LOGOUT, true)
-                                })
-                                finish()
-                            }
-                            .setCancelable(false)
-                            .show()
-                        return@launch
-                    }
-
-                    val isPending = !candidateStore.isVerified || candidateStore.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
-                    if (isPending) {
-                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                            .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
-                            .setMessage("Hồ sơ đăng ký Chủ chuỗi '${candidateStore.name}' (CCCD: ${candidateStore.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, bạn sẽ có quyền truy cập đầy đủ vào trang quản lý chuỗi cửa hàng.")
-                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
-                                handleBossRoleAndProceed()
-                            }
-                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                                authRepository.logout()
-                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra(AppConstants.Extras.LOGOUT, true)
-                                })
-                                finish()
-                            }
-                            .setCancelable(false)
-                            .show()
-                        return@launch
-                    }
-                }
-                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
-                finish()
-                return@launch
-            }
-
-            val store = firebaseRepository.getStoreOnce(selectedBranchId)
-            if (store == null || (store.bossId.isNotBlank() && store.bossId != uid)) {
-                prefs.edit().remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID).remove(AppConstants.Prefs.KEY_SELECTED_BRANCH_NAME).apply()
-                if (uid.isNotBlank()) {
-                    firebaseRepository.clearActiveStoreForBoss(uid)
-                }
-                startActivity(Intent(this@DashboardActivity, com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java))
-                finish()
-                return@launch
-            }
-
-            if (uid.isNotBlank()) {
-                firebaseRepository.setActiveStoreForBoss(uid, selectedBranchId)
-            }
-
-            val branchName = store.name.ifBlank { "Chi nhánh #$selectedBranchId" }
-
-            applyWindowPadding()
-            setupMerchantNavigation()
-        }
-    }
-
-    /**
-     * Tên chức năng: Tải và đối soát vai trò tài khoản (Role Dispatcher)
-     * Cách hoạt động:
-     *  - Truy vấn Firestore lấy role hiện tại của user.
-     *  - Nếu là Boss: Quản lý chuỗi chi nhánh tại [handleBossRoleAndProceed].
-     *  - Nếu là Quán ăn: Kiểm tra xác minh hồ sơ quán.
-     *  - Nếu là Tài xế: Thiết lập menu shipper.
-     *  - Nếu tài khoản mới chưa có role: Hiển thị Dialog kích hoạt vai trò tương ứng ngay lập tức.
-     * Luồng hướng tới: [checkMerchantVerificationAndProceed] hoặc [setupShipperNavigation].
-     */
-    private fun loadUserRole() {
-        lifecycleScope.launch {
-            val role = authRepository.getUserRole()?.trim()?.uppercase()
-
-            when (role) {
-                User.Role.BOSSMERCHANT, "BOSS" -> {
-                    handleBossRoleAndProceed()
-                }
-                User.Role.MANAGER, User.Role.MERCHANT, "SHOP", "STORE" -> {
-                    checkMerchantVerificationAndProceed()
-                }
-                User.Role.SHIPPER, User.Role.DRIVER -> {
-                    setupShipperNavigation()
-                }
-                User.Role.CHEF -> {
-                    setupChefNavigation()
-                }
-                User.Role.CUSTOMER -> {
-                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
-                    androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("Kích Hoạt Vai Trò Đối Tác")
-                        .setMessage("Tài khoản (${authRepository.currentUser?.email}) hiện đang ở vai trò Khách hàng.\n\nBạn muốn sử dụng tài khoản này trên Oishi Internal với vai trò nào?")
-                        .setItems(partnerRoles) { _, which ->
-                            when (which) {
-                                0 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.MERCHANT)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn!", Toast.LENGTH_SHORT).show()
-                                        checkMerchantVerificationAndProceed()
-                                    }
-                                }
-                                1 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.DRIVER)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Tài Xế!", Toast.LENGTH_SHORT).show()
-                                        setupShipperNavigation()
-                                    }
-                                }
-                                2 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.CHEF)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã chuyển sang giao diện Đầu Bếp!", Toast.LENGTH_SHORT).show()
-                                        setupChefNavigation()
-                                    }
-                                }
-                            }
-                        }
-                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                            authRepository.logout()
-                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                putExtra(AppConstants.Extras.LOGOUT, true)
-                            })
-                        }
-                        .setCancelable(false)
-                        .show()
-                }
-                else -> {
-                    val partnerRoles = arrayOf("🏪 Tôi là Quán Ăn (Merchant)", "🛵 Tôi là Tài Xế (Shipper)", "👨‍🍳 Tôi là Đầu Bếp (Chef)")
-                    androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                        .setTitle("🏪 Kích Hoạt Vai Trò Đối Tác")
-                        .setMessage("Tài khoản của bạn hiện tại chưa được kích hoạt vai trò Đối Tác trên ứng dụng Oishi Internal.\n\nBạn muốn sử dụng tài khoản này với vai trò gì?")
-                        .setItems(partnerRoles) { _, which ->
-                            when (which) {
-                                0 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.MERCHANT)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Quán Ăn thành công!", Toast.LENGTH_SHORT).show()
-                                        checkMerchantVerificationAndProceed()
-                                    }
-                                }
-                                1 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.DRIVER)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Tài Xế thành công!", Toast.LENGTH_SHORT).show()
-                                        setupShipperNavigation()
-                                    }
-                                }
-                                2 -> {
-                                    lifecycleScope.launch {
-                                        authRepository.setUserRole(User.Role.CHEF)
-                                        Toast.makeText(this@DashboardActivity, "✓ Đã kích hoạt vai trò Đầu Bếp thành công!", Toast.LENGTH_SHORT).show()
-                                        setupChefNavigation()
-                                    }
-                                }
-                            }
-                        }
-                        .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                            authRepository.logout()
-                            startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                putExtra(AppConstants.Extras.LOGOUT, true)
-                            })
-                        }
-                        .setCancelable(false)
-                        .show()
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Đối soát hồ sơ quán & xác minh thông tin bắt buộc
-     * Cách hoạt động: Kiểm tra tài liệu quán trên Firestore; nếu chưa có địa chỉ hoặc chưa xác minh thì chặn vào Dashboard.
-     * Luồng hướng tới: Chưa hoàn tất -> [StoreVerificationActivity]; Đã hoàn tất -> [setupMerchantNavigation].
-     */
-    private fun checkMerchantVerificationAndProceed() {
-        getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
-        lifecycleScope.launch {
-            val uid = authRepository.currentUser?.uid.orEmpty()
-            if (uid.isNotBlank()) {
-                val userProfile = firebaseRepository.getUserById(uid)
-                val isManagedByBoss = userProfile?.bossId?.isNotBlank() == true
-                val storeId = firebaseRepository.resolveStoreIdForUser(uid)
-                if (storeId.isNotBlank()) {
-                    val store = firebaseRepository.getStoreOnce(storeId)
-                    if (store == null || store.address.isBlank() || store.cccdNumber.isBlank()) {
-                        if (isManagedByBoss) {
-                            setupMerchantNavigation()
-                            return@launch
-                        }
-                        Toast.makeText(
-                            this@DashboardActivity,
-                            "⚠️ Vui lòng hoàn tất phiếu địa chỉ và xác minh thông tin quán trước khi nhận đơn!",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra(AppConstants.Extras.STORE_ID, storeId)
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        }
-                        startActivity(intent)
-                        finish()
-                        return@launch
-                    }
-
-                    if (!isManagedByBoss) {
-                        val isRejected = store.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
-                        if (isRejected) {
-                            val reason = store.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
-                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                                .setTitle("❌ Hồ Sơ Bị Từ Chối")
-                                .setMessage("Hồ sơ quán ăn của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
-                                .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
-                                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                                        putExtra(AppConstants.Extras.STORE_ID, storeId)
-                                    }
-                                    startActivity(intent)
-                                }
-                                .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                                    authRepository.logout()
-                                    startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                        putExtra(AppConstants.Extras.LOGOUT, true)
-                                    })
-                                    finish()
-                                }
-                                .setCancelable(false)
-                                .show()
-                            return@launch
-                        }
-
-                        val isPending = !store.isVerified || store.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
-                        if (isPending) {
-                            androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                                .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
-                                .setMessage("Hồ sơ quán '${store.name}' (CCCD: ${store.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, quán sẽ mở cửa nhận đơn bình thường!")
-                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
-                                checkMerchantVerificationAndProceed()
-                            }
-                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                                authRepository.logout()
-                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra(AppConstants.Extras.LOGOUT, true)
-                                })
-                                finish()
-                            }
-                            .setCancelable(false)
-                            .show()
-                            return@launch
-                        }
-                    }
-                } else {
-                    if (isManagedByBoss) {
-                        androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
-                            .setTitle("⏳ Chưa Được Phân Công Chi Nhánh")
-                            .setMessage("Tài khoản Quản lý của bạn hiện chưa được Chủ chuỗi (Boss) phân công vào chi nhánh nào.\n\nVui lòng liên hệ Chủ chuỗi để được gán chi nhánh làm việc!")
-                            .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
-                                checkMerchantVerificationAndProceed()
-                            }
-                            .setNegativeButton("🚪 Đăng xuất") { _, _ ->
-                                authRepository.logout()
-                                startActivity(Intent(this@DashboardActivity, LoginActivity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    putExtra(AppConstants.Extras.LOGOUT, true)
-                                })
-                                finish()
-                            }
-                            .setCancelable(false)
-                            .show()
-                        return@launch
-                    }
-                    // Chưa có quán nào -> Tạo ID quán mới cho tài khoản này và chuyển sang màn hình thiết lập thông tin quán
-                    val newStoreId = "store_${uid}"
-                    Toast.makeText(
-                        this@DashboardActivity,
-                        "🏪 Chào mừng bạn! Vui lòng thiết lập thông tin quán ăn mới của bạn.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                        putExtra(AppConstants.Extras.STORE_ID, newStoreId)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    }
-                    startActivity(intent)
-                    finish()
-                    return@launch
-                }
-            }
-            setupMerchantNavigation()
-        }
-    }
-
-    /**
-     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Tài xế (Shipper Navigation)
-     * Cách hoạt động: Ẩn thanh công cụ shop, hiện BottomNav Shipper gồm: Nhận đơn, Thu nhập và Hồ sơ tài xế.
-     * Luồng hướng tới: Chuyển đổi giữa [ShipperFragment], [ShipperIncomeFragment], [ShipperProfileFragment].
-     */
-    private fun setupShipperNavigation() {
-        isMerchantMode = false
-        binding.toolbar.visibility = android.view.View.GONE
-        binding.bottomNavMerchant.visibility = android.view.View.GONE
-        binding.bottomNavShipper.visibility = android.view.View.VISIBLE
-        applyWindowPadding()
-        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
-
-        binding.bottomNavShipper.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_shipper_orders -> {
-                    loadFragment(ShipperFragment())
-                    true
-                }
-                R.id.nav_shipper_income -> {
-                    loadFragment(ShipperIncomeFragment())
-                    true
-                }
-                R.id.nav_shipper_profile -> {
-                    loadFragment(ShipperProfileFragment())
-                    true
-                }
-                else -> false
-            }
-        }
-
-        binding.bottomNavShipper.selectedItemId = R.id.nav_shipper_orders
-    }
-
-    /**
-     * Thiết lập giao diện điều phối cho Đầu Bếp (Kitchen / Chef Navigation)
-     */
-    private fun setupChefNavigation() {
-        isMerchantMode = false
-        binding.toolbar.visibility = android.view.View.GONE
-        binding.bottomNavMerchant.visibility = android.view.View.GONE
-        binding.bottomNavShipper.visibility = android.view.View.GONE
-        applyWindowPadding()
-        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
-        loadFragment(com.chuyen_de_2.foodorder.internal.ui.chef.ChefFragment())
-    }
-
-    /**
-     * Tên chức năng: Thiết lập giao diện và thanh điều hướng cho Quán ăn (Merchant Navigation)
-     * Cách hoạt động: Ẩn thanh công cụ shipper, hiện BottomNav Quán gồm: Đơn hàng, Thực đơn, Tài xế và Doanh thu.
-     * Luồng hướng tới: Chuyển đổi giữa [OrderListFragment], [MenuManageFragment], [DriverListFragment], [StoreReportFragment].
-     */
-    private fun setupMerchantNavigation() {
-        isMerchantMode = true
-        binding.toolbar.visibility = android.view.View.GONE
-        binding.bottomNavMerchant.visibility = android.view.View.VISIBLE
-        applyWindowPadding()
-        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
-
-        binding.bottomNavMerchant.setOnItemSelectedListener { item ->
-            when (item.itemId) {
-                R.id.nav_orders -> {
-                    loadFragment(OrderListFragment())
-                    true
-                }
-                R.id.nav_menu -> {
-                    val menuFragment = MenuManageFragment().apply {
-                        onNavigateToOrdersListener = {
-                            binding.bottomNavMerchant.selectedItemId = R.id.nav_orders
-                        }
-                    }
-                    loadFragment(menuFragment)
-                    true
-                }
-                R.id.nav_drivers -> {
-                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.driver.DriverListFragment())
-                    true
-                }
-                R.id.nav_reports -> {
-                    loadFragment(com.chuyen_de_2.foodorder.internal.ui.shop.StoreReportFragment())
-                    true
-                }
-                else -> false
-            }
-        }
-
-        // Mặc định tải tab Thực đơn hoặc Đơn hàng
-        if (binding.bottomNavMerchant.selectedItemId == R.id.nav_menu) {
-            val menuFragment = MenuManageFragment().apply {
-                onNavigateToOrdersListener = {
-                    binding.bottomNavMerchant.selectedItemId = R.id.nav_orders
-                }
-            }
-            loadFragment(menuFragment)
-        } else {
-            loadFragment(OrderListFragment())
-        }
-        checkNotificationAccessPermission()
-    }
-
-    /**
-     * Kiểm tra quyền Notification Access (Truy cập thông báo) để tự động duyệt đơn VietQR.
-     * Nếu chưa cấp quyền -> Hiện popup hướng dẫn và dẫn người dùng sang Settings mở chỉ bằng 1 chạm!
-     */
-    private fun checkNotificationAccessPermission() {
-        if (!com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
-            androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("🔔 Tự Động Duyệt Tiền VietQR")
-                .setMessage(
-                    "Để hệ thống tự động đọc thông báo biến động số dư ngân hàng và duyệt đơn VietQR ngay lập tức, vui lòng bật quyền 'Truy cập thông báo' cho Oishi Food."
-                )
-                .setPositiveButton("Bật Quyền Ngay") { _, _ ->
-                    com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.openPermissionSettings(this)
-                }
-                .setNegativeButton("Để sau", null)
-                .show()
-        } else {
-            // Đã cấp quyền -> Yêu cầu Android kết nối Service ngay lập tức và khởi động Foreground Service
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.isPermissionGranted(this)) {
-            com.chuyen_de_2.foodorder.internal.service.BankNotificationListenerService.forceRebindService(this)
-            com.chuyen_de_2.foodorder.internal.service.MerchantKeepAliveService.start(this)
-        }
-    }
-
-    /**
-     * Tên chức năng: Thay thế Fragment nội dung trong container
-     * Cách hoạt động: Dùng FragmentManager để commit giao dịch replace fragment tương ứng vào framelayout container.
-     * Luồng hướng tới: Cập nhật màn hình con tương ứng trong Dashboard.
-     */
-    private fun loadFragment(fragment: androidx.fragment.app.Fragment) {
-        supportFragmentManager.beginTransaction()
-            .replace(binding.fragmentContainer.id, fragment)
-            .commit()
     }
 }
 ````
@@ -92801,278 +93073,6 @@ class HomeViewModel @Inject constructor(
         app:layout_constraintTop_toTopOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/auth/LoginActivity.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.auth
-
-import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.view.MotionEvent
-import android.view.View
-import android.widget.Toast
-import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.chuyen_de_2.foodorder.core.util.InsetUtils
-import com.chuyen_de_2.foodorder.core.util.KeyboardUtils
-import com.chuyen_de_2.foodorder.core.util.OtpSessionManager
-import com.chuyen_de_2.foodorder.core.util.RegistrationOtpManager
-import com.chuyen_de_2.foodorder.internal.databinding.ActivityLoginInternalBinding
-import com.chuyen_de_2.foodorder.internal.ui.dashboard.DashboardActivity
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Màn hình đăng nhập đối tác nội bộ (Chủ quán/Tài xế).
- * Nếu tài khoản chưa xác thực OTP hoặc phiên 24h đã hết hạn, hệ thống sẽ chuyển sang
- * màn hình OtpVerificationActivity riêng biệt (tương tự như luồng Đăng ký).
- */
-@AndroidEntryPoint
-class LoginActivity : AppCompatActivity() {
-
-    private lateinit var binding: ActivityLoginInternalBinding
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    private val viewModel: AuthViewModel by viewModels()
-
-    private var pendingEmail: String = ""
-    private var pendingPassword: String = ""
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        val isLogout = intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)
-        if (isLogout) {
-            try {
-                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
-            } catch (_: Exception) {}
-            authRepository.logout()
-        } else if (authRepository.isLoggedIn) {
-            checkActiveStatusAndNavigate()
-        }
-
-        binding = ActivityLoginInternalBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        InsetUtils.initEdgeToEdge(this, true)
-        InsetUtils.applyImeAndSystemInsets(binding.root)
-
-        setupUI()
-        observeViewModel()
-        syncBypassOtpConfig()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (authRepository.isLoggedIn) {
-            checkActiveStatusAndNavigate()
-        }
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        if (intent.getBooleanExtra(AppConstants.Extras.LOGOUT, false)) {
-            try {
-                getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
-            } catch (_: Exception) {}
-            authRepository.logout()
-        }
-    }
-
-    private fun setupUI() {
-        binding.etEmail.doAfterTextChanged {
-            binding.tilEmail.error = null
-        }
-        binding.etPassword.doAfterTextChanged {
-            binding.tilPassword.error = null
-        }
-
-        // Nút "Đăng nhập"
-        binding.btnLogin.setOnClickListener {
-            if (viewModel.isLoading.value == true) return@setOnClickListener
-            val email = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
-
-            if (email.isBlank() || !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-                binding.tilEmail.error = "Vui lòng nhập địa chỉ email hợp lệ"
-                binding.etEmail.requestFocus()
-                return@setOnClickListener
-            }
-            if (password.isBlank()) {
-                binding.tilPassword.error = "Vui lòng nhập mật khẩu"
-                binding.etPassword.requestFocus()
-                return@setOnClickListener
-            }
-
-            binding.tilEmail.error = null
-            binding.tilPassword.error = null
-
-            val isAdmin = email.lowercase() == AppConstants.Defaults.ADMIN_EMAIL
-            val hasSession = isAdmin || OtpSessionManager.isSessionValid(this, email)
-
-            if (hasSession) {
-                // Đã có phiên xác minh hợp lệ trong 24h hoặc là admin -> Đăng nhập trực tiếp
-                viewModel.login(email, password)
-            } else {
-                // Chưa xác minh hoặc hết hạn 24h -> Chuyển sang OtpVerificationActivity
-                pendingEmail = email
-                pendingPassword = password
-
-                val remainingCooldown = RegistrationOtpManager.getRemainingCooldownMs(this, email)
-                if (remainingCooldown > 0L) {
-                    // Mã OTP vừa gửi vẫn còn hạn/cooldown -> Chuyển thẳng sang OtpVerificationActivity
-                    openOtpVerificationActivity(email, password)
-                } else {
-                    // Gửi mã OTP mới đến email
-                    binding.btnLogin.isEnabled = false
-                    viewModel.requestLoginOtp(email)
-                }
-            }
-        }
-
-        // Chuyển sang màn hình Đăng ký đối tác
-        binding.tvGoToRegister.setOnClickListener {
-            val intent = Intent(this, RegisterActivity::class.java)
-            startActivity(intent)
-        }
-    }
-
-    private fun syncBypassOtpConfig() {
-        try {
-            FirebaseDatabase.getInstance().getReference(AppConstants.AuthConfig.NODE_SYSTEM_CONFIG)
-                .child(AppConstants.AuthConfig.KEY_BYPASS_LOGIN_OTP)
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        val bypass = snapshot.getValue(Boolean::class.java) ?: AppConstants.AuthConfig.DEFAULT_BYPASS_LOGIN_OTP
-                        OtpSessionManager.updateBypassOtpConfig(this@LoginActivity, bypass)
-                    }
-                    override fun onCancelled(error: DatabaseError) {}
-                })
-        } catch (_: Exception) {}
-    }
-
-    private fun observeViewModel() {
-        viewModel.isLoading.observe(this) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.btnLogin.isEnabled = !isLoading
-        }
-
-        viewModel.otpRequestResult.observe(this) { result ->
-            binding.btnLogin.isEnabled = true
-            result.onSuccess {
-                RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                Toast.makeText(this, "Đã gửi mã OTP đến $pendingEmail. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                openOtpVerificationActivity(pendingEmail, pendingPassword)
-            }.onFailure { error ->
-                val rawMsg = error.message.orEmpty()
-                if (RegistrationOtpManager.isRateLimitError(rawMsg)) {
-                    RegistrationOtpManager.recordOtpSent(this, pendingEmail)
-                    Toast.makeText(this, "Mã OTP đã được gửi đến $pendingEmail và vẫn còn hiệu lực. Vui lòng xác thực!", Toast.LENGTH_SHORT).show()
-                    openOtpVerificationActivity(pendingEmail, pendingPassword)
-                } else {
-                    val msg = error.message ?: "Không gửi được mã OTP"
-                    if (msg.contains("chưa được đăng ký", ignoreCase = true)) {
-                        binding.tilEmail.error = msg
-                        binding.etEmail.requestFocus()
-                    }
-                    Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-
-        viewModel.loginResult.observe(this) { result ->
-            result.onSuccess {
-                try {
-                    getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE).edit().clear().apply()
-                } catch (_: Exception) {}
-                val email = binding.etEmail.text.toString().trim()
-                OtpSessionManager.markEmailVerified(this, email)
-                Toast.makeText(this, "Đăng nhập thành công!", Toast.LENGTH_SHORT).show()
-                navigateToDashboard()
-            }.onFailure { error ->
-                if (error is com.chuyen_de_2.foodorder.core.data.firebase.EmailOtpRequiredException) {
-                    val email = binding.etEmail.text.toString().trim()
-                    val password = binding.etPassword.text.toString()
-                    pendingEmail = email
-                    pendingPassword = password
-                    viewModel.requestLoginOtp(email)
-                } else {
-                    val msg = error.message.orEmpty()
-                    val userMsg = if (
-                        msg.contains("password", ignoreCase = true) ||
-                        msg.contains("credential", ignoreCase = true) ||
-                        msg.contains("mật khẩu", ignoreCase = true)
-                    ) {
-                        binding.tilPassword.error = "Mật khẩu không chính xác"
-                        "Mật khẩu không chính xác"
-                    } else if (msg.contains("no user", ignoreCase = true) || msg.contains("user-not-found", ignoreCase = true)) {
-                        binding.tilEmail.error = "Không tìm thấy tài khoản với email này"
-                        "Không tìm thấy tài khoản với email này"
-                    } else {
-                        msg.ifBlank { "Đăng nhập thất bại" }
-                    }
-                    Toast.makeText(this, userMsg, Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-    }
-
-    private fun openOtpVerificationActivity(email: String, password: String) {
-        val intent = Intent(this, OtpVerificationActivity::class.java).apply {
-            putExtra(OtpVerificationActivity.EXTRA_FLOW, OtpVerificationActivity.FLOW_LOGIN)
-            putExtra(OtpVerificationActivity.EXTRA_EMAIL, email)
-            putExtra(OtpVerificationActivity.EXTRA_PASSWORD, password)
-        }
-        startActivity(intent)
-    }
-
-    private fun checkActiveStatusAndNavigate() {
-        lifecycleScope.launch {
-            try {
-                val statusCheck = authRepository.checkAccountActiveStatus()
-                if (isFinishing || isDestroyed) return@launch
-                if (statusCheck.isFailure) {
-                    val reason = statusCheck.exceptionOrNull()?.message ?: "Tài khoản của bạn đã bị khóa bởi Quản trị viên."
-                    AlertDialog.Builder(this@LoginActivity)
-                        .setTitle("Tài khoản bị khóa")
-                        .setMessage(reason)
-                        .setPositiveButton("Đóng", null)
-                        .show()
-                } else {
-                    navigateToDashboard()
-                }
-            } catch (_: Exception) {}
-        }
-    }
-
-    private fun navigateToDashboard() {
-        val intent = Intent(this, DashboardActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        startActivity(intent)
-        finish()
-    }
-
-    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        KeyboardUtils.handleTouchOutsideToHideKeyboard(this, ev)
-        return super.dispatchTouchEvent(ev)
-    }
-}
 ````
 
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/driver/DriverListFragment.kt
@@ -103460,6 +103460,923 @@ ref_rows = [
 # Lưu file Word
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/OrderListFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import android.app.Dialog
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.media.RingtoneManager
+import android.net.Uri
+import android.os.Bundle
+import kotlinx.coroutines.flow.firstOrNull
+import com.chuyen_de_2.foodorder.core.data.model.User
+import android.content.Context
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
+import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.AppConstants
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.internal.R
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentOrderListBinding
+import com.google.android.material.button.MaterialButton
+import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Kênh Quản Lý Đơn Hàng Dành Cho Quán (Merchant Order Kanban)
+ * Cách hoạt động:
+ *  - Lắng nghe Realtime luồng đơn hàng của Quán theo thời gian thực từ Firestore.
+ *  - Vận hành quy trình 3 bước chuẩn thương mại điện tử:
+ *      1. Đơn mới (PENDING) -> Quán bấm Xác nhận đơn -> Chuyển sang Bếp nấu (PREPARING).
+ *      2. Bếp nấu (PREPARING) -> Nấu xong bấm Xác nhận đã nấu xong -> Chuyển sang Sẵn sàng (READY) để Tài xế nhận đơn.
+ *      3. Tài xế đến quầy (READY / ASSIGNED) -> Bấm Xác nhận giao cho tài xế -> Chuyển sang Đang giao (DELIVERING).
+ *      4. Lịch sử đơn (COMPLETED / CANCELLED).
+ *  - Theo dõi nhanh Doanh thu hôm nay, Số đơn hoàn thành, và Bật/Tắt trạng thái mở bán của Quán.
+ * Luồng hướng tới:
+ *  - Cập nhật trực tiếp trạng thái đơn hàng trên Firestore và đồng bộ tới app Khách hàng và app Tài xế.
+ *  - Bấm vào thông tin Quán -> Chuyển sang [StoreProfileFragment].
+ */
+@AndroidEntryPoint
+class OrderListFragment : Fragment() {
+
+    private var _binding: FragmentOrderListBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var auth: FirebaseAuth
+
+    @Inject
+    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+
+    private val viewModel: ShopViewModel by viewModels()
+    private lateinit var adapter: OrderAdapter
+    private var currentStoreId = ""
+    private var isBossUser: Boolean = false
+    private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
+
+    companion object {
+        var lastCachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
+        var lastResolvedStoreId: String = ""
+    }
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentOrderListBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View và kích hoạt các luồng dữ liệu
+     * Cách hoạt động: Thiết lập giao diện, tab bar, RecyclerView, lắng nghe ViewModel và truy xuất storeId của user.
+     * Luồng hướng tới: Chuẩn bị hiển thị danh sách đơn hàng.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        if (cachedStore == null) {
+            cachedStore = lastCachedStore
+        }
+        if (currentStoreId.isBlank()) {
+            currentStoreId = lastResolvedStoreId
+        }
+        cachedStore?.let { renderStoreHeader(it) }
+
+        setupUI()
+        setupTabs()
+        setupRecyclerView()
+        observeViewModel()
+        resolveCurrentStoreIdAndObserve()
+    }
+
+    /**
+     * Tên chức năng: Xác định định danh Cửa hàng (Store ID Resolver)
+     * Cách hoạt động: Lấy UID người dùng hiện tại, tra cứu bảng stores để tìm storeId quản lý, sau đó cấp phát cho ViewModel.
+     * Luồng hướng tới: Lắng nghe snapshot đơn hàng của đúng cửa hàng đó.
+     */
+    private fun resolveCurrentStoreIdAndObserve() {
+        val uid = auth.currentUser?.uid.orEmpty()
+        val intentStoreId = activity?.intent?.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
+        val prefs = requireContext().getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
+        val sessionStoreId = prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, "").orEmpty()
+
+        val fastStoreId = intentStoreId.ifBlank { sessionStoreId }
+        if (fastStoreId.isNotBlank()) {
+            currentStoreId = fastStoreId
+            lastResolvedStoreId = fastStoreId
+            viewModel.setStoreId(currentStoreId)
+            observeStoreProfile()
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val resolvedId = if (fastStoreId.isNotBlank()) fastStoreId else firebaseRepository.resolveStoreIdForUser(uid)
+            if (resolvedId.isNotBlank()) {
+                val shouldReObserve = (resolvedId != currentStoreId) || fastStoreId.isBlank()
+                currentStoreId = resolvedId
+                lastResolvedStoreId = resolvedId
+                viewModel.setStoreId(currentStoreId)
+                if (shouldReObserve) {
+                    observeStoreProfile()
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Giám sát thông tin và trạng thái Quán theo thời gian thực
+     * Cách hoạt động:
+     *  - Lắng nghe sự thay đổi tên quán, địa chỉ và trạng thái (OPEN, CLOSED, LOCKED, PENDING).
+     *  - Đồng bộ công tắc switch "Đang Bán / Tạm Đóng" lên giao diện.
+     * Luồng hướng tới: Hiển thị đúng trạng thái mở cửa của quán trên màn hình khách hàng.
+     */
+    private fun observeStoreProfile() {
+        val b = _binding ?: return
+        val openProfile = {
+            parentFragmentManager.beginTransaction()
+                .hide(this@OrderListFragment)
+                .add(R.id.fragmentContainer, StoreProfileFragment())
+                .addToBackStack(null)
+                .commit()
+        }
+        b.btnEditStoreProfile.setOnClickListener { openProfile() }
+        b.layoutShopInfo.setOnClickListener { openProfile() }
+
+        val prefs = requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE)
+        val hasSelectedBranch = !prefs.getString("selected_branch_store_id", null).isNullOrBlank()
+
+        b.btnSwitchBranch.visibility = if (hasSelectedBranch) View.VISIBLE else View.GONE
+        b.btnSwitchBranch.setOnClickListener {
+            prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
+            val uid = authRepository.currentUser?.uid.orEmpty()
+            if (uid.isNotBlank()) {
+                viewLifecycleOwner.lifecycleScope.launch {
+                    firebaseRepository.clearActiveStoreForBoss(uid)
+                }
+            }
+            val intent = Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java)
+            startActivity(intent)
+            requireActivity().finish()
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val role = authRepository.getUserRole()?.trim()?.uppercase()
+            isBossUser = role == User.Role.BOSSMERCHANT || role == "BOSS"
+            if (isBossUser && !hasSelectedBranch) {
+                b.btnSwitchBranch.visibility = View.VISIBLE
+            }
+            adapter.canOperate = canOperateCurrentStore()
+            cachedStore?.let { renderStoreHeader(it) }
+        }
+
+        b.btnLogoutChannel.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("Đăng Xuất")
+                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
+                .setPositiveButton("Đăng xuất") { _, _ ->
+                    try {
+                        requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
+                    } catch (_: Exception) {}
+                    cachedStore = null
+                    lastCachedStore = null
+                    lastResolvedStoreId = ""
+                    currentStoreId = ""
+                    authRepository.logout()
+                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                        putExtra("LOGOUT", true)
+                    }
+                    startActivity(intent)
+                }
+                .setNegativeButton("Hủy", null)
+                .show()
+        }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
+                if (store != null) {
+                    cachedStore = store
+                    lastCachedStore = store
+                    renderStoreHeader(store)
+                    adapter.canOperate = canOperateCurrentStore()
+                }
+            }
+        }
+    }
+
+    /**
+     * Kiểm tra xem phiên đăng nhập hiện tại có quyền duyệt/vận hành chi nhánh này không:
+     * - Trưởng chi nhánh (Merchant/Manager được gán): Toàn quyền duyệt.
+     * - Chủ chuỗi (Boss):
+     *    + Nếu chi nhánh CHƯA GÁN cho ai (merchantId rỗng) -> Boss trực tiếp duyệt.
+     *    + Nếu chi nhánh ĐÃ GÁN cho Trưởng chi nhánh -> Boss KHÔNG ĐƯỢC DUYỆT (chỉ ở chế độ giám sát).
+     */
+    private fun canOperateCurrentStore(): Boolean {
+        if (!isBossUser) return true
+        val hasManager = !cachedStore?.merchantId.isNullOrBlank()
+        return !hasManager
+    }
+
+    private fun showManagerRestrictedAlert() {
+        val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+        AlertDialog.Builder(requireContext())
+            .setTitle("⛔ Quyền Hạn Vận Hành Chi Nhánh")
+            .setMessage("Chi nhánh này đã được phân công cho Trưởng chi nhánh ($managerName) trực tiếp phụ trách tiếp nhận và xử lý đơn.\n\nChủ chuỗi không được duyệt đơn khi chi nhánh đã có Trưởng chi nhánh quản lý.")
+            .setPositiveButton("Đã hiểu", null)
+            .show()
+    }
+
+    private fun renderStoreHeader(store: com.chuyen_de_2.foodorder.core.data.model.Store) {
+        val currentB = _binding ?: return
+        currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
+
+        val hasManager = !store.merchantId.isNullOrBlank()
+        if (isBossUser && hasManager) {
+            val managerName = store.merchantName.ifBlank { "Trưởng chi nhánh" }
+            currentB.tvShopAddress.text = "${store.address.ifBlank { "TP.HCM" }} • Trưởng CN: $managerName (Chế độ giám sát)"
+        } else {
+            currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
+        }
+
+        currentB.ivShopHeaderLogo.setImageResource(R.drawable.ic_app_logo)
+        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+            currentB.ivStoreAvatar,
+            store.effectiveImageUrl,
+            placeholderResId = R.drawable.ic_store,
+            cornerDp = 12
+        )
+
+        val st = store.storeStatus.uppercase()
+        val canOperate = canOperateCurrentStore()
+        currentB.switchShopStatus.setOnCheckedChangeListener(null)
+        when (st) {
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
+                currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = false
+                currentB.tvShopStatusTxt.text = "Bị Khóa"
+                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
+            }
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
+                currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = false
+                currentB.tvShopStatusTxt.text = "Chờ Duyệt"
+                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
+            }
+            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
+                currentB.switchShopStatus.isChecked = false
+                currentB.switchShopStatus.isEnabled = canOperate
+                currentB.tvShopStatusTxt.text = "Tạm Đóng"
+                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            }
+            else -> {
+                currentB.switchShopStatus.isChecked = true
+                currentB.switchShopStatus.isEnabled = canOperate
+                currentB.tvShopStatusTxt.text = "Đang Bán"
+                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            }
+        }
+
+        // Luôn gắn lại listener sau khi cập nhật giao diện
+        bindShopStatusSwitchListener()
+
+        currentB.cardShopStatusToggle.setOnClickListener {
+            if (!canOperateCurrentStore()) {
+                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⛔ Quyền Quản Lý Chi Nhánh")
+                    .setMessage("Chi nhánh này đã được giao cho Trưởng chi nhánh ($managerName) trực tiếp vận hành.\n\nChủ chuỗi không thể đóng/mở quán ở chế độ giám sát.")
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
+            } else if (currentB.switchShopStatus.isEnabled) {
+                currentB.switchShopStatus.isChecked = !currentB.switchShopStatus.isChecked
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Bật/Tắt trạng thái nhận đơn của Quán
+     * Cách hoạt động: Khi người dùng gạt switch, cập nhật trạng thái `OPEN` hoặc `CLOSED` vào tài liệu Store trên Firestore.
+     * Luồng hướng tới: Firebase cập nhật -> Màn hình Khách hàng cập nhật thẻ Quán đóng/mở cửa.
+     */
+    private fun bindShopStatusSwitchListener() {
+        val b = _binding ?: return
+        b.switchShopStatus.setOnCheckedChangeListener { compoundButton, isChecked ->
+            if (!canOperateCurrentStore()) {
+                compoundButton.setOnCheckedChangeListener(null)
+                compoundButton.isChecked = !isChecked
+                bindShopStatusSwitchListener()
+                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
+                Toast.makeText(
+                    requireContext(),
+                    "⚠️ Chi nhánh đã bàn giao cho $managerName phụ trách vận hành. Chủ chuỗi không thể đóng/mở quán!",
+                    Toast.LENGTH_LONG
+                ).show()
+                return@setOnCheckedChangeListener
+            }
+            if (currentStoreId.isBlank()) {
+                compoundButton.setOnCheckedChangeListener(null)
+                compoundButton.isChecked = !isChecked
+                bindShopStatusSwitchListener()
+                Toast.makeText(requireContext(), "Đang tải thông tin quán, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
+                return@setOnCheckedChangeListener
+            }
+            val newStatus = if (isChecked) {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
+            } else {
+                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED
+            }
+            if (isChecked) {
+                b.tvShopStatusTxt.text = "Đang Bán"
+                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
+            } else {
+                b.tvShopStatusTxt.text = "Tạm Đóng"
+                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+            }
+
+            cachedStore = cachedStore?.copy(storeStatus = newStatus)
+            lastCachedStore = cachedStore
+
+            viewLifecycleOwner.lifecycleScope.launch {
+                val result = firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
+                if (result.isSuccess) {
+                    cachedStore = cachedStore?.copy(storeStatus = newStatus)
+                    lastCachedStore = cachedStore
+                    if (isChecked) {
+                        Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(requireContext(), "Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
+                    }
+                } else {
+                    Toast.makeText(requireContext(), "Không thể cập nhật trạng thái, vui lòng kiểm tra kết nối!", Toast.LENGTH_SHORT).show()
+                    cachedStore?.let { renderStoreHeader(it) }
+                }
+            }
+        }
+    }
+
+    private fun setupUI() {
+        bindShopStatusSwitchListener()
+    }
+
+    /**
+     * Tên chức năng: Chuyển đổi tab Kanban trạng thái đơn hàng
+     * Cách hoạt động: Bắt sự kiện Click vào các tab: Đơn mới, Bếp nấu, Đang giao, Lịch sử để lọc danh sách tương ứng.
+     * Luồng hướng tới: Gọi [ShopViewModel.selectTab] để phát dữ liệu danh sách đơn theo tab đã chọn.
+     */
+    private fun setupTabs() {
+        binding.tabNew.setOnClickListener {
+            viewModel.selectTab(ShopViewModel.TabType.NEW)
+            highlightTab(ShopViewModel.TabType.NEW)
+        }
+        binding.tabCooking.setOnClickListener {
+            viewModel.selectTab(ShopViewModel.TabType.COOKING)
+            highlightTab(ShopViewModel.TabType.COOKING)
+        }
+        binding.tabDelivering.setOnClickListener {
+            viewModel.selectTab(ShopViewModel.TabType.DELIVERING)
+            highlightTab(ShopViewModel.TabType.DELIVERING)
+        }
+        binding.tabHistory.setOnClickListener {
+            viewModel.selectTab(ShopViewModel.TabType.HISTORY)
+            highlightTab(ShopViewModel.TabType.HISTORY)
+        }
+    }
+
+    /**
+     * Tên chức năng: Làm nổi bật giao diện Tab đang chọn (Pill Highlight)
+     * Cách hoạt động: Thay đổi background drawable và màu chữ trắng/xám tương ứng cho tab được kích hoạt.
+     * Luồng hướng tới: Cập nhật visual feedback cho người dùng.
+     */
+    private fun highlightTab(tab: ShopViewModel.TabType) {
+        val activeBg = R.drawable.bg_order_tab_active
+        val idleBg = R.drawable.bg_order_tab_idle
+        val colorWhite = ContextCompat.getColor(requireContext(), R.color.white)
+        val colorMuted = ContextCompat.getColor(requireContext(), R.color.text_secondary)
+
+        // Reset all tabs
+        binding.tabNew.setBackgroundResource(idleBg)
+        binding.tvTabNewTitle.setTextColor(colorMuted)
+        binding.tvCountNew.setTextColor(colorMuted)
+
+        binding.tabCooking.setBackgroundResource(idleBg)
+        binding.tvTabCookingTitle.setTextColor(colorMuted)
+        binding.tvCountCooking.setTextColor(colorMuted)
+
+        binding.tabDelivering.setBackgroundResource(idleBg)
+        binding.tvTabDeliveringTitle.setTextColor(colorMuted)
+        binding.tvCountDelivering.setTextColor(colorMuted)
+
+        binding.tabHistory.setBackgroundResource(idleBg)
+        binding.tvTabHistoryTitle.setTextColor(colorMuted)
+
+        // Set active tab
+        when (tab) {
+            ShopViewModel.TabType.NEW -> {
+                binding.tabNew.setBackgroundResource(activeBg)
+                binding.tvTabNewTitle.setTextColor(colorWhite)
+                binding.tvCountNew.setTextColor(colorWhite)
+            }
+            ShopViewModel.TabType.COOKING -> {
+                binding.tabCooking.setBackgroundResource(activeBg)
+                binding.tvTabCookingTitle.setTextColor(colorWhite)
+                binding.tvCountCooking.setTextColor(colorWhite)
+            }
+            ShopViewModel.TabType.DELIVERING -> {
+                binding.tabDelivering.setBackgroundResource(activeBg)
+                binding.tvTabDeliveringTitle.setTextColor(colorWhite)
+                binding.tvCountDelivering.setTextColor(colorWhite)
+            }
+            ShopViewModel.TabType.HISTORY -> {
+                binding.tabHistory.setBackgroundResource(activeBg)
+                binding.tvTabHistoryTitle.setTextColor(colorWhite)
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo danh sách RecyclerView đơn hàng và các Callback
+     * Cách hoạt động: Gắn [OrderAdapter], gán các lambda xử lý tương tác (Xử lý đơn, Xem chi tiết, Nhắn tin khách, Gọi điện tài xế, Xem cảnh báo).
+     * Luồng hướng tới: Hiển thị các thẻ đơn hàng [item_order.xml].
+     */
+    private fun setupRecyclerView() {
+        adapter = OrderAdapter(
+            onActionClick = { order -> handleOrderAction(order) },
+            onDetailClick = { order -> showOrderDetailDialog(order) },
+            onChatCustomerClick = { order ->
+                val chatSheet = ChatCustomerBottomSheetDialogFragment.newInstance(
+                    customerName = order.customerName.ifBlank { "Khách hàng" },
+                    orderId = order.orderId,
+                    orderNote = order.note
+                )
+                chatSheet.show(childFragmentManager, "ChatCustomerBottomSheet")
+            },
+            onCallDriverClick = { phone ->
+                try {
+                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Không thể gọi số $phone", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onWarningDetailClick = { order -> showWarningDetailModal(order) },
+            onApproveCancelClick = { order -> showApproveCancelDialog(order) },
+            onRejectCancelClick = { order -> showRejectCancelDialog(order) },
+            onShopCancelClick = { order -> showShopCancelOrderDialog(order) }
+        )
+
+        binding.rvOrders.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = this@OrderListFragment.adapter
+        }
+    }
+
+    private fun showApproveCancelDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        AlertDialog.Builder(requireContext())
+            .setTitle("Đồng ý hủy đơn $shortCode?")
+            .setMessage("Khách hàng gửi yêu cầu hủy đơn với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nBạn có đồng ý hủy đơn hàng này không? Đơn sẽ được hủy và khách không bị phạt uy tín.")
+            .setPositiveButton("Đồng Ý Hủy") { _, _ ->
+                viewModel.approveCancelOrder(order.orderId, order.cancelRequestReason)
+                Toast.makeText(requireContext(), "✓ Đã chấp thuận hủy đơn theo yêu cầu của khách", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    private fun showRejectCancelDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "Nhập lý do từ chối (ví dụ: Quán đã làm xong món...)"
+            setText("Quán đã nấu xong món ăn, không thể hủy")
+            setPadding(40, 20, 40, 20)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Từ chối yêu cầu hủy $shortCode?")
+            .setMessage("Khách hàng yêu cầu hủy với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nNhập lý do từ chối gửi tới khách hàng:")
+            .setView(input)
+            .setPositiveButton("Từ Chối Hủy") { _, _ ->
+                val reason = input.text.toString().trim().ifBlank { "Quán đã nấu xong món ăn, không thể hủy" }
+                viewModel.rejectCancelOrder(order.orderId, reason)
+                Toast.makeText(requireContext(), "✓ Đã từ chối yêu cầu hủy đơn", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    private fun showShopCancelOrderDialog(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
+        val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+        val canCancel = order.status == Order.Status.AWAITING_PAYMENT ||
+            order.status == Order.Status.PAID ||
+            order.status == Order.Status.PENDING ||
+            (order.status == Order.Status.PREPARING && !hasChef)
+        if (!canCancel) {
+            Toast.makeText(
+                requireContext(),
+                "Đầu bếp đã nhận nấu hoặc đơn đang giao, không thể hủy đơn này!",
+                Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
+
+        val ctx = requireContext()
+        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        val quickReasons = listOf(
+            "Quán hết nguyên liệu món này",
+            "Quán đang quá tải đơn",
+            "Quán chuẩn bị đóng cửa / tạm ngưng nhận đơn",
+            "Lý do khác..."
+        )
+
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 20, 48, 8)
+        }
+        val noticeTv = TextView(ctx).apply {
+            text = "Đơn $shortCode sẽ được hủy và gửi thông báo tới Khách hàng (không trừ điểm uy tín của khách)."
+            textSize = 13f
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+        }
+        container.addView(noticeTv)
+
+        val radioGroup = android.widget.RadioGroup(ctx).apply {
+            setPadding(0, 16, 0, 8)
+        }
+        val customInput = android.widget.EditText(ctx).apply {
+            hint = "Nhập lý do hủy đơn..."
+            visibility = View.GONE
+        }
+
+        quickReasons.forEachIndexed { index, label ->
+            val rb = android.widget.RadioButton(ctx).apply {
+                id = View.generateViewId()
+                text = label
+                textSize = 14f
+                isChecked = (index == 0)
+            }
+            radioGroup.addView(rb)
+        }
+        radioGroup.setOnCheckedChangeListener { group, checkedId ->
+            val selectedIdx = (0 until group.childCount).firstOrNull { group.getChildAt(it).id == checkedId } ?: 0
+            customInput.visibility = if (selectedIdx == quickReasons.lastIndex) View.VISIBLE else View.GONE
+        }
+        container.addView(radioGroup)
+        container.addView(customInput)
+
+        AlertDialog.Builder(ctx)
+            .setTitle("Hủy đơn hàng $shortCode?")
+            .setView(container)
+            .setPositiveButton("Xác Nhận Hủy Đơn") { _, _ ->
+                val selectedIdx = (0 until radioGroup.childCount).firstOrNull { radioGroup.getChildAt(it).id == radioGroup.checkedRadioButtonId } ?: 0
+                val reason = if (selectedIdx == quickReasons.lastIndex) {
+                    customInput.text.toString().trim().ifBlank { "Quán tạm ngưng nhận đơn" }
+                } else {
+                    quickReasons[selectedIdx]
+                }
+                viewModel.cancelOrderByShop(order.orderId, reason)
+                Toast.makeText(ctx, "✓ Đã hủy đơn $shortCode", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Quay Lại", null)
+            .show()
+    }
+
+    /**
+     * Tên chức năng: Xử lý hành động nghiệp vụ theo vòng đời đơn hàng (Order State Machine)
+     * Cách hoạt động:
+     *  - PENDING -> Gọi [ShopViewModel.confirmCustomerOrder] chuyển sang PREPARING (Bếp nấu).
+     *  - PREPARING -> Gọi [ShopViewModel.markCookingDone] chuyển sang READY (Nấu xong, phát đơn cho shipper).
+     *  - READY / ASSIGNED -> Gọi [ShopViewModel.handoverToDriver] chuyển sang DELIVERING (Giao túi món cho tài xế).
+     * Luồng hướng tới: Cập nhật Firebase -> Thông báo Realtime sang App Khách hàng & Tài xế.
+     */
+    private fun handleOrderAction(order: Order) {
+        if (!canOperateCurrentStore()) {
+            showManagerRestrictedAlert()
+            return
+        }
+        when (order.status) {
+            Order.Status.AWAITING_PAYMENT -> {
+                val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 0L
+                val depositAmount = order.depositAmount
+                val checkAmount = if (order.paymentMode == Order.PaymentMode.DEPOSIT && depositAmount > 0) depositAmount else totalAmount
+                val formattedAmount = checkAmount.toVndCurrency()
+
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("Xác nhận tiền chuyển khoản?")
+                    .setMessage("Bạn đã kiểm tra tài khoản ngân hàng và chắc chắn đã nhận được $formattedAmount cho đơn ${order.orderCode} chưa?")
+                    .setPositiveButton("Đã nhận & Nấu món") { _, _ ->
+                        viewModel.confirmManualPaidAndPrepare(order.orderId)
+                        Toast.makeText(
+                            requireContext(),
+                            "✓ Quán đã xác nhận tiền vào tài khoản!\nBếp đang nấu món cho đơn ${order.orderCode}.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    .setNegativeButton("Chưa nhận được", null)
+                    .show()
+            }
+            Order.Status.PENDING, Order.Status.PAID -> {
+                // BƯỚC 1: QUÁN XÁC NHẬN ĐƠN CỦA KHÁCH -> CHUYỂN SANG BẾP ĐANG NẤU
+                viewModel.confirmCustomerOrder(order.orderId)
+                Toast.makeText(
+                    requireContext(),
+                    "✓ Quán đã XÁC NHẬN ĐƠN CỦA KHÁCH thành công!\nBếp đang nấu món. Khi nấu xong, bấm 'Xác nhận đã nấu xong' để phát đơn cho tài xế.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            Order.Status.PREPARING -> {
+                // QUYỀN HẠN ĐẦU BẾP: Quản lý không thể xác nhận nấu xong thay cho đầu bếp
+                val chefName = if (order.chefName.isNotBlank()) order.chefName else "Đầu bếp"
+                val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
+                val message = if (hasChef) {
+                    "Đơn hàng đang được đầu bếp ($chefName) chế biến.\n\nTheo quy trình phân quyền, chỉ Đầu Bếp nhận đơn mới có quyền bấm 'Xác nhận đã nấu xong'!"
+                } else {
+                    "Đơn hàng đang chờ Đầu Bếp bấm nhận nấu trên ứng dụng Bếp.\n\nQuản lý không thể xác nhận nấu xong thay cho đầu bếp!"
+                }
+                androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                    .setTitle("👨‍🍳 Phân quyền Bếp chế biến")
+                    .setMessage(message)
+                    .setPositiveButton("Đã hiểu", null)
+                    .show()
+            }
+            Order.Status.READY -> {
+                if (!order.shipperId.isNullOrBlank()) {
+                    viewModel.handoverToDriver(order.orderId)
+                    val driverName = order.shipperName.ifBlank { "tài xế" }
+                    Toast.makeText(
+                        requireContext(),
+                        "✓ ĐÃ BÀN GIAO TÚI MÓN CHO $driverName!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        requireContext(),
+                        "Món đã nấu xong. Đang chờ tài xế tự bấm nhận đơn trên ứng dụng tài xế!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
+                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN / ĐÃ ĐẾN QUÁN
+                viewModel.handoverToDriver(order.orderId)
+                val driverName = order.shipperName.ifBlank { "tài xế" }
+                Toast.makeText(
+                    requireContext(),
+                    "✓ ĐÃ BÀN GIAO TÚI MÓN CHO $driverName!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            else -> {
+                showOrderDetailDialog(order)
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Hiển thị Dialog chi tiết đơn hàng
+     * Cách hoạt động: Bóc tách danh sách món ăn, số lượng, ghi chú, địa chỉ giao hàng và tổng tiền đơn hàng để hiển thị trực quan.
+     * Luồng hướng tới: Hiển thị hộp thoại AlertDialog cho Quán đối soát.
+     */
+    private fun showOrderDetailDialog(order: Order) {
+        val total = if (order.totalPayment > 0) order.totalPayment else order.total
+        val dishes = if (order.items.isNotEmpty()) {
+            order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
+        } else {
+            "• 1x Suất ăn tiêu chuẩn"
+        }
+        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
+        val payDetail = when (order.paymentMethod.uppercase()) {
+            Order.PaymentMethod.BANKING -> if (isPaidOnline) "✅ Đã thanh toán Ngân hàng (VietQR)" else "⏳ Chờ chuyển khoản VietQR (Chưa nhận được tiền)"
+            else -> "💵 Thu tiền mặt khi nhận (COD)"
+        }
+
+        val orderTitleCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
+        AlertDialog.Builder(requireContext())
+            .setTitle("📋 Đơn Hàng $orderTitleCode")
+            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nThanh toán: $payDetail\nTrạng thái: ${order.status}")
+            .setPositiveButton("Đóng", null)
+            .show()
+    }
+
+    /**
+     * Tên chức năng: Hiển thị thông báo sự cố giao hàng (Incident Modal)
+     * Cách hoạt động: Mở Dialog cảnh báo khi phát hiện sự cố (ví dụ khách không nhận máy, tài xế gọi nhỡ).
+     * Luồng hướng tới: Hỗ trợ chủ quán nắm bắt rủi ro đơn hàng đang giao.
+     */
+    private fun showWarningDetailModal(order: Order) {
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_store_warning_detail)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.95).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val tvSubHeader = dialog.findViewById<TextView>(R.id.tvModalSubHeader)
+        val tvReason = dialog.findViewById<TextView>(R.id.tvIncidentReason)
+        val tvDriver = dialog.findViewById<TextView>(R.id.tvIncidentDriver)
+        val tvInfo = dialog.findViewById<TextView>(R.id.tvOrderIncidentInfo)
+        val tvDriverNotes = dialog.findViewById<TextView>(R.id.tvDriverNotes)
+        val ivCallProof = dialog.findViewById<ImageView>(R.id.ivCallProofImage)
+        val boxCallEmpty = dialog.findViewById<View>(R.id.boxCallProofEmpty)
+        val ivMsgProof = dialog.findViewById<ImageView>(R.id.ivMsgProofImage)
+        val boxMsgEmpty = dialog.findViewById<View>(R.id.boxMsgProofEmpty)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseModal)
+        val btnDismiss = dialog.findViewById<MaterialButton>(R.id.btnDismissModal)
+
+        val total = if (order.totalPayment > 0) order.totalPayment else order.total
+        val customer = order.customerName.ifBlank { "Khách hàng" }
+        val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Chưa cập nhật địa chỉ" } }
+        val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
+        val driverPhone = order.shipperPhone.ifBlank { "" }
+        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
+
+        tvSubHeader.text = "$shortCode • Ghi nhận hệ thống"
+
+        val incidentReason = order.riskReason.ifBlank {
+            order.cancelReason.ifBlank {
+                order.incidentWarningText.ifBlank {
+                    "Khách không nghe máy sau thời gian đếm ngược (Cảnh báo mất đơn)"
+                }
+            }
+        }
+        tvReason.text = incidentReason
+        tvDriver.text = if (driverPhone.isNotBlank()) "$driver ($driverPhone)" else driver
+
+        tvInfo.text = "Khách hàng: $customer\nĐịa chỉ: $address\nTổng bill: ${total.toVndCurrency()}"
+
+        val noteText = order.note.ifBlank {
+            order.incidentWarningText.ifBlank {
+                "Tài xế đã có mặt tại địa chỉ giao hàng và liên hệ nhiều cuộc gọi nhưng không có phản hồi."
+            }
+        }
+        tvDriverNotes.text = "\"$noteText\""
+
+        // Hiển thị ảnh chụp bằng chứng cuộc gọi từ tài xế
+        val callProof = order.incidentCallProofImage
+        if (callProof.isNotBlank()) {
+            ivCallProof.visibility = View.VISIBLE
+            boxCallEmpty.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                ivCallProof,
+                callProof,
+                R.drawable.ic_camera
+            )
+        } else {
+            ivCallProof.visibility = View.GONE
+            boxCallEmpty.visibility = View.VISIBLE
+        }
+
+        // Hiển thị ảnh chụp bằng chứng nhắn tin từ tài xế
+        val msgProof = order.incidentMessageProofImage
+        if (msgProof.isNotBlank()) {
+            ivMsgProof.visibility = View.VISIBLE
+            boxMsgEmpty.visibility = View.GONE
+            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
+                ivMsgProof,
+                msgProof,
+                R.drawable.ic_camera
+            )
+        } else {
+            ivMsgProof.visibility = View.GONE
+            boxMsgEmpty.visibility = View.VISIBLE
+        }
+
+        val dismissAction = View.OnClickListener { dialog.dismiss() }
+        btnClose.setOnClickListener(dismissAction)
+        btnDismiss.setOnClickListener(dismissAction)
+
+        dialog.show()
+    }
+
+    /**
+     * Tên chức năng: Lắng nghe và cập nhật dữ liệu Realtime từ ViewModel
+     * Cách hoạt động:
+     *  - Cập nhật danh sách đơn theo tab.
+     *  - Cập nhật số badge số lượng đơn trên từng tab.
+     *  - Cập nhật tổng doanh thu và số đơn thành công hôm nay.
+     *  - Phát chuông và thông báo khi có đơn hàng mới từ khách đặt.
+     * Luồng hướng tới: Đồng bộ hiển thị giao diện tức thời.
+     */
+    private fun observeViewModel() {
+        // Danh sách đơn hàng theo tab
+        viewModel.filteredOrders.observe(viewLifecycleOwner) { orders ->
+            adapter.submitList(orders)
+            binding.layoutEmptyOrders.isVisible = orders.isEmpty()
+            binding.rvOrders.isVisible = orders.isNotEmpty()
+        }
+
+        // Số lượng đếm trên các tabs
+        viewModel.countNew.observe(viewLifecycleOwner) { count ->
+            binding.tvCountNew.text = "($count)"
+        }
+        viewModel.countCooking.observe(viewLifecycleOwner) { count ->
+            binding.tvCountCooking.text = "($count)"
+        }
+        viewModel.countDelivering.observe(viewLifecycleOwner) { count ->
+            binding.tvCountDelivering.text = "($count)"
+        }
+
+        // Doanh thu và đơn hoàn tất hôm nay
+        viewModel.todayRevenue.observe(viewLifecycleOwner) { revenue ->
+            binding.tvTodayRevenue.text = revenue.toVndCurrency()
+        }
+        viewModel.todayCompletedCount.observe(viewLifecycleOwner) { count ->
+            binding.tvCompletedOrdersCount.text = "$count đơn"
+        }
+
+        // Banner cảnh báo ở tab Đang Giao
+        viewModel.hasDeliveringWarning.observe(viewLifecycleOwner) { hasWarning ->
+            val isDeliveringTab = viewModel.currentTab.value == ShopViewModel.TabType.DELIVERING
+            binding.bannerTabDeliveringWarning.isVisible = hasWarning && isDeliveringTab
+        }
+
+        viewModel.currentTab.observe(viewLifecycleOwner) { tab ->
+            val hasWarning = viewModel.hasDeliveringWarning.value ?: false
+            binding.bannerTabDeliveringWarning.isVisible = hasWarning && tab == ShopViewModel.TabType.DELIVERING
+        }
+
+        // Chuông báo đơn mới
+        viewModel.newOrderAlert.observe(viewLifecycleOwner) { hasNewOrder ->
+            if (hasNewOrder) {
+                playAlertSound()
+                Toast.makeText(requireContext(), "🔔 Có đơn hàng mới từ khách! Vui lòng kiểm tra và xác nhận.", Toast.LENGTH_LONG).show()
+                viewModel.dismissAlert()
+            }
+        }
+
+        // Thông báo khi khách hủy đơn
+        viewModel.customerCancelledOrderAlert.observe(viewLifecycleOwner) { order ->
+            if (order != null) {
+                playAlertSound()
+                val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
+                val reason = order.cancelReason.ifBlank { "Khách hủy đơn hàng" }
+                AlertDialog.Builder(requireContext())
+                    .setTitle("⚠️ KHÁCH ĐÃ HỦY ĐƠN #$shortCode")
+                    .setMessage("Đơn hàng #$shortCode vừa bị khách hàng hủy!\n\nLý do: $reason\n\n👉 Quán vui lòng dừng chế biến hoặc chuẩn bị cho đơn này.")
+                    .setPositiveButton("Đã hiểu") { _, _ ->
+                        viewModel.clearCustomerCancelledAlert()
+                    }
+                    .setCancelable(false)
+                    .show()
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Phát âm thanh chuông báo có đơn mới
+     * Cách hoạt động: Sử dụng [RingtoneManager] để phát chuông Notification mặc định của hệ điều hành.
+     * Luồng hướng tới: Cảnh báo âm thanh cho nhân viên quán.
+     */
+    private fun playAlertSound() {
+        try {
+            val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(requireContext(), notification)
+            ringtone.play()
+        } catch (e: Exception) {
+            // Fallback silently
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
 ## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/ship/DeliveryTripActivity.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.internal.ui.ship
@@ -106825,923 +107742,6 @@ class DeliveryTripActivity : AppCompatActivity() {
         activeIncidentDialog = null
         countdownTimer = null
         super.onDestroy()
-    }
-}
-````
-
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/OrderListFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
-
-import android.app.Dialog
-import android.content.Intent
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
-import android.media.RingtoneManager
-import android.net.Uri
-import android.os.Bundle
-import kotlinx.coroutines.flow.firstOrNull
-import com.chuyen_de_2.foodorder.core.data.model.User
-import android.content.Context
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.view.Window
-import android.widget.ImageButton
-import android.widget.ImageView
-import android.widget.TextView
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.content.ContextCompat
-import androidx.core.view.isVisible
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.AppConstants
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.internal.R
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentOrderListBinding
-import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Kênh Quản Lý Đơn Hàng Dành Cho Quán (Merchant Order Kanban)
- * Cách hoạt động:
- *  - Lắng nghe Realtime luồng đơn hàng của Quán theo thời gian thực từ Firestore.
- *  - Vận hành quy trình 3 bước chuẩn thương mại điện tử:
- *      1. Đơn mới (PENDING) -> Quán bấm Xác nhận đơn -> Chuyển sang Bếp nấu (PREPARING).
- *      2. Bếp nấu (PREPARING) -> Nấu xong bấm Xác nhận đã nấu xong -> Chuyển sang Sẵn sàng (READY) để Tài xế nhận đơn.
- *      3. Tài xế đến quầy (READY / ASSIGNED) -> Bấm Xác nhận giao cho tài xế -> Chuyển sang Đang giao (DELIVERING).
- *      4. Lịch sử đơn (COMPLETED / CANCELLED).
- *  - Theo dõi nhanh Doanh thu hôm nay, Số đơn hoàn thành, và Bật/Tắt trạng thái mở bán của Quán.
- * Luồng hướng tới:
- *  - Cập nhật trực tiếp trạng thái đơn hàng trên Firestore và đồng bộ tới app Khách hàng và app Tài xế.
- *  - Bấm vào thông tin Quán -> Chuyển sang [StoreProfileFragment].
- */
-@AndroidEntryPoint
-class OrderListFragment : Fragment() {
-
-    private var _binding: FragmentOrderListBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var auth: FirebaseAuth
-
-    @Inject
-    lateinit var authRepository: com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-
-    private val viewModel: ShopViewModel by viewModels()
-    private lateinit var adapter: OrderAdapter
-    private var currentStoreId = ""
-    private var isBossUser: Boolean = false
-    private var cachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
-
-    companion object {
-        var lastCachedStore: com.chuyen_de_2.foodorder.core.data.model.Store? = null
-        var lastResolvedStoreId: String = ""
-    }
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentOrderListBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View và kích hoạt các luồng dữ liệu
-     * Cách hoạt động: Thiết lập giao diện, tab bar, RecyclerView, lắng nghe ViewModel và truy xuất storeId của user.
-     * Luồng hướng tới: Chuẩn bị hiển thị danh sách đơn hàng.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        if (cachedStore == null) {
-            cachedStore = lastCachedStore
-        }
-        if (currentStoreId.isBlank()) {
-            currentStoreId = lastResolvedStoreId
-        }
-        cachedStore?.let { renderStoreHeader(it) }
-
-        setupUI()
-        setupTabs()
-        setupRecyclerView()
-        observeViewModel()
-        resolveCurrentStoreIdAndObserve()
-    }
-
-    /**
-     * Tên chức năng: Xác định định danh Cửa hàng (Store ID Resolver)
-     * Cách hoạt động: Lấy UID người dùng hiện tại, tra cứu bảng stores để tìm storeId quản lý, sau đó cấp phát cho ViewModel.
-     * Luồng hướng tới: Lắng nghe snapshot đơn hàng của đúng cửa hàng đó.
-     */
-    private fun resolveCurrentStoreIdAndObserve() {
-        val uid = auth.currentUser?.uid.orEmpty()
-        val intentStoreId = activity?.intent?.getStringExtra(AppConstants.Extras.STORE_ID).orEmpty()
-        val prefs = requireContext().getSharedPreferences(AppConstants.Prefs.BOSS_SESSION, Context.MODE_PRIVATE)
-        val sessionStoreId = prefs.getString(AppConstants.Prefs.KEY_SELECTED_BRANCH_ID, "").orEmpty()
-
-        val fastStoreId = intentStoreId.ifBlank { sessionStoreId }
-        if (fastStoreId.isNotBlank()) {
-            currentStoreId = fastStoreId
-            lastResolvedStoreId = fastStoreId
-            viewModel.setStoreId(currentStoreId)
-            observeStoreProfile()
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val resolvedId = if (fastStoreId.isNotBlank()) fastStoreId else firebaseRepository.resolveStoreIdForUser(uid)
-            if (resolvedId.isNotBlank()) {
-                val shouldReObserve = (resolvedId != currentStoreId) || fastStoreId.isBlank()
-                currentStoreId = resolvedId
-                lastResolvedStoreId = resolvedId
-                viewModel.setStoreId(currentStoreId)
-                if (shouldReObserve) {
-                    observeStoreProfile()
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Giám sát thông tin và trạng thái Quán theo thời gian thực
-     * Cách hoạt động:
-     *  - Lắng nghe sự thay đổi tên quán, địa chỉ và trạng thái (OPEN, CLOSED, LOCKED, PENDING).
-     *  - Đồng bộ công tắc switch "Đang Bán / Tạm Đóng" lên giao diện.
-     * Luồng hướng tới: Hiển thị đúng trạng thái mở cửa của quán trên màn hình khách hàng.
-     */
-    private fun observeStoreProfile() {
-        val b = _binding ?: return
-        val openProfile = {
-            parentFragmentManager.beginTransaction()
-                .hide(this@OrderListFragment)
-                .add(R.id.fragmentContainer, StoreProfileFragment())
-                .addToBackStack(null)
-                .commit()
-        }
-        b.btnEditStoreProfile.setOnClickListener { openProfile() }
-        b.layoutShopInfo.setOnClickListener { openProfile() }
-
-        val prefs = requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE)
-        val hasSelectedBranch = !prefs.getString("selected_branch_store_id", null).isNullOrBlank()
-
-        b.btnSwitchBranch.visibility = if (hasSelectedBranch) View.VISIBLE else View.GONE
-        b.btnSwitchBranch.setOnClickListener {
-            prefs.edit().remove("selected_branch_store_id").remove("selected_branch_store_name").apply()
-            val uid = authRepository.currentUser?.uid.orEmpty()
-            if (uid.isNotBlank()) {
-                viewLifecycleOwner.lifecycleScope.launch {
-                    firebaseRepository.clearActiveStoreForBoss(uid)
-                }
-            }
-            val intent = Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.boss.BossDashboardActivity::class.java)
-            startActivity(intent)
-            requireActivity().finish()
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            val role = authRepository.getUserRole()?.trim()?.uppercase()
-            isBossUser = role == User.Role.BOSSMERCHANT || role == "BOSS"
-            if (isBossUser && !hasSelectedBranch) {
-                b.btnSwitchBranch.visibility = View.VISIBLE
-            }
-            adapter.canOperate = canOperateCurrentStore()
-            cachedStore?.let { renderStoreHeader(it) }
-        }
-
-        b.btnLogoutChannel.setOnClickListener {
-            androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                .setTitle("Đăng Xuất")
-                .setMessage("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản quán ăn không?")
-                .setPositiveButton("Đăng xuất") { _, _ ->
-                    try {
-                        requireContext().getSharedPreferences("boss_session", Context.MODE_PRIVATE).edit().clear().apply()
-                    } catch (_: Exception) {}
-                    cachedStore = null
-                    lastCachedStore = null
-                    lastResolvedStoreId = ""
-                    currentStoreId = ""
-                    authRepository.logout()
-                    val intent = android.content.Intent(requireContext(), com.chuyen_de_2.foodorder.internal.ui.auth.LoginActivity::class.java).apply {
-                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra("LOGOUT", true)
-                    }
-                    startActivity(intent)
-                }
-                .setNegativeButton("Hủy", null)
-                .show()
-        }
-
-        viewLifecycleOwner.lifecycleScope.launch {
-            firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
-                if (store != null) {
-                    cachedStore = store
-                    lastCachedStore = store
-                    renderStoreHeader(store)
-                    adapter.canOperate = canOperateCurrentStore()
-                }
-            }
-        }
-    }
-
-    /**
-     * Kiểm tra xem phiên đăng nhập hiện tại có quyền duyệt/vận hành chi nhánh này không:
-     * - Trưởng chi nhánh (Merchant/Manager được gán): Toàn quyền duyệt.
-     * - Chủ chuỗi (Boss):
-     *    + Nếu chi nhánh CHƯA GÁN cho ai (merchantId rỗng) -> Boss trực tiếp duyệt.
-     *    + Nếu chi nhánh ĐÃ GÁN cho Trưởng chi nhánh -> Boss KHÔNG ĐƯỢC DUYỆT (chỉ ở chế độ giám sát).
-     */
-    private fun canOperateCurrentStore(): Boolean {
-        if (!isBossUser) return true
-        val hasManager = !cachedStore?.merchantId.isNullOrBlank()
-        return !hasManager
-    }
-
-    private fun showManagerRestrictedAlert() {
-        val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
-        AlertDialog.Builder(requireContext())
-            .setTitle("⛔ Quyền Hạn Vận Hành Chi Nhánh")
-            .setMessage("Chi nhánh này đã được phân công cho Trưởng chi nhánh ($managerName) trực tiếp phụ trách tiếp nhận và xử lý đơn.\n\nChủ chuỗi không được duyệt đơn khi chi nhánh đã có Trưởng chi nhánh quản lý.")
-            .setPositiveButton("Đã hiểu", null)
-            .show()
-    }
-
-    private fun renderStoreHeader(store: com.chuyen_de_2.foodorder.core.data.model.Store) {
-        val currentB = _binding ?: return
-        currentB.tvShopName.text = store.name.ifBlank { "Quán của bạn" }
-
-        val hasManager = !store.merchantId.isNullOrBlank()
-        if (isBossUser && hasManager) {
-            val managerName = store.merchantName.ifBlank { "Trưởng chi nhánh" }
-            currentB.tvShopAddress.text = "${store.address.ifBlank { "TP.HCM" }} • Trưởng CN: $managerName (Chế độ giám sát)"
-        } else {
-            currentB.tvShopAddress.text = if (store.address.isNotBlank()) store.address else "Chưa cập nhật địa chỉ"
-        }
-
-        currentB.ivShopHeaderLogo.setImageResource(R.drawable.ic_app_logo)
-        com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-            currentB.ivStoreAvatar,
-            store.effectiveImageUrl,
-            placeholderResId = R.drawable.ic_store,
-            cornerDp = 12
-        )
-
-        val st = store.storeStatus.uppercase()
-        val canOperate = canOperateCurrentStore()
-        currentB.switchShopStatus.setOnCheckedChangeListener(null)
-        when (st) {
-            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED -> {
-                currentB.switchShopStatus.isChecked = false
-                currentB.switchShopStatus.isEnabled = false
-                currentB.tvShopStatusTxt.text = "Bị Khóa"
-                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#EF4444"))
-            }
-            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.PENDING -> {
-                currentB.switchShopStatus.isChecked = false
-                currentB.switchShopStatus.isEnabled = false
-                currentB.tvShopStatusTxt.text = "Chờ Duyệt"
-                currentB.tvShopStatusTxt.setTextColor(Color.parseColor("#F59E0B"))
-            }
-            com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED -> {
-                currentB.switchShopStatus.isChecked = false
-                currentB.switchShopStatus.isEnabled = canOperate
-                currentB.tvShopStatusTxt.text = "Tạm Đóng"
-                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            }
-            else -> {
-                currentB.switchShopStatus.isChecked = true
-                currentB.switchShopStatus.isEnabled = canOperate
-                currentB.tvShopStatusTxt.text = "Đang Bán"
-                currentB.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            }
-        }
-
-        // Luôn gắn lại listener sau khi cập nhật giao diện
-        bindShopStatusSwitchListener()
-
-        currentB.cardShopStatusToggle.setOnClickListener {
-            if (!canOperateCurrentStore()) {
-                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
-                AlertDialog.Builder(requireContext())
-                    .setTitle("⛔ Quyền Quản Lý Chi Nhánh")
-                    .setMessage("Chi nhánh này đã được giao cho Trưởng chi nhánh ($managerName) trực tiếp vận hành.\n\nChủ chuỗi không thể đóng/mở quán ở chế độ giám sát.")
-                    .setPositiveButton("Đã hiểu", null)
-                    .show()
-            } else if (currentB.switchShopStatus.isEnabled) {
-                currentB.switchShopStatus.isChecked = !currentB.switchShopStatus.isChecked
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Bật/Tắt trạng thái nhận đơn của Quán
-     * Cách hoạt động: Khi người dùng gạt switch, cập nhật trạng thái `OPEN` hoặc `CLOSED` vào tài liệu Store trên Firestore.
-     * Luồng hướng tới: Firebase cập nhật -> Màn hình Khách hàng cập nhật thẻ Quán đóng/mở cửa.
-     */
-    private fun bindShopStatusSwitchListener() {
-        val b = _binding ?: return
-        b.switchShopStatus.setOnCheckedChangeListener { compoundButton, isChecked ->
-            if (!canOperateCurrentStore()) {
-                compoundButton.setOnCheckedChangeListener(null)
-                compoundButton.isChecked = !isChecked
-                bindShopStatusSwitchListener()
-                val managerName = cachedStore?.merchantName.orEmpty().ifBlank { "Trưởng chi nhánh" }
-                Toast.makeText(
-                    requireContext(),
-                    "⚠️ Chi nhánh đã bàn giao cho $managerName phụ trách vận hành. Chủ chuỗi không thể đóng/mở quán!",
-                    Toast.LENGTH_LONG
-                ).show()
-                return@setOnCheckedChangeListener
-            }
-            if (currentStoreId.isBlank()) {
-                compoundButton.setOnCheckedChangeListener(null)
-                compoundButton.isChecked = !isChecked
-                bindShopStatusSwitchListener()
-                Toast.makeText(requireContext(), "Đang tải thông tin quán, vui lòng thử lại!", Toast.LENGTH_SHORT).show()
-                return@setOnCheckedChangeListener
-            }
-            val newStatus = if (isChecked) {
-                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN
-            } else {
-                com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.CLOSED
-            }
-            if (isChecked) {
-                b.tvShopStatusTxt.text = "Đang Bán"
-                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.brand_green))
-            } else {
-                b.tvShopStatusTxt.text = "Tạm Đóng"
-                b.tvShopStatusTxt.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
-            }
-
-            cachedStore = cachedStore?.copy(storeStatus = newStatus)
-            lastCachedStore = cachedStore
-
-            viewLifecycleOwner.lifecycleScope.launch {
-                val result = firebaseRepository.updateStoreStatus(currentStoreId, newStatus)
-                if (result.isSuccess) {
-                    cachedStore = cachedStore?.copy(storeStatus = newStatus)
-                    lastCachedStore = cachedStore
-                    if (isChecked) {
-                        Toast.makeText(requireContext(), "Quán đã mở cửa nhận đơn hàng mới!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(requireContext(), "Quán tạm đóng cửa ngưng nhận đơn mới.", Toast.LENGTH_SHORT).show()
-                    }
-                } else {
-                    Toast.makeText(requireContext(), "Không thể cập nhật trạng thái, vui lòng kiểm tra kết nối!", Toast.LENGTH_SHORT).show()
-                    cachedStore?.let { renderStoreHeader(it) }
-                }
-            }
-        }
-    }
-
-    private fun setupUI() {
-        bindShopStatusSwitchListener()
-    }
-
-    /**
-     * Tên chức năng: Chuyển đổi tab Kanban trạng thái đơn hàng
-     * Cách hoạt động: Bắt sự kiện Click vào các tab: Đơn mới, Bếp nấu, Đang giao, Lịch sử để lọc danh sách tương ứng.
-     * Luồng hướng tới: Gọi [ShopViewModel.selectTab] để phát dữ liệu danh sách đơn theo tab đã chọn.
-     */
-    private fun setupTabs() {
-        binding.tabNew.setOnClickListener {
-            viewModel.selectTab(ShopViewModel.TabType.NEW)
-            highlightTab(ShopViewModel.TabType.NEW)
-        }
-        binding.tabCooking.setOnClickListener {
-            viewModel.selectTab(ShopViewModel.TabType.COOKING)
-            highlightTab(ShopViewModel.TabType.COOKING)
-        }
-        binding.tabDelivering.setOnClickListener {
-            viewModel.selectTab(ShopViewModel.TabType.DELIVERING)
-            highlightTab(ShopViewModel.TabType.DELIVERING)
-        }
-        binding.tabHistory.setOnClickListener {
-            viewModel.selectTab(ShopViewModel.TabType.HISTORY)
-            highlightTab(ShopViewModel.TabType.HISTORY)
-        }
-    }
-
-    /**
-     * Tên chức năng: Làm nổi bật giao diện Tab đang chọn (Pill Highlight)
-     * Cách hoạt động: Thay đổi background drawable và màu chữ trắng/xám tương ứng cho tab được kích hoạt.
-     * Luồng hướng tới: Cập nhật visual feedback cho người dùng.
-     */
-    private fun highlightTab(tab: ShopViewModel.TabType) {
-        val activeBg = R.drawable.bg_order_tab_active
-        val idleBg = R.drawable.bg_order_tab_idle
-        val colorWhite = ContextCompat.getColor(requireContext(), R.color.white)
-        val colorMuted = ContextCompat.getColor(requireContext(), R.color.text_secondary)
-
-        // Reset all tabs
-        binding.tabNew.setBackgroundResource(idleBg)
-        binding.tvTabNewTitle.setTextColor(colorMuted)
-        binding.tvCountNew.setTextColor(colorMuted)
-
-        binding.tabCooking.setBackgroundResource(idleBg)
-        binding.tvTabCookingTitle.setTextColor(colorMuted)
-        binding.tvCountCooking.setTextColor(colorMuted)
-
-        binding.tabDelivering.setBackgroundResource(idleBg)
-        binding.tvTabDeliveringTitle.setTextColor(colorMuted)
-        binding.tvCountDelivering.setTextColor(colorMuted)
-
-        binding.tabHistory.setBackgroundResource(idleBg)
-        binding.tvTabHistoryTitle.setTextColor(colorMuted)
-
-        // Set active tab
-        when (tab) {
-            ShopViewModel.TabType.NEW -> {
-                binding.tabNew.setBackgroundResource(activeBg)
-                binding.tvTabNewTitle.setTextColor(colorWhite)
-                binding.tvCountNew.setTextColor(colorWhite)
-            }
-            ShopViewModel.TabType.COOKING -> {
-                binding.tabCooking.setBackgroundResource(activeBg)
-                binding.tvTabCookingTitle.setTextColor(colorWhite)
-                binding.tvCountCooking.setTextColor(colorWhite)
-            }
-            ShopViewModel.TabType.DELIVERING -> {
-                binding.tabDelivering.setBackgroundResource(activeBg)
-                binding.tvTabDeliveringTitle.setTextColor(colorWhite)
-                binding.tvCountDelivering.setTextColor(colorWhite)
-            }
-            ShopViewModel.TabType.HISTORY -> {
-                binding.tabHistory.setBackgroundResource(activeBg)
-                binding.tvTabHistoryTitle.setTextColor(colorWhite)
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo danh sách RecyclerView đơn hàng và các Callback
-     * Cách hoạt động: Gắn [OrderAdapter], gán các lambda xử lý tương tác (Xử lý đơn, Xem chi tiết, Nhắn tin khách, Gọi điện tài xế, Xem cảnh báo).
-     * Luồng hướng tới: Hiển thị các thẻ đơn hàng [item_order.xml].
-     */
-    private fun setupRecyclerView() {
-        adapter = OrderAdapter(
-            onActionClick = { order -> handleOrderAction(order) },
-            onDetailClick = { order -> showOrderDetailDialog(order) },
-            onChatCustomerClick = { order ->
-                val chatSheet = ChatCustomerBottomSheetDialogFragment.newInstance(
-                    customerName = order.customerName.ifBlank { "Khách hàng" },
-                    orderId = order.orderId,
-                    orderNote = order.note
-                )
-                chatSheet.show(childFragmentManager, "ChatCustomerBottomSheet")
-            },
-            onCallDriverClick = { phone ->
-                try {
-                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
-                } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Không thể gọi số $phone", Toast.LENGTH_SHORT).show()
-                }
-            },
-            onWarningDetailClick = { order -> showWarningDetailModal(order) },
-            onApproveCancelClick = { order -> showApproveCancelDialog(order) },
-            onRejectCancelClick = { order -> showRejectCancelDialog(order) },
-            onShopCancelClick = { order -> showShopCancelOrderDialog(order) }
-        )
-
-        binding.rvOrders.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = this@OrderListFragment.adapter
-        }
-    }
-
-    private fun showApproveCancelDialog(order: Order) {
-        if (!canOperateCurrentStore()) {
-            showManagerRestrictedAlert()
-            return
-        }
-        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
-        AlertDialog.Builder(requireContext())
-            .setTitle("Đồng ý hủy đơn $shortCode?")
-            .setMessage("Khách hàng gửi yêu cầu hủy đơn với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nBạn có đồng ý hủy đơn hàng này không? Đơn sẽ được hủy và khách không bị phạt uy tín.")
-            .setPositiveButton("Đồng Ý Hủy") { _, _ ->
-                viewModel.approveCancelOrder(order.orderId, order.cancelRequestReason)
-                Toast.makeText(requireContext(), "✓ Đã chấp thuận hủy đơn theo yêu cầu của khách", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Quay Lại", null)
-            .show()
-    }
-
-    private fun showRejectCancelDialog(order: Order) {
-        if (!canOperateCurrentStore()) {
-            showManagerRestrictedAlert()
-            return
-        }
-        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
-        val input = android.widget.EditText(requireContext()).apply {
-            hint = "Nhập lý do từ chối (ví dụ: Quán đã làm xong món...)"
-            setText("Quán đã nấu xong món ăn, không thể hủy")
-            setPadding(40, 20, 40, 20)
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle("Từ chối yêu cầu hủy $shortCode?")
-            .setMessage("Khách hàng yêu cầu hủy với lý do:\n\"${order.cancelRequestReason.ifBlank { "Đặt nhầm món" }}\"\n\nNhập lý do từ chối gửi tới khách hàng:")
-            .setView(input)
-            .setPositiveButton("Từ Chối Hủy") { _, _ ->
-                val reason = input.text.toString().trim().ifBlank { "Quán đã nấu xong món ăn, không thể hủy" }
-                viewModel.rejectCancelOrder(order.orderId, reason)
-                Toast.makeText(requireContext(), "✓ Đã từ chối yêu cầu hủy đơn", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Quay Lại", null)
-            .show()
-    }
-
-    private fun showShopCancelOrderDialog(order: Order) {
-        if (!canOperateCurrentStore()) {
-            showManagerRestrictedAlert()
-            return
-        }
-        val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
-        val canCancel = order.status == Order.Status.AWAITING_PAYMENT ||
-            order.status == Order.Status.PAID ||
-            order.status == Order.Status.PENDING ||
-            (order.status == Order.Status.PREPARING && !hasChef)
-        if (!canCancel) {
-            Toast.makeText(
-                requireContext(),
-                "Đầu bếp đã nhận nấu hoặc đơn đang giao, không thể hủy đơn này!",
-                Toast.LENGTH_SHORT
-            ).show()
-            return
-        }
-
-        val ctx = requireContext()
-        val shortCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
-        val quickReasons = listOf(
-            "Quán hết nguyên liệu món này",
-            "Quán đang quá tải đơn",
-            "Quán chuẩn bị đóng cửa / tạm ngưng nhận đơn",
-            "Lý do khác..."
-        )
-
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            setPadding(48, 20, 48, 8)
-        }
-        val noticeTv = TextView(ctx).apply {
-            text = "Đơn $shortCode sẽ được hủy và gửi thông báo tới Khách hàng (không trừ điểm uy tín của khách)."
-            textSize = 13f
-            setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
-        }
-        container.addView(noticeTv)
-
-        val radioGroup = android.widget.RadioGroup(ctx).apply {
-            setPadding(0, 16, 0, 8)
-        }
-        val customInput = android.widget.EditText(ctx).apply {
-            hint = "Nhập lý do hủy đơn..."
-            visibility = View.GONE
-        }
-
-        quickReasons.forEachIndexed { index, label ->
-            val rb = android.widget.RadioButton(ctx).apply {
-                id = View.generateViewId()
-                text = label
-                textSize = 14f
-                isChecked = (index == 0)
-            }
-            radioGroup.addView(rb)
-        }
-        radioGroup.setOnCheckedChangeListener { group, checkedId ->
-            val selectedIdx = (0 until group.childCount).firstOrNull { group.getChildAt(it).id == checkedId } ?: 0
-            customInput.visibility = if (selectedIdx == quickReasons.lastIndex) View.VISIBLE else View.GONE
-        }
-        container.addView(radioGroup)
-        container.addView(customInput)
-
-        AlertDialog.Builder(ctx)
-            .setTitle("Hủy đơn hàng $shortCode?")
-            .setView(container)
-            .setPositiveButton("Xác Nhận Hủy Đơn") { _, _ ->
-                val selectedIdx = (0 until radioGroup.childCount).firstOrNull { radioGroup.getChildAt(it).id == radioGroup.checkedRadioButtonId } ?: 0
-                val reason = if (selectedIdx == quickReasons.lastIndex) {
-                    customInput.text.toString().trim().ifBlank { "Quán tạm ngưng nhận đơn" }
-                } else {
-                    quickReasons[selectedIdx]
-                }
-                viewModel.cancelOrderByShop(order.orderId, reason)
-                Toast.makeText(ctx, "✓ Đã hủy đơn $shortCode", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Quay Lại", null)
-            .show()
-    }
-
-    /**
-     * Tên chức năng: Xử lý hành động nghiệp vụ theo vòng đời đơn hàng (Order State Machine)
-     * Cách hoạt động:
-     *  - PENDING -> Gọi [ShopViewModel.confirmCustomerOrder] chuyển sang PREPARING (Bếp nấu).
-     *  - PREPARING -> Gọi [ShopViewModel.markCookingDone] chuyển sang READY (Nấu xong, phát đơn cho shipper).
-     *  - READY / ASSIGNED -> Gọi [ShopViewModel.handoverToDriver] chuyển sang DELIVERING (Giao túi món cho tài xế).
-     * Luồng hướng tới: Cập nhật Firebase -> Thông báo Realtime sang App Khách hàng & Tài xế.
-     */
-    private fun handleOrderAction(order: Order) {
-        if (!canOperateCurrentStore()) {
-            showManagerRestrictedAlert()
-            return
-        }
-        when (order.status) {
-            Order.Status.AWAITING_PAYMENT -> {
-                val totalAmount = if (order.totalPayment > 0) order.totalPayment else if (order.total > 0) order.total else 0L
-                val depositAmount = order.depositAmount
-                val checkAmount = if (order.paymentMode == Order.PaymentMode.DEPOSIT && depositAmount > 0) depositAmount else totalAmount
-                val formattedAmount = checkAmount.toVndCurrency()
-
-                androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setTitle("Xác nhận tiền chuyển khoản?")
-                    .setMessage("Bạn đã kiểm tra tài khoản ngân hàng và chắc chắn đã nhận được $formattedAmount cho đơn ${order.orderCode} chưa?")
-                    .setPositiveButton("Đã nhận & Nấu món") { _, _ ->
-                        viewModel.confirmManualPaidAndPrepare(order.orderId)
-                        Toast.makeText(
-                            requireContext(),
-                            "✓ Quán đã xác nhận tiền vào tài khoản!\nBếp đang nấu món cho đơn ${order.orderCode}.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    .setNegativeButton("Chưa nhận được", null)
-                    .show()
-            }
-            Order.Status.PENDING, Order.Status.PAID -> {
-                // BƯỚC 1: QUÁN XÁC NHẬN ĐƠN CỦA KHÁCH -> CHUYỂN SANG BẾP ĐANG NẤU
-                viewModel.confirmCustomerOrder(order.orderId)
-                Toast.makeText(
-                    requireContext(),
-                    "✓ Quán đã XÁC NHẬN ĐƠN CỦA KHÁCH thành công!\nBếp đang nấu món. Khi nấu xong, bấm 'Xác nhận đã nấu xong' để phát đơn cho tài xế.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            Order.Status.PREPARING -> {
-                // QUYỀN HẠN ĐẦU BẾP: Quản lý không thể xác nhận nấu xong thay cho đầu bếp
-                val chefName = if (order.chefName.isNotBlank()) order.chefName else "Đầu bếp"
-                val hasChef = !order.chefId.isNullOrBlank() && order.chefId != "null"
-                val message = if (hasChef) {
-                    "Đơn hàng đang được đầu bếp ($chefName) chế biến.\n\nTheo quy trình phân quyền, chỉ Đầu Bếp nhận đơn mới có quyền bấm 'Xác nhận đã nấu xong'!"
-                } else {
-                    "Đơn hàng đang chờ Đầu Bếp bấm nhận nấu trên ứng dụng Bếp.\n\nQuản lý không thể xác nhận nấu xong thay cho đầu bếp!"
-                }
-                androidx.appcompat.app.AlertDialog.Builder(requireContext())
-                    .setTitle("👨‍🍳 Phân quyền Bếp chế biến")
-                    .setMessage(message)
-                    .setPositiveButton("Đã hiểu", null)
-                    .show()
-            }
-            Order.Status.READY -> {
-                if (!order.shipperId.isNullOrBlank()) {
-                    viewModel.handoverToDriver(order.orderId)
-                    val driverName = order.shipperName.ifBlank { "tài xế" }
-                    Toast.makeText(
-                        requireContext(),
-                        "✓ ĐÃ BÀN GIAO TÚI MÓN CHO $driverName!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        "Món đã nấu xong. Đang chờ tài xế tự bấm nhận đơn trên ứng dụng tài xế!",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-            Order.Status.ASSIGNED, Order.Status.ARRIVED_AT_SHOP -> {
-                // BƯỚC 3: XÁC NHẬN GIAO TÚI MÓN CHO TÀI XẾ ĐÃ NHẬN / ĐÃ ĐẾN QUÁN
-                viewModel.handoverToDriver(order.orderId)
-                val driverName = order.shipperName.ifBlank { "tài xế" }
-                Toast.makeText(
-                    requireContext(),
-                    "✓ ĐÃ BÀN GIAO TÚI MÓN CHO $driverName!\nTài xế bắt đầu di chuyển giao tới khách hàng.",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            else -> {
-                showOrderDetailDialog(order)
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Hiển thị Dialog chi tiết đơn hàng
-     * Cách hoạt động: Bóc tách danh sách món ăn, số lượng, ghi chú, địa chỉ giao hàng và tổng tiền đơn hàng để hiển thị trực quan.
-     * Luồng hướng tới: Hiển thị hộp thoại AlertDialog cho Quán đối soát.
-     */
-    private fun showOrderDetailDialog(order: Order) {
-        val total = if (order.totalPayment > 0) order.totalPayment else order.total
-        val dishes = if (order.items.isNotEmpty()) {
-            order.items.values.joinToString("\n") { "• ${it.quantity}x ${it.name}" }
-        } else {
-            "• 1x Suất ăn tiêu chuẩn"
-        }
-        val isPaidOnline = order.paymentStatus.equals(Order.PaymentStatus.PAID, ignoreCase = true) || order.isPaid || order.status == Order.Status.PAID
-        val payDetail = when (order.paymentMethod.uppercase()) {
-            Order.PaymentMethod.BANKING -> if (isPaidOnline) "✅ Đã thanh toán Ngân hàng (VietQR)" else "⏳ Chờ chuyển khoản VietQR (Chưa nhận được tiền)"
-            else -> "💵 Thu tiền mặt khi nhận (COD)"
-        }
-
-        val orderTitleCode = if (order.orderId.startsWith("OISHI", ignoreCase = true)) order.orderId else "#${order.orderId.takeLast(6).uppercase()}"
-        AlertDialog.Builder(requireContext())
-            .setTitle("📋 Đơn Hàng $orderTitleCode")
-            .setMessage("Khách hàng: ${order.customerName}\nĐịa chỉ: ${order.address}\n\nThực đơn:\n$dishes\n\nTổng thanh toán: ${total.toVndCurrency()}\nThanh toán: $payDetail\nTrạng thái: ${order.status}")
-            .setPositiveButton("Đóng", null)
-            .show()
-    }
-
-    /**
-     * Tên chức năng: Hiển thị thông báo sự cố giao hàng (Incident Modal)
-     * Cách hoạt động: Mở Dialog cảnh báo khi phát hiện sự cố (ví dụ khách không nhận máy, tài xế gọi nhỡ).
-     * Luồng hướng tới: Hỗ trợ chủ quán nắm bắt rủi ro đơn hàng đang giao.
-     */
-    private fun showWarningDetailModal(order: Order) {
-        val dialog = Dialog(requireContext())
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_store_warning_detail)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.95).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val tvSubHeader = dialog.findViewById<TextView>(R.id.tvModalSubHeader)
-        val tvReason = dialog.findViewById<TextView>(R.id.tvIncidentReason)
-        val tvDriver = dialog.findViewById<TextView>(R.id.tvIncidentDriver)
-        val tvInfo = dialog.findViewById<TextView>(R.id.tvOrderIncidentInfo)
-        val tvDriverNotes = dialog.findViewById<TextView>(R.id.tvDriverNotes)
-        val ivCallProof = dialog.findViewById<ImageView>(R.id.ivCallProofImage)
-        val boxCallEmpty = dialog.findViewById<View>(R.id.boxCallProofEmpty)
-        val ivMsgProof = dialog.findViewById<ImageView>(R.id.ivMsgProofImage)
-        val boxMsgEmpty = dialog.findViewById<View>(R.id.boxMsgProofEmpty)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseModal)
-        val btnDismiss = dialog.findViewById<MaterialButton>(R.id.btnDismissModal)
-
-        val total = if (order.totalPayment > 0) order.totalPayment else order.total
-        val customer = order.customerName.ifBlank { "Khách hàng" }
-        val address = order.address.ifBlank { order.deliveryAddress.ifBlank { "Chưa cập nhật địa chỉ" } }
-        val driver = order.shipperName.ifBlank { "Chưa có tài xế" }
-        val driverPhone = order.shipperPhone.ifBlank { "" }
-        val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.formatOrderCode(order.orderId)
-
-        tvSubHeader.text = "$shortCode • Ghi nhận hệ thống"
-
-        val incidentReason = order.riskReason.ifBlank {
-            order.cancelReason.ifBlank {
-                order.incidentWarningText.ifBlank {
-                    "Khách không nghe máy sau thời gian đếm ngược (Cảnh báo mất đơn)"
-                }
-            }
-        }
-        tvReason.text = incidentReason
-        tvDriver.text = if (driverPhone.isNotBlank()) "$driver ($driverPhone)" else driver
-
-        tvInfo.text = "Khách hàng: $customer\nĐịa chỉ: $address\nTổng bill: ${total.toVndCurrency()}"
-
-        val noteText = order.note.ifBlank {
-            order.incidentWarningText.ifBlank {
-                "Tài xế đã có mặt tại địa chỉ giao hàng và liên hệ nhiều cuộc gọi nhưng không có phản hồi."
-            }
-        }
-        tvDriverNotes.text = "\"$noteText\""
-
-        // Hiển thị ảnh chụp bằng chứng cuộc gọi từ tài xế
-        val callProof = order.incidentCallProofImage
-        if (callProof.isNotBlank()) {
-            ivCallProof.visibility = View.VISIBLE
-            boxCallEmpty.visibility = View.GONE
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                ivCallProof,
-                callProof,
-                R.drawable.ic_camera
-            )
-        } else {
-            ivCallProof.visibility = View.GONE
-            boxCallEmpty.visibility = View.VISIBLE
-        }
-
-        // Hiển thị ảnh chụp bằng chứng nhắn tin từ tài xế
-        val msgProof = order.incidentMessageProofImage
-        if (msgProof.isNotBlank()) {
-            ivMsgProof.visibility = View.VISIBLE
-            boxMsgEmpty.visibility = View.GONE
-            com.chuyen_de_2.foodorder.core.util.ImageLoadUtils.loadStoreImage(
-                ivMsgProof,
-                msgProof,
-                R.drawable.ic_camera
-            )
-        } else {
-            ivMsgProof.visibility = View.GONE
-            boxMsgEmpty.visibility = View.VISIBLE
-        }
-
-        val dismissAction = View.OnClickListener { dialog.dismiss() }
-        btnClose.setOnClickListener(dismissAction)
-        btnDismiss.setOnClickListener(dismissAction)
-
-        dialog.show()
-    }
-
-    /**
-     * Tên chức năng: Lắng nghe và cập nhật dữ liệu Realtime từ ViewModel
-     * Cách hoạt động:
-     *  - Cập nhật danh sách đơn theo tab.
-     *  - Cập nhật số badge số lượng đơn trên từng tab.
-     *  - Cập nhật tổng doanh thu và số đơn thành công hôm nay.
-     *  - Phát chuông và thông báo khi có đơn hàng mới từ khách đặt.
-     * Luồng hướng tới: Đồng bộ hiển thị giao diện tức thời.
-     */
-    private fun observeViewModel() {
-        // Danh sách đơn hàng theo tab
-        viewModel.filteredOrders.observe(viewLifecycleOwner) { orders ->
-            adapter.submitList(orders)
-            binding.layoutEmptyOrders.isVisible = orders.isEmpty()
-            binding.rvOrders.isVisible = orders.isNotEmpty()
-        }
-
-        // Số lượng đếm trên các tabs
-        viewModel.countNew.observe(viewLifecycleOwner) { count ->
-            binding.tvCountNew.text = "($count)"
-        }
-        viewModel.countCooking.observe(viewLifecycleOwner) { count ->
-            binding.tvCountCooking.text = "($count)"
-        }
-        viewModel.countDelivering.observe(viewLifecycleOwner) { count ->
-            binding.tvCountDelivering.text = "($count)"
-        }
-
-        // Doanh thu và đơn hoàn tất hôm nay
-        viewModel.todayRevenue.observe(viewLifecycleOwner) { revenue ->
-            binding.tvTodayRevenue.text = revenue.toVndCurrency()
-        }
-        viewModel.todayCompletedCount.observe(viewLifecycleOwner) { count ->
-            binding.tvCompletedOrdersCount.text = "$count đơn"
-        }
-
-        // Banner cảnh báo ở tab Đang Giao
-        viewModel.hasDeliveringWarning.observe(viewLifecycleOwner) { hasWarning ->
-            val isDeliveringTab = viewModel.currentTab.value == ShopViewModel.TabType.DELIVERING
-            binding.bannerTabDeliveringWarning.isVisible = hasWarning && isDeliveringTab
-        }
-
-        viewModel.currentTab.observe(viewLifecycleOwner) { tab ->
-            val hasWarning = viewModel.hasDeliveringWarning.value ?: false
-            binding.bannerTabDeliveringWarning.isVisible = hasWarning && tab == ShopViewModel.TabType.DELIVERING
-        }
-
-        // Chuông báo đơn mới
-        viewModel.newOrderAlert.observe(viewLifecycleOwner) { hasNewOrder ->
-            if (hasNewOrder) {
-                playAlertSound()
-                Toast.makeText(requireContext(), "🔔 Có đơn hàng mới từ khách! Vui lòng kiểm tra và xác nhận.", Toast.LENGTH_LONG).show()
-                viewModel.dismissAlert()
-            }
-        }
-
-        // Thông báo khi khách hủy đơn
-        viewModel.customerCancelledOrderAlert.observe(viewLifecycleOwner) { order ->
-            if (order != null) {
-                playAlertSound()
-                val shortCode = com.chuyen_de_2.foodorder.core.util.QRCodeUtils.getShortOrderCode(order.orderId)
-                val reason = order.cancelReason.ifBlank { "Khách hủy đơn hàng" }
-                AlertDialog.Builder(requireContext())
-                    .setTitle("⚠️ KHÁCH ĐÃ HỦY ĐƠN #$shortCode")
-                    .setMessage("Đơn hàng #$shortCode vừa bị khách hàng hủy!\n\nLý do: $reason\n\n👉 Quán vui lòng dừng chế biến hoặc chuẩn bị cho đơn này.")
-                    .setPositiveButton("Đã hiểu") { _, _ ->
-                        viewModel.clearCustomerCancelledAlert()
-                    }
-                    .setCancelable(false)
-                    .show()
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Phát âm thanh chuông báo có đơn mới
-     * Cách hoạt động: Sử dụng [RingtoneManager] để phát chuông Notification mặc định của hệ điều hành.
-     * Luồng hướng tới: Cảnh báo âm thanh cho nhân viên quán.
-     */
-    private fun playAlertSound() {
-        try {
-            val notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = RingtoneManager.getRingtone(requireContext(), notification)
-            ringtone.play()
-        } catch (e: Exception) {
-            // Fallback silently
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
     }
 }
 ````

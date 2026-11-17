@@ -63,12 +63,14 @@ class AdminUserAdapter(
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.danger))
                 }
                 User.Role.BOSSMERCHANT, "BOSS" -> {
-                    binding.tvUserRoleBadge.text = "CHỦ CHUỖI"
+                    val isPending = user.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING, ignoreCase = true)
+                    binding.tvUserRoleBadge.text = if (isPending) "CHỦ CHUỖI • CHỜ DUYỆT eKYC" else "CHỦ CHUỖI"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
                 }
                 User.Role.MERCHANT, User.Role.MANAGER -> {
-                    binding.tvUserRoleBadge.text = "MERCHANT"
+                    val isPending = user.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING, ignoreCase = true)
+                    binding.tvUserRoleBadge.text = if (isPending) "MERCHANT • CHỜ DUYỆT eKYC" else "MERCHANT"
                     binding.tvUserRoleBadge.setBackgroundResource(R.drawable.bg_badge_orange)
                     binding.tvUserRoleBadge.setTextColor(ContextCompat.getColor(context, R.color.brand_orange))
                 }

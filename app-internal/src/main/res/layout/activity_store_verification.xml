@@ -112,6 +112,7 @@
 
             <!-- Card 1: Địa chỉ & Cửa hàng -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardStoreInfo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"

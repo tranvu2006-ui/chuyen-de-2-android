@@ -278,6 +278,13 @@ class StoreVerificationActivity : AppCompatActivity() {
                 return@launch
             }
 
+            val role = authRepository.getUserRole()?.uppercase()
+            val isBoss = role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS"
+            if (isBoss) {
+                binding.cardStoreInfo.visibility = View.GONE
+                binding.btnSubmitVerification.text = "Gửi Hồ Sơ Xác Minh Đối Tác"
+            }
+
             if (currentStoreId.isBlank()) {
                 currentStoreId = firebaseRepository.resolveStoreIdForUser(user.uid)
             }
@@ -380,13 +387,55 @@ class StoreVerificationActivity : AppCompatActivity() {
                     }
                 }
             } else {
-                if (!user.displayName.isNullOrBlank()) {
-                    binding.etStoreName.setText(user.displayName)
-                    binding.etOwnerName.setText(user.displayName)
-                    binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(user.displayName.orEmpty()).uppercase())
-                }
-                if (!user.phoneNumber.isNullOrBlank()) {
-                    binding.etStorePhone.setText(user.phoneNumber)
+                val merchant = firebaseRepository.getMerchantById(user.uid)
+                val userProfile = firebaseRepository.getUserById(user.uid)
+                if (merchant != null && merchant.cccdNumber.isNotBlank()) {
+                    if (merchant.ownerName.isNotBlank()) binding.etOwnerName.setText(merchant.ownerName)
+                    if (merchant.phone.isNotBlank()) binding.etStorePhone.setText(merchant.phone)
+                    if (merchant.cccdNumber.isNotBlank()) binding.etCccdNumber.setText(merchant.cccdNumber)
+                    if (merchant.cccdFrontUrl.isNotBlank()) {
+                        cccdFrontBase64 = merchant.cccdFrontUrl
+                        binding.ivCccdFrontPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderFront.visibility = View.GONE
+                        binding.tvFrontStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvFrontStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvFrontStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdFront.text = "Chụp lại"
+                        binding.btnPickCccdFront.text = "Đổi ảnh"
+                        Glide.with(this@StoreVerificationActivity).load(merchant.cccdFrontUrl).into(binding.ivCccdFrontPreview)
+                    }
+                    if (merchant.cccdBackUrl.isNotBlank()) {
+                        cccdBackBase64 = merchant.cccdBackUrl
+                        binding.ivCccdBackPreview.visibility = View.VISIBLE
+                        binding.layoutPlaceholderBack.visibility = View.GONE
+                        binding.tvBackStatusBadge.text = "✓ Đã tải lên"
+                        binding.tvBackStatusBadge.backgroundTintList = ContextCompat.getColorStateList(this@StoreVerificationActivity, R.color.brand_green_bg)
+                        binding.tvBackStatusBadge.setTextColor(ContextCompat.getColor(this@StoreVerificationActivity, R.color.brand_green))
+                        binding.btnCaptureCccdBack.text = "Chụp lại"
+                        binding.btnPickCccdBack.text = "Đổi ảnh"
+                        Glide.with(this@StoreVerificationActivity).load(merchant.cccdBackUrl).into(binding.ivCccdBackPreview)
+                    }
+                    val bankAcc = merchant.bankAccountNumber.ifBlank { merchant.bankAccount }
+                    if (bankAcc.isNotBlank()) binding.etBankAccountNumber.setText(bankAcc)
+                    if (merchant.bankAccountName.isNotBlank()) {
+                        binding.etBankAccountName.setText(merchant.bankAccountName)
+                        isManualEditingBankName = true
+                    }
+                    if (merchant.bankName.isNotBlank()) {
+                        val bIndex = supportedBanks.indexOfFirst { b -> b.name.contains(merchant.bankName, ignoreCase = true) }
+                        if (bIndex >= 0) binding.spBankName.setSelection(bIndex)
+                    }
+                } else {
+                    val resolvedName = userProfile?.name.orEmpty().ifBlank { user.displayName.orEmpty() }
+                    if (resolvedName.isNotBlank()) {
+                        binding.etStoreName.setText(resolvedName)
+                        binding.etOwnerName.setText(resolvedName)
+                        binding.etBankAccountName.setText(CccdOcrHelper.removeAccents(resolvedName).uppercase())
+                    }
+                    val resolvedPhone = userProfile?.phone.orEmpty().ifBlank { user.phoneNumber.orEmpty() }
+                    if (resolvedPhone.isNotBlank()) {
+                        binding.etStorePhone.setText(resolvedPhone)
+                    }
                 }
             }
         }
@@ -551,20 +600,23 @@ class StoreVerificationActivity : AppCompatActivity() {
         val bankAccountName = binding.etBankAccountName.text.toString().trim().uppercase()
 
         var hasError = false
+        val isPartnerOnly = binding.cardStoreInfo.visibility == View.GONE
 
-        if (name.isBlank()) {
-            binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
-            hasError = true
-        }
+        if (!isPartnerOnly) {
+            if (name.isBlank()) {
+                binding.tilStoreName.error = "Vui lòng nhập tên cửa hàng / quán ăn"
+                hasError = true
+            }
 
-        if (phone.isBlank()) {
-            binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
-            hasError = true
-        }
+            if (phone.isBlank()) {
+                binding.tilStorePhone.error = "Vui lòng nhập số điện thoại quán"
+                hasError = true
+            }
 
-        if (address.isBlank()) {
-            binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
-            hasError = true
+            if (address.isBlank()) {
+                binding.tilStoreAddress.error = "Địa chỉ quán là bắt buộc để tài xế đến lấy món"
+                hasError = true
+            }
         }
 
         if (cccdFrontBase64.isBlank()) {
@@ -606,59 +658,82 @@ class StoreVerificationActivity : AppCompatActivity() {
             binding.progressBarVerification.visibility = View.VISIBLE
             binding.btnSubmitVerification.isEnabled = false
 
-            // Ưu tiên dùng tọa độ chính xác do quán đã chọn/ghim trên bản đồ
-            val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
-            val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
-                selectedLat!! to selectedLng!!
-            } else {
-                val coords = try {
-                    val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
-                    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
-                    else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                } catch (_: Exception) {
-                    GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
-                }
-                coords.latitude to coords.longitude
-            }
             val user = authRepository.currentUser
             val uid = user?.uid.orEmpty()
-            if (currentStoreId.isBlank()) {
-                currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-            }
-            if (currentStoreId.isBlank()) {
-                currentStoreId = "store_${System.currentTimeMillis()}"
-            }
+            val userProfile = firebaseRepository.getUserById(uid)
+            val resolvedPhone = phone.ifBlank { userProfile?.phone.orEmpty() }.ifBlank { user?.phoneNumber.orEmpty() }
 
-            val result = firebaseRepository.verifyAndCompleteStoreProfile(
-                storeId = currentStoreId,
-                merchantUid = uid,
-                name = name,
-                phone = phone,
-                address = address,
-                district = district,
-                ownerName = ownerName,
-                cccdNumber = cccd,
-                cccdFrontUrl = cccdFrontBase64,
-                cccdBackUrl = cccdBackBase64,
-                bankName = selectedBank.name,
-                bankAccountNumber = bankAccount,
-                bankAccountName = bankAccountName,
-                bankBin = selectedBank.bin,
-                latitude = resolvedLat,
-                longitude = resolvedLng
-            )
+            val result = if (isPartnerOnly) {
+                firebaseRepository.submitPartnerKycProfile(
+                    merchantUid = uid,
+                    ownerName = ownerName,
+                    phone = resolvedPhone,
+                    cccdNumber = cccd,
+                    cccdFrontUrl = cccdFrontBase64,
+                    cccdBackUrl = cccdBackBase64,
+                    bankName = selectedBank.name,
+                    bankAccountNumber = bankAccount,
+                    bankAccountName = bankAccountName,
+                    bankBin = selectedBank.bin
+                )
+            } else {
+                val fullStoreAddress = if (address.isNotBlank()) "$address, $district, TP.HCM" else "$district, TP.HCM"
+                val (resolvedLat, resolvedLng) = if (selectedLat != null && selectedLng != null && selectedLat != 0.0 && selectedLng != 0.0) {
+                    selectedLat!! to selectedLng!!
+                } else {
+                    val coords = try {
+                        val resolved = GoogleMapUtils.geocodeAddress(this@StoreVerificationActivity, fullStoreAddress)
+                        if (resolved.latitude != 0.0 && resolved.longitude != 0.0) resolved
+                        else GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    } catch (_: Exception) {
+                        GoogleMapUtils.DISTRICT_COORDINATES[district] ?: GoogleMapUtils.DEFAULT_HCMC_LATLNG
+                    }
+                    coords.latitude to coords.longitude
+                }
+                if (currentStoreId.isBlank()) {
+                    currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+                }
+                if (currentStoreId.isBlank()) {
+                    currentStoreId = "store_${System.currentTimeMillis()}"
+                }
+                firebaseRepository.verifyAndCompleteStoreProfile(
+                    storeId = currentStoreId,
+                    merchantUid = uid,
+                    name = name,
+                    phone = phone,
+                    address = address,
+                    district = district,
+                    ownerName = ownerName,
+                    cccdNumber = cccd,
+                    cccdFrontUrl = cccdFrontBase64,
+                    cccdBackUrl = cccdBackBase64,
+                    bankName = selectedBank.name,
+                    bankAccountNumber = bankAccount,
+                    bankAccountName = bankAccountName,
+                    bankBin = selectedBank.bin,
+                    latitude = resolvedLat,
+                    longitude = resolvedLng
+                )
+            }
 
             binding.progressBarVerification.visibility = View.GONE
             binding.btnSubmitVerification.isEnabled = true
 
             result.onSuccess {
-                val role = authRepository.getUserRole()?.uppercase()
-                if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
-                    firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
+                if (!isPartnerOnly) {
+                    val role = authRepository.getUserRole()?.uppercase()
+                    if (role == com.chuyen_de_2.foodorder.core.data.model.User.Role.BOSSMERCHANT || role == "BOSS") {
+                        firebaseRepository.markStoreOwnedByBoss(uid, currentStoreId)
+                    }
+                }
+                val msg = if (isPartnerOnly) {
+                    "Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nSau khi Admin phê duyệt, bạn có thể tự tạo chi nhánh để bắt đầu kinh doanh."
+                } else {
+                    "Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nQuản trị viên sẽ tiến hành kiểm duyệt hồ sơ trong thời gian sớm nhất. Bạn có thể theo dõi trạng thái tại màn hình chính."
                 }
                 androidx.appcompat.app.AlertDialog.Builder(this@StoreVerificationActivity)
                     .setTitle("🎉 Gửi Hồ Sơ Thành Công!")
-                    .setMessage("Hồ sơ đăng ký đối tác và thông tin xác thực CCCD của bạn đã được gửi thành công đến Quản trị viên (Admin).\n\nQuản trị viên sẽ tiến hành kiểm duyệt hồ sơ trong thời gian sớm nhất. Bạn có thể theo dõi trạng thái tại màn hình chính.")
+                    .setMessage(msg)
                     .setPositiveButton("Đã hiểu") { _, _ ->
                         startActivity(Intent(this@StoreVerificationActivity, DashboardActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK

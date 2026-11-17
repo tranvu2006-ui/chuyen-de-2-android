@@ -249,9 +249,13 @@ class BossDashboardActivity : AppCompatActivity() {
                 branchAdapter.setMerchants(cachedMerchants)
                 merchantAdapter.setStores(stores)
 
-                val hasBank = stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
+                val merchantProfile = firebaseRepository.getMerchantById(currentBossUid)
+                val hasBank = (merchantProfile != null && (merchantProfile.bankAccountNumber.isNotBlank() || merchantProfile.bankAccount.isNotBlank()) && merchantProfile.cccdNumber.isNotBlank()) ||
+                              stores.any { it.bankAccountNumber.isNotBlank() && it.cccdNumber.isNotBlank() }
                 if (hasBank) {
                     binding.cardMissingBankAlert.visibility = View.GONE
+                } else {
+                    binding.cardMissingBankAlert.visibility = View.VISIBLE
                 }
 
                 val count = stores.size

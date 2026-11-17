@@ -157,19 +157,18 @@ class DashboardActivity : AppCompatActivity() {
 
             if (selectedBranchId.isNullOrBlank()) {
                 if (uid.isNotBlank()) {
-                    val existingBranches = firebaseRepository.getStoresByBoss(uid).firstOrNull().orEmpty()
-                    val defaultStore = firebaseRepository.getStoreOnce("store_$uid")
-                    val candidateStore = existingBranches.firstOrNull() ?: defaultStore
+                    val userProfile = firebaseRepository.getUserById(uid)
+                    val merchantProfile = firebaseRepository.getMerchantById(uid)
 
-                    if (candidateStore == null || (candidateStore.cccdNumber.isBlank() && candidateStore.address.isBlank())) {
-                        val newStoreId = "store_$uid"
+                    // 1. Nếu Boss chưa từng nộp hồ sơ eKYC (chưa có CCCD):
+                    val hasSubmittedKyc = merchantProfile != null && merchantProfile.cccdNumber.isNotBlank()
+                    if (!hasSubmittedKyc) {
                         Toast.makeText(
                             this@DashboardActivity,
-                            "Chào mừng Chủ chuỗi! Vui lòng thiết lập thông tin kinh doanh & xác thực CCCD.",
+                            "Chào mừng Đối tác! Vui lòng xác thực CCCD và tài khoản ngân hàng để tiếp tục.",
                             Toast.LENGTH_LONG
                         ).show()
                         val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                            putExtra(AppConstants.Extras.STORE_ID, newStoreId)
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         }
                         startActivity(intent)
@@ -177,16 +176,17 @@ class DashboardActivity : AppCompatActivity() {
                         return@launch
                     }
 
-                    val isRejected = candidateStore.storeStatus.equals(Store.StoreStatus.REJECTED, ignoreCase = true)
+                    // 2. Nếu hồ sơ eKYC bị từ chối:
+                    val isRejected = userProfile?.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.REJECTED, ignoreCase = true) ||
+                                     merchantProfile?.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.REJECTED, ignoreCase = true)
                     if (isRejected) {
-                        val reason = candidateStore.penaltyReason.ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
+                        val reason = userProfile?.rejectReason?.ifBlank { merchantProfile?.rejectReason }.orEmpty()
+                            .ifBlank { "Hồ sơ hoặc thông tin CCCD chưa đạt yêu cầu" }
                         androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
                             .setTitle("❌ Hồ Sơ Bị Từ Chối")
-                            .setMessage("Hồ sơ đăng ký Chủ chuỗi của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
+                            .setMessage("Hồ sơ đăng ký đối tác của bạn đã bị Quản trị viên từ chối phê duyệt.\n\nLý do: $reason\n\nVui lòng chỉnh sửa lại thông tin và nộp lại hồ sơ.")
                             .setPositiveButton("✏️ Chỉnh sửa hồ sơ") { _, _ ->
-                                val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java).apply {
-                                    putExtra(AppConstants.Extras.STORE_ID, candidateStore.id.ifBlank { "store_$uid" })
-                                }
+                                val intent = Intent(this@DashboardActivity, StoreVerificationActivity::class.java)
                                 startActivity(intent)
                             }
                             .setNegativeButton("🚪 Đăng xuất") { _, _ ->
@@ -202,11 +202,14 @@ class DashboardActivity : AppCompatActivity() {
                         return@launch
                     }
 
-                    val isPending = !candidateStore.isVerified || candidateStore.storeStatus.equals(Store.StoreStatus.PENDING, ignoreCase = true)
+                    // 3. Nếu hồ sơ eKYC đang chờ Admin phê duyệt:
+                    val isPending = userProfile?.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING, ignoreCase = true) ||
+                                    merchantProfile?.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING, ignoreCase = true)
                     if (isPending) {
+                        val ownerName = merchantProfile?.ownerName?.ifBlank { userProfile?.name }.orEmpty()
                         androidx.appcompat.app.AlertDialog.Builder(this@DashboardActivity)
                             .setTitle("⏳ Hồ Sơ Đang Chờ Admin Phê Duyệt")
-                            .setMessage("Hồ sơ đăng ký Chủ chuỗi '${candidateStore.name}' (CCCD: ${candidateStore.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, bạn sẽ có quyền truy cập đầy đủ vào trang quản lý chuỗi cửa hàng.")
+                            .setMessage("Hồ sơ đăng ký đối tác '$ownerName' (CCCD: ${merchantProfile?.cccdNumber}) đã được gửi và đang chờ Quản trị viên xét duyệt.\n\nSau khi Admin phê duyệt, bạn có thể tạo chi nhánh để bắt đầu kinh doanh.")
                             .setPositiveButton("🔄 Kiểm tra lại") { _, _ ->
                                 handleBossRoleAndProceed()
                             }

@@ -47111,260 +47111,6 @@ class ChefPendingOrdersAdapter(
 }
 ````
 
-## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreReportFragment.kt
-````kotlin
-package com.chuyen_de_2.foodorder.internal.ui.shop
-
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
-import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
-import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
-import com.chuyen_de_2.foodorder.core.data.model.Order
-import com.chuyen_de_2.foodorder.core.util.toVndCurrency
-import com.chuyen_de_2.foodorder.internal.databinding.FragmentStoreReportBinding
-import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
-import java.util.Calendar
-import javax.inject.Inject
-
-/**
- * Tên chức năng: Báo Cáo Doanh Số & Hiệu Quả Bán Hàng Của Quán (Store Performance & Revenue Analytics)
- * Cách hoạt động:
- *  - Phân tích và tổng hợp toàn bộ đơn hàng của Cửa hàng theo các mốc thời gian: Hôm nay, Tuần này, Tháng này.
- *  - Tính toán tổng doanh thu thực tế, số đơn hoàn tất, số đơn hủy/bùng, giá trị trung bình trên mỗi đơn (AOV).
- *  - Bóc tách danh sách món ăn từ các đơn hoàn tất để xếp hạng Top món bán chạy nhất (Best Sellers) kèm số lượng và đơn giá.
- *  - Hiển thị điểm đánh giá sao uy tín ⭐ trung bình của quán từ phản hồi khách hàng.
- * Luồng hướng tới:
- *  - Cung cấp bức tranh tài chính kinh doanh tức thời cho chủ quán ra quyết định nhập nguyên liệu và điều chỉnh thực đơn.
- */
-@AndroidEntryPoint
-class StoreReportFragment : Fragment() {
-
-    private var _binding: FragmentStoreReportBinding? = null
-    private val binding get() = _binding!!
-
-    @Inject
-    lateinit var firebaseRepository: FirebaseRepository
-
-    @Inject
-    lateinit var authRepository: AuthRepository
-
-    private val bestSellerAdapter = BestSellerDishAdapter()
-    private var allStoreOrders: List<Order> = emptyList()
-    private var currentPeriod = "TODAY"
-    private var currentStoreId = ""
-
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
-    ): View {
-        _binding = FragmentStoreReportBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    /**
-     * Tên chức năng: Khởi tạo View báo cáo thống kê
-     * Cách hoạt động: Thiết lập RecyclerView danh sách món bán chạy, cài đặt bộ lọc thời gian và bắt đầu nạp dữ liệu.
-     * Luồng hướng tới: Chuẩn bị hiển thị các chỉ số KPI.
-     */
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        setupRecyclerView()
-        setupTimeFilterTabs()
-        loadStoreAndObserveData()
-    }
-
-    /**
-     * Tên chức năng: Cấu hình RecyclerView cho Top Món Bán Chạy
-     * Cách hoạt động: Gắn [BestSellerDishAdapter] với LayoutManager tuyến tính.
-     * Luồng hướng tới: Hiển thị bảng xếp hạng món ăn chạy nhất.
-     */
-    private fun setupRecyclerView() {
-        binding.rvBestSellerDishes.apply {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = bestSellerAdapter
-        }
-    }
-
-    /**
-     * Tên chức năng: Bộ lọc thời gian thống kê (Hôm nay / Tuần này / Tháng này)
-     * Cách hoạt động: Lắng nghe sự kiện chọn trên MaterialButtonToggleGroup, cập nhật biến `currentPeriod` và tính toán lại các chỉ số.
-     * Luồng hướng tới: Gọi [computeAndDisplayMetrics].
-     */
-    private fun setupTimeFilterTabs() {
-        binding.toggleGroupTimeFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (isChecked) {
-                currentPeriod = when (checkedId) {
-                    binding.btnFilterToday.id -> "TODAY"
-                    binding.btnFilterWeek.id -> "WEEK"
-                    binding.btnFilterMonth.id -> "MONTH"
-                    else -> "TODAY"
-                }
-                computeAndDisplayMetrics()
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Tải định danh Quán và thu thập dữ liệu Firestore theo thời gian thực
-     * Cách hoạt động: Lấy UID người dùng, resolve storeId, đồng thời lắng nghe thông tin Store (điểm rating) và toàn bộ Orders của quán.
-     * Luồng hướng tới: Đồng bộ dữ liệu mới nhất từ Firebase.
-     */
-    private fun loadStoreAndObserveData() {
-        val uid = authRepository.currentUser?.uid.orEmpty()
-        viewLifecycleOwner.lifecycleScope.launch {
-            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
-
-            // Lắng nghe thông tin quán để hiển thị đánh giá sao ⭐
-            if (currentStoreId.isNotBlank()) {
-                launch {
-                    firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
-                        if (store != null) {
-                            val rating = store.ratingAvg
-                            val reviewCount = store.reviewCount
-                            if (reviewCount > 0 && rating > 0f) {
-                                binding.tvRatingScore.text = String.format(java.util.Locale.US, "%.1f", rating)
-                                binding.tvRatingCount.text = "$reviewCount đánh giá"
-                                val pct = (rating / 5.0f * 100).toInt().coerceIn(0, 100)
-                                binding.tvSatisfactionRate.text = "Tỷ lệ hài lòng: $pct%"
-                                binding.tvSatisfactionDesc.text = "• Dựa trên $reviewCount lượt đánh giá thực tế từ khách hàng\n• Điểm chất lượng dịch vụ: ${String.format(java.util.Locale.US, "%.1f", rating)}/5.0 ⭐"
-                            } else {
-                                binding.tvRatingScore.text = "—"
-                                binding.tvRatingCount.text = "0 đánh giá"
-                                binding.tvSatisfactionRate.text = "Chưa có đánh giá"
-                                binding.tvSatisfactionDesc.text = "• Quán chưa có lượt đánh giá nào từ khách hàng\n• Điểm uy tín sẽ cập nhật sau khi khách hàng đánh giá món"
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Lắng nghe toàn bộ đơn hàng của quán
-            launch {
-                firebaseRepository.observeAllOrders().collectLatest { orders ->
-                    allStoreOrders = if (currentStoreId.isNotBlank()) {
-                        orders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
-                    } else {
-                        orders
-                    }
-                    computeAndDisplayMetrics()
-                }
-            }
-        }
-    }
-
-    /**
-     * Tên chức năng: Tính toán số liệu thống kê & Top món bán chạy
-     * Cách hoạt động:
-     *  - Lọc đơn hàng theo mốc thời gian bắt đầu của ngày/tuần/tháng hiện tại.
-     *  - Tính tổng doanh thu từ các đơn hoàn tất (COMPLETED).
-     *  - Đếm số đơn thành công và số đơn thất bại/hủy/bùng (CANCELLED, BOOM).
-     *  - Gom nhóm các món ăn theo tên và tính tổng số lượng đã bán, sau đó sắp xếp giảm dần.
-     * Luồng hướng tới: Cập nhật các trường TextView KPI và danh sách [BestSellerDishAdapter].
-     */
-    private fun computeAndDisplayMetrics() {
-        val now = Calendar.getInstance()
-        val startOfToday = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val startOfWeek = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val startOfMonth = Calendar.getInstance().apply {
-            set(Calendar.DAY_OF_MONTH, 1)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-
-        val filteredOrders = when (currentPeriod) {
-            "TODAY" -> allStoreOrders.filter {
-                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
-                t >= startOfToday || t == 0L
-            }
-            "WEEK" -> allStoreOrders.filter {
-                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
-                t >= startOfWeek || t == 0L
-            }
-            "MONTH" -> allStoreOrders.filter {
-                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
-                t >= startOfMonth || t == 0L
-            }
-            else -> allStoreOrders
-        }
-
-        val completedOrders = filteredOrders.filter { it.status == Order.Status.COMPLETED }
-        val cancelledOrders = filteredOrders.filter {
-            it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM
-        }
-
-        // Tính doanh thu
-        val totalRevenue = completedOrders.sumOf {
-            if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
-        }
-        val avgOrderValue = if (completedOrders.isNotEmpty()) totalRevenue / completedOrders.size else 0L
-
-        binding.tvRevenueAmount.text = totalRevenue.toVndCurrency()
-        binding.tvCompletedOrdersCount.text = "${completedOrders.size} đơn"
-        binding.tvCancelledOrdersCount.text = "${cancelledOrders.size} đơn"
-        binding.tvAverageOrderValue.text = avgOrderValue.toVndCurrency()
-
-        // Tính top món bán chạy nhất
-        val dishSalesMap = mutableMapOf<String, Pair<Int, Long>>()
-        completedOrders.forEach { order ->
-            order.items.values.forEach { item ->
-                val existing = dishSalesMap[item.dishName]
-                val currentQty = existing?.first ?: 0
-                val price = item.price
-                dishSalesMap[item.dishName] = Pair(currentQty + item.quantity, price)
-            }
-        }
-
-        if (dishSalesMap.isNotEmpty()) {
-            val sortedList = dishSalesMap.entries
-                .sortedByDescending { it.value.first }
-                .mapIndexed { index, entry ->
-                    BestSellerItem(
-                        rank = index + 1,
-                        dishName = entry.key,
-                        soldQuantity = entry.value.first,
-                        price = entry.value.second
-                    )
-                }
-
-            binding.tvEmptyBestSellers.visibility = View.GONE
-            binding.rvBestSellerDishes.visibility = View.VISIBLE
-            bestSellerAdapter.submitList(sortedList)
-        } else {
-            binding.tvEmptyBestSellers.visibility = View.VISIBLE
-            binding.rvBestSellerDishes.visibility = View.GONE
-            bestSellerAdapter.submitList(emptyList())
-        }
-    }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-}
-````
-
 ## File: app-internal/src/main/res/color/switch_thumb_status_selector.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -71461,6 +71207,260 @@ class DriverActiveOrdersAdapter(
 }
 ````
 
+## File: app-internal/src/main/java/com/chuyen_de_2/foodorder/internal/ui/shop/StoreReportFragment.kt
+````kotlin
+package com.chuyen_de_2.foodorder.internal.ui.shop
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.chuyen_de_2.foodorder.core.data.firebase.AuthRepository
+import com.chuyen_de_2.foodorder.core.data.firebase.FirebaseRepository
+import com.chuyen_de_2.foodorder.core.data.model.Order
+import com.chuyen_de_2.foodorder.core.util.toVndCurrency
+import com.chuyen_de_2.foodorder.internal.databinding.FragmentStoreReportBinding
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.util.Calendar
+import javax.inject.Inject
+
+/**
+ * Tên chức năng: Báo Cáo Doanh Số & Hiệu Quả Bán Hàng Của Quán (Store Performance & Revenue Analytics)
+ * Cách hoạt động:
+ *  - Phân tích và tổng hợp toàn bộ đơn hàng của Cửa hàng theo các mốc thời gian: Hôm nay, Tuần này, Tháng này.
+ *  - Tính toán tổng doanh thu thực tế, số đơn hoàn tất, số đơn hủy/bùng, giá trị trung bình trên mỗi đơn (AOV).
+ *  - Bóc tách danh sách món ăn từ các đơn hoàn tất để xếp hạng Top món bán chạy nhất (Best Sellers) kèm số lượng và đơn giá.
+ *  - Hiển thị điểm đánh giá sao uy tín ⭐ trung bình của quán từ phản hồi khách hàng.
+ * Luồng hướng tới:
+ *  - Cung cấp bức tranh tài chính kinh doanh tức thời cho chủ quán ra quyết định nhập nguyên liệu và điều chỉnh thực đơn.
+ */
+@AndroidEntryPoint
+class StoreReportFragment : Fragment() {
+
+    private var _binding: FragmentStoreReportBinding? = null
+    private val binding get() = _binding!!
+
+    @Inject
+    lateinit var firebaseRepository: FirebaseRepository
+
+    @Inject
+    lateinit var authRepository: AuthRepository
+
+    private val bestSellerAdapter = BestSellerDishAdapter()
+    private var allStoreOrders: List<Order> = emptyList()
+    private var currentPeriod = "TODAY"
+    private var currentStoreId = ""
+
+    override fun onCreateView(
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
+    ): View {
+        _binding = FragmentStoreReportBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    /**
+     * Tên chức năng: Khởi tạo View báo cáo thống kê
+     * Cách hoạt động: Thiết lập RecyclerView danh sách món bán chạy, cài đặt bộ lọc thời gian và bắt đầu nạp dữ liệu.
+     * Luồng hướng tới: Chuẩn bị hiển thị các chỉ số KPI.
+     */
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        setupRecyclerView()
+        setupTimeFilterTabs()
+        loadStoreAndObserveData()
+    }
+
+    /**
+     * Tên chức năng: Cấu hình RecyclerView cho Top Món Bán Chạy
+     * Cách hoạt động: Gắn [BestSellerDishAdapter] với LayoutManager tuyến tính.
+     * Luồng hướng tới: Hiển thị bảng xếp hạng món ăn chạy nhất.
+     */
+    private fun setupRecyclerView() {
+        binding.rvBestSellerDishes.apply {
+            layoutManager = LinearLayoutManager(requireContext())
+            adapter = bestSellerAdapter
+        }
+    }
+
+    /**
+     * Tên chức năng: Bộ lọc thời gian thống kê (Hôm nay / Tuần này / Tháng này)
+     * Cách hoạt động: Lắng nghe sự kiện chọn trên MaterialButtonToggleGroup, cập nhật biến `currentPeriod` và tính toán lại các chỉ số.
+     * Luồng hướng tới: Gọi [computeAndDisplayMetrics].
+     */
+    private fun setupTimeFilterTabs() {
+        binding.toggleGroupTimeFilter.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                currentPeriod = when (checkedId) {
+                    binding.btnFilterToday.id -> "TODAY"
+                    binding.btnFilterWeek.id -> "WEEK"
+                    binding.btnFilterMonth.id -> "MONTH"
+                    else -> "TODAY"
+                }
+                computeAndDisplayMetrics()
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Tải định danh Quán và thu thập dữ liệu Firestore theo thời gian thực
+     * Cách hoạt động: Lấy UID người dùng, resolve storeId, đồng thời lắng nghe thông tin Store (điểm rating) và toàn bộ Orders của quán.
+     * Luồng hướng tới: Đồng bộ dữ liệu mới nhất từ Firebase.
+     */
+    private fun loadStoreAndObserveData() {
+        val uid = authRepository.currentUser?.uid.orEmpty()
+        viewLifecycleOwner.lifecycleScope.launch {
+            currentStoreId = firebaseRepository.resolveStoreIdForUser(uid)
+
+            // Lắng nghe thông tin quán để hiển thị đánh giá sao ⭐
+            if (currentStoreId.isNotBlank()) {
+                launch {
+                    firebaseRepository.observeStore(currentStoreId).collectLatest { store ->
+                        if (store != null) {
+                            val rating = store.ratingAvg
+                            val reviewCount = store.reviewCount
+                            if (reviewCount > 0 && rating > 0f) {
+                                binding.tvRatingScore.text = String.format(java.util.Locale.US, "%.1f", rating)
+                                binding.tvRatingCount.text = "$reviewCount đánh giá"
+                                val pct = (rating / 5.0f * 100).toInt().coerceIn(0, 100)
+                                binding.tvSatisfactionRate.text = "Tỷ lệ hài lòng: $pct%"
+                                binding.tvSatisfactionDesc.text = "• Dựa trên $reviewCount lượt đánh giá thực tế từ khách hàng\n• Điểm chất lượng dịch vụ: ${String.format(java.util.Locale.US, "%.1f", rating)}/5.0 ⭐"
+                            } else {
+                                binding.tvRatingScore.text = "—"
+                                binding.tvRatingCount.text = "0 đánh giá"
+                                binding.tvSatisfactionRate.text = "Chưa có đánh giá"
+                                binding.tvSatisfactionDesc.text = "• Quán chưa có lượt đánh giá nào từ khách hàng\n• Điểm uy tín sẽ cập nhật sau khi khách hàng đánh giá món"
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Lắng nghe toàn bộ đơn hàng của quán
+            launch {
+                firebaseRepository.observeAllOrders().collectLatest { orders ->
+                    allStoreOrders = if (currentStoreId.isNotBlank()) {
+                        orders.filter { it.shopId == currentStoreId || it.storeId == currentStoreId }
+                    } else {
+                        orders
+                    }
+                    computeAndDisplayMetrics()
+                }
+            }
+        }
+    }
+
+    /**
+     * Tên chức năng: Tính toán số liệu thống kê & Top món bán chạy
+     * Cách hoạt động:
+     *  - Lọc đơn hàng theo mốc thời gian bắt đầu của ngày/tuần/tháng hiện tại.
+     *  - Tính tổng doanh thu từ các đơn hoàn tất (COMPLETED).
+     *  - Đếm số đơn thành công và số đơn thất bại/hủy/bùng (CANCELLED, BOOM).
+     *  - Gom nhóm các món ăn theo tên và tính tổng số lượng đã bán, sau đó sắp xếp giảm dần.
+     * Luồng hướng tới: Cập nhật các trường TextView KPI và danh sách [BestSellerDishAdapter].
+     */
+    private fun computeAndDisplayMetrics() {
+        val now = Calendar.getInstance()
+        val startOfToday = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val startOfWeek = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val startOfMonth = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val filteredOrders = when (currentPeriod) {
+            "TODAY" -> allStoreOrders.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfToday || t == 0L
+            }
+            "WEEK" -> allStoreOrders.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfWeek || t == 0L
+            }
+            "MONTH" -> allStoreOrders.filter {
+                val t = if (it.createdAt > 0) it.createdAt else it.timestamp
+                t >= startOfMonth || t == 0L
+            }
+            else -> allStoreOrders
+        }
+
+        val completedOrders = filteredOrders.filter { it.status == Order.Status.COMPLETED }
+        val cancelledOrders = filteredOrders.filter {
+            it.status == Order.Status.CANCELLED || it.status == Order.Status.BOOM
+        }
+
+        // Tính doanh thu
+        val totalRevenue = completedOrders.sumOf {
+            if (it.totalPayment > 0) it.totalPayment else if (it.total > 0) it.total else 0L
+        }
+        val avgOrderValue = if (completedOrders.isNotEmpty()) totalRevenue / completedOrders.size else 0L
+
+        binding.tvRevenueAmount.text = totalRevenue.toVndCurrency()
+        binding.tvCompletedOrdersCount.text = "${completedOrders.size} đơn"
+        binding.tvCancelledOrdersCount.text = "${cancelledOrders.size} đơn"
+        binding.tvAverageOrderValue.text = avgOrderValue.toVndCurrency()
+
+        // Tính top món bán chạy nhất
+        val dishSalesMap = mutableMapOf<String, Pair<Int, Long>>()
+        completedOrders.forEach { order ->
+            order.items.values.forEach { item ->
+                val existing = dishSalesMap[item.dishName]
+                val currentQty = existing?.first ?: 0
+                val price = item.price
+                dishSalesMap[item.dishName] = Pair(currentQty + item.quantity, price)
+            }
+        }
+
+        if (dishSalesMap.isNotEmpty()) {
+            val sortedList = dishSalesMap.entries
+                .sortedByDescending { it.value.first }
+                .mapIndexed { index, entry ->
+                    BestSellerItem(
+                        rank = index + 1,
+                        dishName = entry.key,
+                        soldQuantity = entry.value.first,
+                        price = entry.value.second
+                    )
+                }
+
+            binding.tvEmptyBestSellers.visibility = View.GONE
+            binding.rvBestSellerDishes.visibility = View.VISIBLE
+            bestSellerAdapter.submitList(sortedList)
+        } else {
+            binding.tvEmptyBestSellers.visibility = View.VISIBLE
+            binding.rvBestSellerDishes.visibility = View.GONE
+            bestSellerAdapter.submitList(emptyList())
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+}
+````
+
 ## File: app-internal/src/main/res/layout/activity_login_internal.xml
 ````xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -77867,188 +77867,6 @@ cfg = dtf["countdown_config"]
 sys_cfg_url = f"{DATABASE_URL}/system_config/delivery_countdown.json?auth={id_token}"
 ⋮----
 # Xóa node delivery_time_frames
-````
-
-## File: scripts/seed_sample_data.py
-````python
-# -*- coding: utf-8 -*-
-"""
-OISHI FOOD - Script Khởi tạo Bộ Dữ liệu Mẫu Chuẩn Toàn diện
-Tự động đăng ký/xác thực tài khoản Firebase Auth và liên kết 100% dữ liệu thực tế.
-
-Cấu trúc:
-- 1 Admin: admin@gmail.com
-- 2 Boss:
-    + Trần Vũ: tranvu2006@fit.tdc.edu.vn (2 quán)
-    + Phạm Phúc Mạnh Giàu: phamphucmanhgiau@fit.tdc.edu.vn (2 quán)
-- 2 Merchant con (quản lý Cửa hàng 2 của mỗi Boss):
-    + tranvukuroko@gmail.com (thuộc Boss Vũ)
-    + manhgiau03112006@gmail.com (thuộc Boss Giàu)
-- 2 Tài xế (Shipper chuyên quán):
-    + ttnyuuyake@gmail.com (thuộc Boss Vũ - Honda Wave Alpha 59-X1 123.45)
-    + giaupham2k6coc@gmail.com (thuộc Boss Giàu - Yamaha Exciter 150 59-S2 678.90)
-- 2 Đầu bếp (Chef):
-    + yuuyakeaa@gmail.com (thuộc Boss Vũ)
-    + trumrongdien@gmail.com (thuộc Boss Giàu)
-- 2 Khách hàng (Customer):
-    + 24211tt2515@mail.tdc.edu.vn (Vũ Khách)
-    + 24211tt3571@mail.tdc.edu.vn (Giàu Khách)
-- 4 Cửa hàng:
-    + Store 1 (Boss Vũ tự quản): Cơm Tấm Oishi - Vũ Central (3 món + 1 combo)
-    + Store 2 (Merchant Vũ Kuroko): Trà Sữa & Ăn Vặt Oishi - Vũ 2 (3 món + 1 combo)
-    + Store 3 (Boss Giàu tự quản): Bún Bò Huế Oishi - Giàu Central (3 món + 1 combo)
-    + Store 4 (Merchant Mạnh Giàu): Bánh Mì Chảo & Fastfood - Giàu 2 (3 món + 1 combo)
-- Đầy đủ Danh mục toàn sàn (categories) & Danh mục riêng từng quán (storeCategories).
-- Orders để trống sạch sẽ để test đặt đơn.
-"""
-⋮----
-API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
-DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
-COMMON_PASSWORD = "123456"
-⋮----
-ADMIN_EMAIL = "admin@gmail.com"
-ADMIN_PASSWORD = "123456"
-⋮----
-def make_request(url, method="GET", data=None)
-⋮----
-headers = {"Content-Type": "application/json"}
-body = json.dumps(data).encode("utf-8") if data is not None else None
-req = urllib.request.Request(url, data=body, headers=headers, method=method)
-⋮----
-content = resp.read().decode("utf-8")
-⋮----
-err_msg = e.read().decode("utf-8")
-⋮----
-def get_or_create_auth_user(email, password=COMMON_PASSWORD, display_name="")
-⋮----
-# 1. Thử đăng ký mới
-signup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={API_KEY}"
-res = make_request(signup_url, method="POST", data={
-⋮----
-uid = res["localId"]
-⋮----
-# 2. Nếu đã tồn tại -> đăng nhập lấy UID và Token
-signin_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
-res = make_request(signin_url, method="POST", data={
-⋮----
-# 3. Nếu password khác -> đăng nhập bằng Admin để tra cứu
-admin_token = get_admin_token()
-lookup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={API_KEY}"
-res = make_request(lookup_url, method="POST", data={"idToken": admin_token})
-# Fallback reset password về 123456
-⋮----
-def update_profile(id_token, display_name)
-⋮----
-url = f"https://identitytoolkit.googleapis.com/v1/accounts:update?key={API_KEY}"
-⋮----
-def get_admin_token()
-⋮----
-auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
-auth_res = make_request(auth_url, method="POST", data={
-⋮----
-def main()
-⋮----
-# 1. Đăng nhập Admin
-⋮----
-# 2. Khởi tạo/Xác thực tất cả tài khoản Auth
-⋮----
-accounts_def = {
-⋮----
-uids = {}
-⋮----
-# 3. Dọn sạch các bảng dữ liệu cũ nhưng bảo lưu cấu hình hệ thống
-⋮----
-nodes_to_clean = [
-⋮----
-del_url = f"{DATABASE_URL}/{node}.json?auth={admin_token}"
-⋮----
-# Đảm bảo cấu hình bypass OTP luôn ON
-cfg_url = f"{DATABASE_URL}/system_config/bypass_login_otp.json?auth={admin_token}"
-⋮----
-# 4. Tạo danh mục nền tảng toàn sàn (categories)
-⋮----
-categories_data = {
-⋮----
-# 5. Tạo 4 Cửa hàng với 3 món + 1 combo mỗi quán
-⋮----
-store_1_id = f"store_{uids['boss_vu']}_1"
-store_2_id = f"store_{uids['boss_vu']}_2"
-store_3_id = f"store_{uids['boss_giau']}_1"
-store_4_id = f"store_{uids['boss_giau']}_2"
-⋮----
-stores_data = {
-⋮----
-# Quán 1 của Vũ: Boss tự quản
-⋮----
-"merchantId": "", # Boss tự quản
-⋮----
-# Quán 2 của Vũ: Gán cho Merchant Vũ Kuroko
-⋮----
-# Quán 3 của Giàu: Boss tự quản
-⋮----
-# Quán 4 của Giàu: Gán cho Merchant Mạnh Giàu Quán
-⋮----
-# Ghi dữ liệu stores lên Firebase
-⋮----
-# 5.1 Ghi node combos/{comboId}
-combos_data = {
-⋮----
-# 5.2 Ghi node boss_stores (Quản lý chi nhánh của Boss)
-boss_stores_data = {
-⋮----
-# 6. Tạo Profile người dùng (users, merchants, drivers, chefs, customers)
-⋮----
-# Bảng users
-users_data = {
-⋮----
-# Admin
-⋮----
-# Boss Vũ
-⋮----
-# Boss Giàu
-⋮----
-# Merchant Vũ (Quản lý Store 2 của Vũ)
-⋮----
-# Merchant Giàu (Quản lý Store 4 của Giàu)
-⋮----
-# Tài xế Vũ
-⋮----
-# Tài xế Giàu
-⋮----
-# Chef Vũ
-⋮----
-# Chef Giàu
-⋮----
-# Customer Vũ
-⋮----
-# Customer Giàu
-⋮----
-# Bảng merchants
-merchants_data = {
-⋮----
-# Bảng drivers (Phương tiện xe máy thật)
-drivers_data = {
-⋮----
-# Bảng chefs
-chefs_data = {
-⋮----
-# Bảng customers (Địa chỉ chuẩn Thủ Đức, Điểm uy tín 100)
-customers_data = {
-⋮----
-# 6.1 Tạo đơn hàng mẫu hoàn tất (COMPLETED) để màn hình Báo Cáo có số liệu Doanh Thu & Top Món Bán Chạy thật
-⋮----
-now_ms = int(time.time() * 1000)
-orders_data = {
-⋮----
-# 5 đơn hoàn tất cho Quán 1 (Cơm Tấm Oishi - Vũ Central)
-⋮----
-# Đơn cho Quán 2 (Trà Sữa & Ăn Vặt)
-⋮----
-# Đơn cho Quán 3 (Bún Bò Huế)
-⋮----
-# Đơn cho Quán 4 (Bánh Mì Chảo)
-⋮----
-# 7. Hoàn tất
 ````
 
 ## File: scripts/toggle_login_otp.py
@@ -90676,6 +90494,188 @@ r_val = p_meta.add_run(actors_files)
 p_step = doc.add_paragraph(step_line)
 ````
 
+## File: scripts/seed_sample_data.py
+````python
+# -*- coding: utf-8 -*-
+"""
+OISHI FOOD - Script Khởi tạo Bộ Dữ liệu Mẫu Chuẩn Toàn diện
+Tự động đăng ký/xác thực tài khoản Firebase Auth và liên kết 100% dữ liệu thực tế.
+
+Cấu trúc:
+- 1 Admin: admin@gmail.com
+- 2 Boss:
+    + Trần Vũ: tranvu2006@fit.tdc.edu.vn (2 quán)
+    + Phạm Phúc Mạnh Giàu: phamphucmanhgiau@fit.tdc.edu.vn (2 quán)
+- 2 Merchant con (quản lý Cửa hàng 2 của mỗi Boss):
+    + tranvukuroko@gmail.com (thuộc Boss Vũ)
+    + manhgiau03112006@gmail.com (thuộc Boss Giàu)
+- 2 Tài xế (Shipper chuyên quán):
+    + ttnyuuyake@gmail.com (thuộc Boss Vũ - Honda Wave Alpha 59-X1 123.45)
+    + giaupham2k6coc@gmail.com (thuộc Boss Giàu - Yamaha Exciter 150 59-S2 678.90)
+- 2 Đầu bếp (Chef):
+    + yuuyakeaa@gmail.com (thuộc Boss Vũ)
+    + trumrongdien@gmail.com (thuộc Boss Giàu)
+- 2 Khách hàng (Customer):
+    + 24211tt2515@mail.tdc.edu.vn (Vũ Khách)
+    + 24211tt3571@mail.tdc.edu.vn (Giàu Khách)
+- 4 Cửa hàng:
+    + Store 1 (Boss Vũ tự quản): Cơm Tấm Oishi - Vũ Central (3 món + 1 combo)
+    + Store 2 (Merchant Vũ Kuroko): Trà Sữa & Ăn Vặt Oishi - Vũ 2 (3 món + 1 combo)
+    + Store 3 (Boss Giàu tự quản): Bún Bò Huế Oishi - Giàu Central (3 món + 1 combo)
+    + Store 4 (Merchant Mạnh Giàu): Bánh Mì Chảo & Fastfood - Giàu 2 (3 món + 1 combo)
+- Đầy đủ Danh mục toàn sàn (categories) & Danh mục riêng từng quán (storeCategories).
+- Orders để trống sạch sẽ để test đặt đơn.
+"""
+⋮----
+API_KEY = "AIzaSyAUV30gmgYxOCs94sp92g5ax27ihwaaFvE"
+DATABASE_URL = "https://chuyen-de-2-2f0bc-default-rtdb.asia-southeast1.firebasedatabase.app"
+COMMON_PASSWORD = "123456"
+⋮----
+ADMIN_EMAIL = "admin@gmail.com"
+ADMIN_PASSWORD = "123456"
+⋮----
+def make_request(url, method="GET", data=None)
+⋮----
+headers = {"Content-Type": "application/json"}
+body = json.dumps(data).encode("utf-8") if data is not None else None
+req = urllib.request.Request(url, data=body, headers=headers, method=method)
+⋮----
+content = resp.read().decode("utf-8")
+⋮----
+err_msg = e.read().decode("utf-8")
+⋮----
+def get_or_create_auth_user(email, password=COMMON_PASSWORD, display_name="")
+⋮----
+# 1. Thử đăng ký mới
+signup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={API_KEY}"
+res = make_request(signup_url, method="POST", data={
+⋮----
+uid = res["localId"]
+⋮----
+# 2. Nếu đã tồn tại -> đăng nhập lấy UID và Token
+signin_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+res = make_request(signin_url, method="POST", data={
+⋮----
+# 3. Nếu password khác -> đăng nhập bằng Admin để tra cứu
+admin_token = get_admin_token()
+lookup_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={API_KEY}"
+res = make_request(lookup_url, method="POST", data={"idToken": admin_token})
+# Fallback reset password về 123456
+⋮----
+def update_profile(id_token, display_name)
+⋮----
+url = f"https://identitytoolkit.googleapis.com/v1/accounts:update?key={API_KEY}"
+⋮----
+def get_admin_token()
+⋮----
+auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
+auth_res = make_request(auth_url, method="POST", data={
+⋮----
+def main()
+⋮----
+# 1. Đăng nhập Admin
+⋮----
+# 2. Khởi tạo/Xác thực tất cả tài khoản Auth
+⋮----
+accounts_def = {
+⋮----
+uids = {}
+⋮----
+# 3. Dọn sạch các bảng dữ liệu cũ nhưng bảo lưu cấu hình hệ thống
+⋮----
+nodes_to_clean = [
+⋮----
+del_url = f"{DATABASE_URL}/{node}.json?auth={admin_token}"
+⋮----
+# Đảm bảo cấu hình bypass OTP luôn ON
+cfg_url = f"{DATABASE_URL}/system_config/bypass_login_otp.json?auth={admin_token}"
+⋮----
+# 4. Tạo danh mục nền tảng toàn sàn (categories)
+⋮----
+categories_data = {
+⋮----
+# 5. Tạo 4 Cửa hàng với 3 món + 1 combo mỗi quán
+⋮----
+store_1_id = f"store_{uids['boss_vu']}_1"
+store_2_id = f"store_{uids['boss_vu']}_2"
+store_3_id = f"store_{uids['boss_giau']}_1"
+store_4_id = f"store_{uids['boss_giau']}_2"
+⋮----
+stores_data = {
+⋮----
+# Quán 1 của Vũ: Boss tự quản
+⋮----
+"merchantId": "", # Boss tự quản
+⋮----
+# Quán 2 của Vũ: Gán cho Merchant Vũ Kuroko
+⋮----
+# Quán 3 của Giàu: Boss tự quản
+⋮----
+# Quán 4 của Giàu: Gán cho Merchant Mạnh Giàu Quán
+⋮----
+# Ghi dữ liệu stores lên Firebase
+⋮----
+# 5.1 Ghi node combos/{comboId}
+combos_data = {
+⋮----
+# 5.2 Ghi node boss_stores (Quản lý chi nhánh của Boss)
+boss_stores_data = {
+⋮----
+# 6. Tạo Profile người dùng (users, merchants, drivers, chefs, customers)
+⋮----
+# Bảng users
+users_data = {
+⋮----
+# Admin
+⋮----
+# Boss Vũ
+⋮----
+# Boss Giàu
+⋮----
+# Merchant Vũ (Quản lý Store 2 của Vũ)
+⋮----
+# Merchant Giàu (Quản lý Store 4 của Giàu)
+⋮----
+# Tài xế Vũ
+⋮----
+# Tài xế Giàu
+⋮----
+# Chef Vũ
+⋮----
+# Chef Giàu
+⋮----
+# Customer Vũ
+⋮----
+# Customer Giàu
+⋮----
+# Bảng merchants
+merchants_data = {
+⋮----
+# Bảng drivers (Phương tiện xe máy thật)
+drivers_data = {
+⋮----
+# Bảng chefs
+chefs_data = {
+⋮----
+# Bảng customers (Địa chỉ chuẩn Thủ Đức, Điểm uy tín 100)
+customers_data = {
+⋮----
+# 6.1 Tạo đơn hàng mẫu hoàn tất (COMPLETED) để màn hình Báo Cáo có số liệu Doanh Thu & Top Món Bán Chạy thật
+⋮----
+now_ms = int(time.time() * 1000)
+orders_data = {
+⋮----
+# 5 đơn hoàn tất cho Quán 1 (Cơm Tấm Oishi - Vũ Central)
+⋮----
+# Đơn cho Quán 2 (Trà Sữa & Ăn Vặt)
+⋮----
+# Đơn cho Quán 3 (Bún Bò Huế)
+⋮----
+# Đơn cho Quán 4 (Bánh Mì Chảo)
+⋮----
+# 7. Hoàn tất
+````
+
 ## File: BAO_CAO_KIEN_TRUC_HE_THONG_MOI_OISHI_FOOD.md
 ````markdown
 # BÁO CÁO THIẾT KẾ & KIẾN TRÚC TOÀN DIỆN HỆ THỐNG MỚI OISHI FOOD
@@ -101915,15 +101915,15 @@ rbac_rows = [
 db_headers = ["Tên Node dữ liệu", "Khóa chính (Key)", "Mô tả dữ liệu lưu trữ & Vai trò trong hệ thống"]
 db_rows = [
 ⋮----
-# 2.6 ĐẶC TẢ CHI TIẾT 25 MÀN HÌNH GIAO DIỆN (PHẦN A, B, C)
+# 2.6 ĐẶC TẢ CHI TIẾT 24 MÀN HÌNH GIAO DIỆN (PHẦN A, B, C)
 ⋮----
 screens_data = [
 ⋮----
-# Phần A: Customer (Ảnh 1 -> Ảnh 12)
+# Phần A: Customer (Ảnh 1 -> Ảnh 10)
 ⋮----
-# Phần B: Internal (Ảnh 13 -> Ảnh 23)
+# Phần B: Internal (Ảnh 11 -> Ảnh 21)
 ⋮----
-# Phần C: Admin (Ảnh 24 -> Ảnh 25B)
+# Phần C: Admin (Ảnh 22 -> Ảnh 24)
 ⋮----
 # Bảng đặc tả chuẩn IEEE
 spec_headers = ["Thuộc tính đặc tả", "Nội dung chi tiết"]

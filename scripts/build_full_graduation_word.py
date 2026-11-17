@@ -190,9 +190,9 @@ fig_rows = [
     ["Sơ đồ 4", "Sơ đồ tuần tự: Đặt hàng – Duyệt VietQR – Bếp nấu – Giao QR/PIN", "Mục 2.5.2"],
     ["Sơ đồ 5", "Sơ đồ tuần tự: Khách hủy đơn khi đang giao & Hoàn trả Bếp", "Mục 2.5.3"],
     ["Sơ đồ 6", "Sơ đồ máy trạng thái vòng đời đơn hàng (Order State Machine)", "Mục 2.5.4"],
-    ["Ảnh 1 – Ảnh 12", "Bộ ảnh chụp giao diện Ứng dụng Khách hàng (app-customer)", "Mục 2.6 - Phần A"],
-    ["Ảnh 13 – Ảnh 23", "Bộ ảnh chụp giao diện Ứng dụng Nội bộ Quán, Bếp & Tài xế (app-internal)", "Mục 2.6 - Phần B"],
-    ["Ảnh 24 – Ảnh 25B", "Bộ ảnh chụp giao diện Ứng dụng Android Quản trị viên (app-admin Native)", "Mục 2.6 - Phần C"],
+    ["Ảnh 1 – Ảnh 10", "Bộ ảnh chụp giao diện Ứng dụng Khách hàng (app-customer)", "Mục 2.6 - Phần A"],
+    ["Ảnh 11 – Ảnh 21", "Bộ ảnh chụp giao diện Ứng dụng Nội bộ Quán, Bếp & Tài xế (app-internal)", "Mục 2.6 - Phần B"],
+    ["Ảnh 22 – Ảnh 24", "Bộ ảnh chụp giao diện Ứng dụng Android Quản trị viên (app-admin Native)", "Mục 2.6 - Phần C"],
     ["Ảnh KT-1 – KT-6", "Bộ ảnh chụp minh chứng kết quả kiểm thử thực nghiệm hệ thống", "Mục 3.2"]
 ]
 create_table(fig_headers, fig_rows, col_widths=[1.5, 4.3, 1.0])
@@ -203,8 +203,8 @@ tbl_rows = [
     ["Bảng 1", "Bảng phân công nhiệm vụ và đánh giá đóng góp thành viên", "Đầu tài liệu"],
     ["Bảng 2", "Ma trận phân quyền 6 Roles (RBAC Matrix) trong hệ thống", "Mục 2.1"],
     ["Bảng 3", "Đặc tả các nhánh dữ liệu Firebase Realtime Database", "Mục 2.4"],
-    ["Bảng 4 – Bảng 29", "Bảng yêu cầu chức năng và phản hồi 25 màn hình giao diện (IEEE)", "Mục 2.6"],
-    ["Bảng 30 – Bảng 35", "Bảng kịch bản kiểm thử thực nghiệm chi tiết (KT-1 đến KT-6)", "Mục 3.2"]
+    ["Bảng 4 – Bảng 27", "Bảng yêu cầu chức năng và phản hồi 24 màn hình giao diện (IEEE)", "Mục 2.6"],
+    ["Bảng 28 – Bảng 33", "Bảng kịch bản kiểm thử thực nghiệm chi tiết (KT-1 đến KT-6)", "Mục 3.2"]
 ]
 create_table(tbl_headers, tbl_rows, col_widths=[1.5, 4.3, 1.0])
 
@@ -315,43 +315,41 @@ add_image_box(os.path.join(diag_dir, "so_do_6_state_machine.png"), "Hình 2.6: S
 doc.add_page_break()
 
 # ==========================================================
-# 2.6 ĐẶC TẢ CHI TIẾT 25 MÀN HÌNH GIAO DIỆN (PHẦN A, B, C)
+# 2.6 ĐẶC TẢ CHI TIẾT 24 MÀN HÌNH GIAO DIỆN (PHẦN A, B, C)
 # ==========================================================
 add_title("2.6 Đặc tả chi tiết Giao diện và Yêu cầu chức năng từng màn hình", level=2)
-add_p("Hệ thống bao gồm 25 màn hình và hộp thoại giao diện chính trải rộng trên cả 3 phân hệ ứng dụng:")
+add_p("Hệ thống bao gồm 24 màn hình và hộp thoại giao diện chính trải rộng trên cả 3 phân hệ ứng dụng:")
 
 screens_data = [
-    # Phần A: Customer (Ảnh 1 -> Ảnh 12)
+    # Phần A: Customer (Ảnh 1 -> Ảnh 10)
     ("anh_1.png", "Ảnh 1", "Màn hình Đăng nhập Khách hàng", "activity_login.xml", "Khách hàng", "Nhập Email và bấm 'Đăng nhập OTP'", "Gửi mã 6 chữ số qua Email và chuyển sang màn hình xác thực OTP."),
     ("anh_2.png", "Ảnh 2", "Màn hình Xác thực Email OTP", "activity_otp_verification.xml", "Khách hàng", "Nhập mã OTP 6 số (hoặc dùng mã Test 123456 khi bật bypass)", "Kiểm tra phiên đăng nhập và điều hướng vào Trang chủ HomeActivity."),
     ("anh_3.png", "Ảnh 3", "Màn hình Trang chủ Khách hàng", "activity_home.xml", "Khách hàng", "Xem banner ưu đãi, danh mục món, quán gần đây và bấm chọn quán", "Tải dữ liệu Firebase Realtime và mở màn hình MenuActivity tương ứng."),
     ("anh_4.png", "Ảnh 4", "Màn hình Chi tiết Thực đơn Quán", "activity_menu.xml", "Khách hàng", "Lướt xem danh sách món ăn, gói combo và bấm 'Thêm vào giỏ'", "Mở hộp thoại DishOptionBottomSheetDialogFragment để tùy biến topping."),
-    ("anh_5.png", "Ảnh 5", "Hộp thoại Tùy chọn Topping & Số lượng", "bottom_sheet_dish_option.xml", "Khách hàng", "Chọn topping, kích thước, nhập ghi chú và bấm 'Xác nhận'", "Tính toán tổng giá món và lưu trữ vào giỏ hàng cục bộ/Firebase."),
-    ("anh_6.png", "Ảnh 6", "Màn hình Giỏ hàng Khách hàng", "activity_cart.xml", "Khách hàng", "Tăng/giảm số lượng món, áp mã giảm giá và bấm 'Thanh toán'", "Kiểm tra tính hợp lệ và chuyển tiếp sang màn hình CheckoutActivity."),
-    ("anh_7.png", "Ảnh 7", "Màn hình Đặt hàng & Phương thức thanh toán", "activity_checkout.xml", "Khách hàng", "Chọn địa chỉ nhận, phương thức (VietQR / COD) và bấm 'Đặt đơn'", "Tạo Order trên Firebase với trạng thái PENDING và mở PaymentActivity nếu là VietQR."),
-    ("anh_8.png", "Ảnh 8", "Màn hình Thanh toán VietQR Napas247", "activity_payment.xml", "Khách hàng", "Quét mã VietQR chuyển tiền chính xác số tiền và mã đơn", "Lắng nghe cập nhật status = PAID và chuyển sang màn hình OrderSuccessActivity."),
-    ("anh_9.png", "Ảnh 9", "Màn hình Theo dõi GPS Tài xế Realtime", "activity_tracking.xml", "Khách hàng", "Xem vị trí tài xế di chuyển trên bản đồ và lộ trình Polyline", "Lắng nghe tọa độ GPS liên tục và hiển thị thời gian giao dự kiến."),
-    ("anh_10.png", "Ảnh 10", "Hộp thoại Mã QR / PIN Nhận món", "dialog_delivery_confirmation.xml", "Khách hàng", "Mở mã QR động hoặc đọc mã PIN 4 số cho tài xế", "Tài xế quét thành công thì tự động đóng hộp thoại và chuyển sang đánh giá."),
-    ("anh_11.png", "Ảnh 11", "Màn hình Lịch sử Đơn hàng & Bộ lọc", "activity_order_history.xml", "Khách hàng", "Xem danh sách đơn theo tab trạng thái và bấm 'Đặt lại / Đánh giá'", "Tải toàn bộ đơn hàng trong quá khứ của khách hàng."),
-    ("anh_12.png", "Ảnh 12", "Màn hình Hồ sơ Cá nhân & Điểm uy tín", "activity_profile.xml", "Khách hàng", "Xem số điểm uy tín trustScore, xem lịch sử cộng/trừ điểm và quản lý sổ địa chỉ", "Hiển thị chi tiết huy hiệu uy tín và cho phép thêm/sửa/xóa địa chỉ giao."),
+    ("anh_6.png", "Ảnh 5", "Màn hình Giỏ hàng Khách hàng", "activity_cart.xml", "Khách hàng", "Tăng/giảm số lượng món, áp mã giảm giá và bấm 'Thanh toán'", "Kiểm tra tính hợp lệ và chuyển tiếp sang màn hình CheckoutActivity."),
+    ("anh_7.png", "Ảnh 6", "Màn hình Đặt hàng & Phương thức thanh toán", "activity_checkout.xml", "Khách hàng", "Chọn địa chỉ nhận, phương thức (VietQR / COD) và bấm 'Đặt đơn'", "Tạo Order trên Firebase với trạng thái PENDING và mở PaymentActivity nếu là VietQR."),
+    ("anh_8.png", "Ảnh 7", "Màn hình Thanh toán VietQR Napas247", "activity_payment.xml", "Khách hàng", "Quét mã VietQR chuyển tiền chính xác số tiền và mã đơn", "Lắng nghe cập nhật status = PAID và chuyển sang màn hình OrderSuccessActivity."),
+    ("anh_10.png", "Ảnh 8", "Hộp thoại Mã QR / PIN Nhận món", "dialog_delivery_confirmation.xml", "Khách hàng", "Mở mã QR động hoặc đọc mã PIN 4 số cho tài xế", "Tài xế quét thành công thì tự động đóng hộp thoại và chuyển sang đánh giá."),
+    ("anh_11.png", "Ảnh 9", "Màn hình Lịch sử Đơn hàng & Bộ lọc", "activity_order_history.xml", "Khách hàng", "Xem danh sách đơn theo tab trạng thái và bấm 'Đặt lại / Đánh giá'", "Tải toàn bộ đơn hàng trong quá khứ của khách hàng."),
+    ("anh_12.png", "Ảnh 10", "Màn hình Hồ sơ Cá nhân & Điểm uy tín", "activity_profile.xml", "Khách hàng", "Xem số điểm uy tín trustScore, xem lịch sử cộng/trừ điểm và quản lý sổ địa chỉ", "Hiển thị chi tiết huy hiệu uy tín và cho phép thêm/sửa/xóa địa chỉ giao."),
 
-    # Phần B: Internal (Ảnh 13 -> Ảnh 23)
-    ("anh_13.png", "Ảnh 13", "Màn hình Đăng nhập / Đăng ký Nội bộ", "activity_login_internal.xml", "Quán / Bếp / Tài xế", "Nhập tài khoản đối tác và chọn phân hệ tương ứng", "Xác thực Firebase Auth và chuyển hướng đúng Role qua DashboardActivity."),
-    ("anh_14.png", "Ảnh 14", "Màn hình Xác minh Cửa hàng & Cấu hình VietQR", "activity_store_verification.xml", "Merchant / Boss", "Nhập địa chỉ, ghim tọa độ GPS và thiết lập tài khoản ngân hàng", "Lưu thông tin cửa hàng và gửi trạng thái PENDING chờ Quản trị viên phê duyệt."),
-    ("anh_15.png", "Ảnh 15", "Màn hình Quản lý Chuỗi & Mở Chi nhánh", "activity_boss_dashboard.xml", "Chủ chuỗi (Boss)", "Xem danh sách chi nhánh, tạo quán mới và gán tài khoản Merchant quản lý", "Lưu liên kết vào /boss_stores và đồng bộ phân quyền tức thời."),
-    ("anh_16.png", "Ảnh 16", "Màn hình Quản lý Đơn hàng Kanban 4 Tab", "fragment_order_list.xml", "Quản lý quán", "Xem 4 tab: Chờ duyệt, Đang nấu, Đã nấu xong, Lịch sử; bấm Nhận đơn", "Chuyển trạng thái đơn sang PREPARING để bắn thông báo xuống Bếp."),
-    ("anh_17.png", "Ảnh 17", "Popup Chuông báo Đơn hàng mới", "dialog_new_order_popup.xml", "Quản lý quán", "Phát âm thanh chuông báo và hiển thị tóm tắt món ăn cần giao", "Bấm 'Chấp nhận đơn' hoặc 'Từ chối' kèm lý do."),
-    ("anh_18.png", "Ảnh 18", "Màn hình Quản lý Thực đơn Món, Topping & Combo", "fragment_menu_manage.xml", "Quản lý quán", "Thêm/sửa món ăn, cập nhật giá bán, bật/tắt còn hàng và tạo gói Combo", "Cập nhật dữ liệu tức thời lên nhánh /dishes và /combos trên Firebase."),
-    ("anh_19.png", "Ảnh 19", "Màn hình Báo cáo Doanh thu & Bán chạy", "fragment_store_report.xml", "Quản lý quán", "Xem biểu đồ doanh thu theo ngày/tuần/tháng và top 5 món bán chạy nhất", "Tổng hợp số liệu từ các đơn hàng có trạng thái COMPLETED."),
-    ("anh_20.png", "Ảnh 20", "Phân hệ Bếp tiếp nhận món nấu", "fragment_chef.xml", "Đầu bếp (Chef)", "Xem danh sách đơn đang nấu, bấm 'Nhận nấu' và 'Đã nấu xong'", "Atomic lock nhận đơn và chuyển trạng thái đơn sang READY thông báo tài xế."),
-    ("anh_21.png", "Ảnh 21", "Màn hình Sảnh Nhận đơn của Tài xế", "fragment_shipper.xml", "Tài xế (Driver)", "Bật trực tuyến isOnline, xem đơn READY và bấm 'Nhận cuốc / Ghép đơn'", "Chuyển đơn sang ASSIGNED và mở màn hình hành trình DeliveryTripActivity."),
-    ("anh_22.png", "Ảnh 22", "Màn hình Hành trình Giao hàng Google Maps", "activity_delivery_trip.xml", "Tài xế (Driver)", "Xem bản đồ lộ trình, bấm 'Đã đến quán', 'Đã lấy hàng', 'Đã đến khách'", "LocationForegroundService gửi tọa độ GPS xe chạy liên tục lên Firebase."),
-    ("anh_23.png", "Ảnh 23", "Màn hình Quét Camera QR / PIN Giao món", "activity_driver_scan_qr.xml", "Tài xế (Driver)", "Quét mã QR trên máy khách hoặc nhập mã PIN 4 số", "ZXing BarcodeScanner xác thực khớp mã, chuyển đơn sang COMPLETED."),
+    # Phần B: Internal (Ảnh 11 -> Ảnh 21)
+    ("anh_13.png", "Ảnh 11", "Màn hình Đăng nhập / Đăng ký Nội bộ", "activity_login_internal.xml", "Quán / Bếp / Tài xế", "Nhập tài khoản đối tác và chọn phân hệ tương ứng", "Xác thực Firebase Auth và chuyển hướng đúng Role qua DashboardActivity."),
+    ("anh_14.png", "Ảnh 12", "Màn hình Xác minh Cửa hàng & Cấu hình VietQR", "activity_store_verification.xml", "Merchant / Boss", "Nhập địa chỉ, ghim tọa độ GPS và thiết lập tài khoản ngân hàng", "Lưu thông tin cửa hàng và gửi trạng thái PENDING chờ Quản trị viên phê duyệt."),
+    ("anh_15.png", "Ảnh 13", "Màn hình Quản lý Chuỗi & Mở Chi nhánh", "activity_boss_dashboard.xml", "Chủ chuỗi (Boss)", "Xem danh sách chi nhánh, tạo quán mới và gán tài khoản Merchant quản lý", "Lưu liên kết vào /boss_stores và đồng bộ phân quyền tức thời."),
+    ("anh_16.png", "Ảnh 14", "Màn hình Quản lý Đơn hàng Kanban 4 Tab", "fragment_order_list.xml", "Quản lý quán", "Xem 4 tab: Chờ duyệt, Đang nấu, Đã nấu xong, Lịch sử; bấm Nhận đơn", "Chuyển trạng thái đơn sang PREPARING để bắn thông báo xuống Bếp."),
+    ("anh_17.png", "Ảnh 15", "Popup Chuông báo Đơn hàng mới", "dialog_new_order_popup.xml", "Quản lý quán", "Phát âm thanh chuông báo và hiển thị tóm tắt món ăn cần giao", "Bấm 'Chấp nhận đơn' hoặc 'Từ chối' kèm lý do."),
+    ("anh_18.png", "Ảnh 16", "Màn hình Quản lý Thực đơn Món, Topping & Combo", "fragment_menu_manage.xml", "Quản lý quán", "Thêm/sửa món ăn, cập nhật giá bán, bật/tắt còn hàng và tạo gói Combo", "Cập nhật dữ liệu tức thời lên nhánh /dishes và /combos trên Firebase."),
+    ("anh_19.png", "Ảnh 17", "Màn hình Báo cáo Doanh thu & Bán chạy", "fragment_store_report.xml", "Quản lý quán", "Xem biểu đồ doanh thu theo ngày/tuần/tháng và top 5 món bán chạy nhất", "Tổng hợp số liệu từ các đơn hàng có trạng thái COMPLETED."),
+    ("anh_20.png", "Ảnh 18", "Phân hệ Bếp tiếp nhận món nấu", "fragment_chef.xml", "Đầu bếp (Chef)", "Xem danh sách đơn đang nấu, bấm 'Nhận nấu' và 'Đã nấu xong'", "Atomic lock nhận đơn và chuyển trạng thái đơn sang READY thông báo tài xế."),
+    ("anh_21.png", "Ảnh 19", "Màn hình Sảnh Nhận đơn của Tài xế", "fragment_shipper.xml", "Tài xế (Driver)", "Bật trực tuyến isOnline, xem đơn READY và bấm 'Nhận cuốc / Ghép đơn'", "Chuyển đơn sang ASSIGNED và mở màn hình hành trình DeliveryTripActivity."),
+    ("anh_22.png", "Ảnh 20", "Màn hình Hành trình Giao hàng Google Maps", "activity_delivery_trip.xml", "Tài xế (Driver)", "Xem bản đồ lộ trình, bấm 'Đã đến quán', 'Đã lấy hàng', 'Đã đến khách'", "LocationForegroundService gửi tọa độ GPS xe chạy liên tục lên Firebase."),
+    ("anh_23.png", "Ảnh 21", "Màn hình Quét Camera QR / PIN Giao món", "activity_driver_scan_qr.xml", "Tài xế (Driver)", "Quét mã QR trên máy khách hoặc nhập mã PIN 4 số", "ZXing BarcodeScanner xác thực khớp mã, chuyển đơn sang COMPLETED."),
 
-    # Phần C: Admin (Ảnh 24 -> Ảnh 25B)
-    ("anh_24.png", "Ảnh 24", "Màn hình Admin: Dashboard KPI & Duyệt Quán", "fragment_admin_dashboard.xml & fragment_admin_store_list.xml", "Quản trị viên (Admin)", "Kiểm tra doanh thu sàn, số lượng đơn active, duyệt/từ chối hồ sơ quán mới và cấu hình ngân hàng VietQR của quán", "Cập nhật isApproved = true trên nhánh /stores và đồng bộ realtime xuống app-internal."),
-    ("anh_25a.png", "Ảnh 25A", "Màn hình Admin: Giám sát Đơn hàng & User Realtime", "fragment_admin_monitor.xml", "Quản trị viên (Admin)", "Theo dõi danh sách toàn bộ đơn hàng đang chạy trên sàn, vị trí tài xế và danh sách người dùng", "Lắng nghe ValueEventListener từ Firebase /orders và /users, cập nhật trạng thái tức thời."),
-    ("anh_25b.png", "Ảnh 25B", "Màn hình Admin: Giải quyết Khiếu nại & Phán quyết", "fragment_admin_complaint_list.xml & activity_admin_complaint_detail.xml", "Quản trị viên (Admin)", "Xem xét ảnh chứng từ vi phạm (sai món, bom hàng, cuộc gọi sự cố), đưa ra phán quyết hoàn tiền hoặc phạt", "Cập nhật trạng thái complaint RESOLVED/REJECTED, can thiệp điểm trustScore và khóa tài khoản nếu vi phạm nặng.")
+    # Phần C: Admin (Ảnh 22 -> Ảnh 24)
+    ("anh_24.png", "Ảnh 22", "Màn hình Admin: Dashboard KPI & Duyệt Quán", "fragment_admin_dashboard.xml & fragment_admin_store_list.xml", "Quản trị viên (Admin)", "Kiểm tra doanh thu sàn, số lượng đơn active, duyệt/từ chối hồ sơ quán mới và cấu hình ngân hàng VietQR của quán", "Cập nhật isApproved = true trên nhánh /stores và đồng bộ realtime xuống app-internal."),
+    ("anh_25a.png", "Ảnh 23", "Màn hình Admin: Giám sát Đơn hàng & User Realtime", "fragment_admin_monitor.xml", "Quản trị viên (Admin)", "Theo dõi danh sách toàn bộ đơn hàng đang chạy trên sàn, vị trí tài xế và danh sách người dùng", "Lắng nghe ValueEventListener từ Firebase /orders và /users, cập nhật trạng thái tức thời."),
+    ("anh_25b.png", "Ảnh 24", "Màn hình Admin: Giải quyết Khiếu nại & Phán quyết", "fragment_admin_complaint_list.xml & activity_admin_complaint_detail.xml", "Quản trị viên (Admin)", "Xem xét ảnh chứng từ vi phạm (sai món, bom hàng, cuộc gọi sự cố), đưa ra phán quyết hoàn tiền hoặc phạt", "Cập nhật trạng thái complaint RESOLVED/REJECTED, can thiệp điểm trustScore và khóa tài khoản nếu vi phạm nặng.")
 ]
 
 for idx, (img_file, code, title, layout, actor, action, reaction) in enumerate(screens_data):

@@ -1664,6 +1664,110 @@ class FirebaseRepository @Inject constructor(
         }
     }
 
+    /** Gửi hồ sơ đăng ký đối tác (CCCD & Ngân hàng eKYC) mà không tự động tạo quán */
+    suspend fun submitPartnerKycProfile(
+        merchantUid: String,
+        ownerName: String,
+        phone: String,
+        cccdNumber: String,
+        cccdFrontUrl: String,
+        cccdBackUrl: String,
+        bankName: String,
+        bankAccountNumber: String,
+        bankAccountName: String,
+        bankBin: String
+    ): Result<Unit> {
+        return try {
+            val userUpdates = mapOf<String, Any>(
+                "name" to ownerName.trim(),
+                "phone" to phone.trim(),
+                "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.PENDING,
+                "status" to com.chuyen_de_2.foodorder.core.data.model.User.Status.INACTIVE,
+                "isActive" to false,
+                "rejectReason" to ""
+            )
+            database.getReference("users").child(merchantUid).updateChildren(userUpdates).await()
+
+            val merchantData = mapOf<String, Any>(
+                "merchantId" to merchantUid,
+                "ownerName" to ownerName.trim(),
+                "phone" to phone.trim(),
+                "cccdNumber" to cccdNumber.trim(),
+                "cccdFrontUrl" to cccdFrontUrl,
+                "cccdBackUrl" to cccdBackUrl,
+                "bankName" to bankName.trim(),
+                "bankAccount" to bankAccountNumber.trim(),
+                "bankAccountNumber" to bankAccountNumber.trim(),
+                "bankAccountName" to bankAccountName.trim().uppercase(),
+                "bankBin" to bankBin.trim(),
+                "approvalStatus" to com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING,
+                "rejectReason" to "",
+                "createdAt" to System.currentTimeMillis()
+            )
+            database.getReference("merchants").child(merchantUid).updateChildren(merchantData).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Lấy thông tin hồ sơ đối tác merchant */
+    suspend fun getMerchantById(merchantId: String): com.chuyen_de_2.foodorder.core.data.model.Merchant? {
+        return try {
+            val snap = database.getReference("merchants").child(merchantId).get().await()
+            snap.getValue(com.chuyen_de_2.foodorder.core.data.model.Merchant::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Lắng nghe toàn bộ hồ sơ đối tác merchants */
+    fun observeAllMerchants(): Flow<List<com.chuyen_de_2.foodorder.core.data.model.Merchant>> = callbackFlow {
+        val ref = database.getReference("merchants")
+        val listener = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val list = mutableListOf<com.chuyen_de_2.foodorder.core.data.model.Merchant>()
+                for (child in snapshot.children) {
+                    val m = child.getValue(com.chuyen_de_2.foodorder.core.data.model.Merchant::class.java)
+                    if (m != null) {
+                        val mId = if (m.merchantId.isBlank()) child.key ?: "" else m.merchantId
+                        list.add(m.copy(merchantId = mId))
+                    }
+                }
+                trySend(list)
+            }
+            override fun onCancelled(error: DatabaseError) {
+                close()
+            }
+        }
+        ref.addValueEventListener(listener)
+        awaitClose { ref.removeEventListener(listener) }
+    }
+
+    /** Phê duyệt hoặc từ chối hồ sơ đối tác eKYC */
+    suspend fun approvePartnerKyc(uid: String, isApproved: Boolean, rejectReason: String = ""): Result<Unit> {
+        return try {
+            val approvalStatus = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.APPROVED else com.chuyen_de_2.foodorder.core.data.model.User.ApprovalStatus.REJECTED
+            val userStatus = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.User.Status.ACTIVE else "REJECTED"
+            val userUpdates = mapOf<String, Any>(
+                "approvalStatus" to approvalStatus,
+                "status" to userStatus,
+                "isActive" to isApproved,
+                "rejectReason" to rejectReason.trim()
+            )
+            database.getReference("users").child(uid).updateChildren(userUpdates).await()
+
+            val merchantUpdates = mapOf<String, Any>(
+                "approvalStatus" to if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.APPROVED else com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.REJECTED,
+                "rejectReason" to rejectReason.trim()
+            )
+            database.getReference("merchants").child(uid).updateChildren(merchantUpdates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Cập nhật trạng thái đóng/mở cửa của quán lên Firebase (OPEN / CLOSED) */
     suspend fun updateStoreStatus(storeId: String, status: String): Result<Unit> {
         return try {
@@ -3010,6 +3114,10 @@ class FirebaseRepository @Inject constructor(
 
     /** Duyệt hồ sơ Quán ăn / Chủ chuỗi (Admin CCCD review) */
     suspend fun verifyStore(storeId: String, isApproved: Boolean): Result<Unit> {
+        if (storeId.startsWith("partner_")) {
+            val uid = storeId.removePrefix("partner_")
+            return approvePartnerKyc(uid, isApproved = isApproved)
+        }
         return try {
             val status = if (isApproved) com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.OPEN 
                          else com.chuyen_de_2.foodorder.core.data.model.Store.StoreStatus.LOCKED
@@ -3054,6 +3162,10 @@ class FirebaseRepository @Inject constructor(
 
     /** Từ chối hồ sơ Quán ăn / Chủ chuỗi có kèm lý do */
     suspend fun rejectStore(storeId: String, reason: String): Result<Unit> {
+        if (storeId.startsWith("partner_")) {
+            val uid = storeId.removePrefix("partner_")
+            return approvePartnerKyc(uid, isApproved = false, rejectReason = reason)
+        }
         return try {
             val updates = mapOf<String, Any>(
                 "isVerified" to false,
@@ -3862,8 +3974,12 @@ class FirebaseRepository @Inject constructor(
             val userSnap = try { database.getReference("users").child(bossUid).get().await() } catch (_: Exception) { null }
 
             val resolvedOwnerName = primaryStore?.ownerName?.ifBlank {
+                merchantSnap?.child("ownerName")?.getValue(String::class.java).orEmpty().ifBlank {
+                    userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+                }
+            } ?: merchantSnap?.child("ownerName")?.getValue(String::class.java).orEmpty().ifBlank {
                 userSnap?.child("name")?.getValue(String::class.java).orEmpty()
-            } ?: userSnap?.child("name")?.getValue(String::class.java).orEmpty()
+            }
             val resolvedCccd = primaryStore?.cccdNumber?.ifBlank {
                 merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
             } ?: merchantSnap?.child("cccdNumber")?.getValue(String::class.java).orEmpty()
@@ -3877,10 +3993,18 @@ class FirebaseRepository @Inject constructor(
                 merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
             } ?: merchantSnap?.child("bankName")?.getValue(String::class.java).orEmpty()
             val resolvedBankAcc = primaryStore?.bankAccountNumber?.ifBlank {
+                merchantSnap?.child("bankAccountNumber")?.getValue(String::class.java).orEmpty().ifBlank {
+                    merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
+                }
+            } ?: merchantSnap?.child("bankAccountNumber")?.getValue(String::class.java).orEmpty().ifBlank {
                 merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
-            } ?: merchantSnap?.child("bankAccount")?.getValue(String::class.java).orEmpty()
-            val resolvedBankAccName = primaryStore?.bankAccountName.orEmpty().ifBlank { resolvedOwnerName }
-            val resolvedBankBin = primaryStore?.bankBin.orEmpty()
+            }
+            val resolvedBankAccName = primaryStore?.bankAccountName.orEmpty().ifBlank {
+                merchantSnap?.child("bankAccountName")?.getValue(String::class.java).orEmpty().ifBlank { resolvedOwnerName }
+            }
+            val resolvedBankBin = primaryStore?.bankBin.orEmpty().ifBlank {
+                merchantSnap?.child("bankBin")?.getValue(String::class.java).orEmpty()
+            }
 
             val (resolvedLat, resolvedLng) = resolveStoreCoordinates(address, district, latitude, longitude)
 
@@ -3913,6 +4037,13 @@ class FirebaseRepository @Inject constructor(
             storeRef.setValue(branchFields).await()
 
             database.getReference("boss_stores").child(bossUid).child(newStoreId).setValue(true).await()
+            try {
+                val uSnap = database.getReference("users").child(bossUid).get().await()
+                val curStoreId = uSnap.child("storeId").getValue(String::class.java).orEmpty()
+                if (curStoreId.isBlank()) {
+                    database.getReference("users").child(bossUid).child("storeId").setValue(newStoreId).await()
+                }
+            } catch (_: Exception) {}
             Result.success(newStoreId)
         } catch (e: Exception) {
             Result.failure(e)

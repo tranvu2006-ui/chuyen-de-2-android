@@ -331,6 +331,12 @@ class EditUserDialogFragment(
                 else -> 2
             }
 
+            val resolvedApprovalStatus = if (isUnlocked && user.approvalStatus.equals(User.ApprovalStatus.PENDING, ignoreCase = true)) {
+                User.ApprovalStatus.APPROVED
+            } else {
+                user.approvalStatus
+            }
+
             val updatedUser = user.copy(
                 name = name,
                 email = email,
@@ -341,7 +347,8 @@ class EditUserDialogFragment(
                 bossId = bossId,
                 avatarUrl = finalAvatar,
                 status = finalStatus,
-                isActive = isUnlocked
+                isActive = isUnlocked,
+                approvalStatus = resolvedApprovalStatus
             )
 
             onSave(updatedUser, trustScore, completedOrders, boomOrders, adjustReason)

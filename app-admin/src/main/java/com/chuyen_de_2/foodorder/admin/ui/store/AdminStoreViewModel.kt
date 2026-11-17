@@ -47,7 +47,38 @@ class AdminStoreViewModel @Inject constructor(
 
     private fun observeStores() {
         viewModelScope.launch {
-            firebaseRepo.observeAllStores().collect { list ->
+            kotlinx.coroutines.flow.combine(
+                firebaseRepo.observeAllStores(),
+                firebaseRepo.observeAllMerchants()
+            ) { stores, merchants ->
+                val existingBossIds = stores.map { it.bossId }.filter { it.isNotBlank() }.toSet()
+                val pendingPartners = merchants.filter { m ->
+                    m.approvalStatus.equals(com.chuyen_de_2.foodorder.core.data.model.Merchant.ApprovalStatus.PENDING, ignoreCase = true) &&
+                    !existingBossIds.contains(m.merchantId) &&
+                    m.cccdNumber.isNotBlank()
+                }.map { m ->
+                    Store(
+                        id = "partner_${m.merchantId}",
+                        name = if (m.ownerName.isNotBlank()) "Hồ sơ đối tác: ${m.ownerName}" else "Hồ sơ đối tác #${m.merchantId.takeLast(6)}",
+                        phone = m.phone,
+                        address = "Chưa mở chi nhánh (Chờ duyệt eKYC)",
+                        district = "Chờ mở quán",
+                        ownerName = m.ownerName,
+                        cccdNumber = m.cccdNumber,
+                        cccdFrontUrl = m.cccdFrontUrl,
+                        cccdBackUrl = m.cccdBackUrl,
+                        bankName = m.bankName,
+                        bankAccountNumber = m.bankAccountNumber.ifBlank { m.bankAccount },
+                        bankAccountName = m.bankAccountName.ifBlank { m.ownerName },
+                        bankBin = m.bankBin,
+                        bossId = m.merchantId,
+                        merchantId = m.merchantId,
+                        isVerified = false,
+                        storeStatus = Store.StoreStatus.PENDING
+                    )
+                }
+                pendingPartners + stores
+            }.collect { list ->
                 _rawStores.value = list
                 updateCounts(list)
                 applyFilterAndSearch()

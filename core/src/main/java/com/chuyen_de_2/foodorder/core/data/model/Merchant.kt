@@ -38,6 +38,24 @@ data class Merchant(
     @SerializedName("bankAccount")
     val bankAccount: String = "",
 
+    @SerializedName("bankAccountNumber")
+    val bankAccountNumber: String = "",
+
+    @SerializedName("bankAccountName")
+    val bankAccountName: String = "",
+
+    @SerializedName("bankBin")
+    val bankBin: String = "",
+
+    @SerializedName("ownerName")
+    val ownerName: String = "",
+
+    @SerializedName("phone")
+    val phone: String = "",
+
+    @SerializedName("rejectReason")
+    val rejectReason: String = "",
+
     @SerializedName("approvalStatusId")
     val approvalStatusId: Int = 1,
 

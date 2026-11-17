@@ -1061,6 +1061,7 @@ Logo/
   logo-app-quan-new.png
   logo-app-quan.png
 scripts/
+  build_firebase_doc.py
   build_full_graduation_word.py
   builder_base.py
   cleanup_firebase_nodes.py
@@ -1091,6 +1092,7 @@ doc-adr.txt
 firebase_database.json
 firebase.json
 GEMINI.md
+GIAI_THICH_CHI_TIET_CAC_NODE_FIREBASE.docx
 gradle.properties
 gradlew
 gradlew.bat
@@ -31140,6 +31142,200 @@ google-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 google-hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 google-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "googleCrashlytics" }
+````
+
+## File: scripts/build_firebase_doc.py
+````python
+# -*- coding: utf-8 -*-
+"""
+Script tự động sinh tài liệu Word (.docx) chuẩn TDC:
+GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE TRÊN GOOGLE FIREBASE REALTIME DATABASE - DỰ ÁN OISHI FOOD
+"""
+⋮----
+ROOT_DIR = r"c:\DuAn\Chuyen-De-Tot-Nghiep-2-android"
+OUT_DOCX_PATH = os.path.join(ROOT_DIR, "GIAI_THICH_CHI_TIET_CAC_NODE_FIREBASE.docx")
+⋮----
+doc = Document()
+⋮----
+# 1. Cấu hình Margins chuẩn TDC: Trái 3cm (1.18 in), Phải 2cm (0.79 in), Trên 2cm (0.79 in), Dưới 2cm (0.79 in)
+⋮----
+# 2. Cấu hình Style mặc định
+normal_style = doc.styles['Normal']
+⋮----
+# 3. Hàm tiện ích định dạng bảng
+def set_cell_background(cell, fill_hex)
+⋮----
+tcPr = cell._tc.get_or_add_tcPr()
+shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+⋮----
+def set_cell_margins(cell, top=100, bottom=100, left=140, right=140)
+⋮----
+tcMar = parse_xml(f'''
+⋮----
+def add_title(text, level=1, space_before=14, space_after=6)
+⋮----
+p = doc.add_heading(level=level)
+⋮----
+pPr = p._p.get_or_add_pPr()
+outlineLvl = parse_xml(f'<w:outlineLvl {nsdecls("w")} w:val="{level-1}"/>')
+⋮----
+run = p.add_run(text)
+⋮----
+run.font.color.rgb = RGBColor(0x0F, 0x17, 0x2A) # Dark Navy
+⋮----
+def add_p(text, bold_prefix="", italic=False, align=WD_ALIGN_PARAGRAPH.JUSTIFY)
+⋮----
+p = doc.add_paragraph()
+⋮----
+r_bold = p.add_run(bold_prefix)
+⋮----
+def add_bullet(text, bold_prefix="")
+⋮----
+p = doc.add_paragraph(style='List Bullet')
+⋮----
+def create_table(headers, rows, col_widths=None, header_bg="1E293B")
+⋮----
+tbl = doc.add_table(rows=len(rows) + 1, cols=len(headers))
+⋮----
+# Header Row
+hdr_cells = tbl.rows[0].cells
+⋮----
+p = hdr_cells[i].paragraphs[0]
+⋮----
+# Data Rows
+⋮----
+row_cells = tbl.rows[r_idx + 1].cells
+bg_color = "F8FAFC" if r_idx % 2 == 1 else "FFFFFF"
+⋮----
+p = row_cells[c_idx].paragraphs[0]
+⋮----
+# Đặt độ rộng cột nếu có
+⋮----
+def add_code_block(code_text)
+⋮----
+shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="F1F5F9"/>')
+⋮----
+run = p.add_run(code_text)
+⋮----
+# ==========================================================
+# TRANG BÌA (COVER PAGE)
+⋮----
+p_school = doc.add_paragraph()
+⋮----
+r = p_school.add_run("ỦY BAN NHÂN DÂN THÀNH PHỐ HỒ CHÍ MINH\nTRƯỜNG CAO ĐẲNG CÔNG NGHỆ THỦ ĐỨC\nKHOA CÔNG NGHỆ THÔNG TIN")
+⋮----
+# Logo đề tài Oishi Food
+p_logo = doc.add_paragraph()
+⋮----
+logo_path = os.path.join(ROOT_DIR, "logo-app-khach.png")
+⋮----
+run_logo = p_logo.add_run()
+⋮----
+p_line = doc.add_paragraph()
+⋮----
+r_line = p_line.add_run("-------------------***-------------------")
+⋮----
+p_doc_type = doc.add_paragraph()
+⋮----
+r_dt = p_doc_type.add_run("TÀI LIỆU KỸ THUẬT CHUYÊN ĐỀ TỐT NGHIỆP 2")
+⋮----
+r_dt.font.color.rgb = RGBColor(0xEA, 0x58, 0x0C) # Cam Oishi
+⋮----
+p_title = doc.add_paragraph()
+⋮----
+r_title = p_title.add_run("ĐẶC TẢ VÀ GIẢI THÍCH CHI TIẾT TOÀN BỘ CÁC NODE\nCƠ SỞ DỮ LIỆU GOOGLE FIREBASE REALTIME DATABASE")
+⋮----
+p_sub = doc.add_paragraph()
+⋮----
+r_sub = p_sub.add_run("HỆ THỐNG ĐẶT VÀ GIAO ĐỒ ĂN TRỰC TUYẾN OISHI FOOD\n(Hệ sinh thái đa phân hệ: Khách hàng, Quán ăn, Đầu bếp, Tài xế & Quản trị viên)")
+⋮----
+# Thông tin sinh viên & đề tài
+tbl_info = doc.add_table(rows=6, cols=2)
+⋮----
+info_data = [
+⋮----
+row_cells = tbl_info.rows[idx].cells
+⋮----
+p0 = row_cells[0].paragraphs[0]
+p1 = row_cells[1].paragraphs[0]
+⋮----
+p_footer = doc.add_paragraph()
+⋮----
+r_foot = p_footer.add_run("THÀNH PHỐ HỒ CHÍ MINH — NĂM 2026")
+⋮----
+# MỤC LỤC TỰ ĐỘNG
+⋮----
+# Word TOC field
+p_toc = doc.add_paragraph()
+r_toc = p_toc.add_run()
+fldChar1 = parse_xml(r'<w:fldChar %s w:fldCharType="begin"/>' % nsdecls('w'))
+instrText = parse_xml(r'<w:instrText %s xml:space="preserve"> TOC \o "1-3" \h \z \u </w:instrText>' % nsdecls('w'))
+fldChar2 = parse_xml(r'<w:fldChar %s w:fldCharType="separate"/>' % nsdecls('w'))
+fldChar3 = parse_xml(r'<w:fldChar %s w:fldCharType="end"/>' % nsdecls('w'))
+⋮----
+# PHẦN 1: TỔNG QUAN KIẾN TRÚC DỮ LIỆU FIREBASE REALTIME DATABASE
+⋮----
+config_headers = ["Thuộc tính", "Giá trị cấu hình thực tế", "Ghi chú kỹ thuật"]
+config_rows = [
+⋮----
+tree_schema = """root (chuyen-de-2-2f0bc-default-rtdb)
+⋮----
+# PHẦN 2: BẢNG TỔNG HỢP TOÀN BỘ CÁC ROOT NODES
+⋮----
+summary_headers = ["STT", "Tên Node & Đường dẫn", "Model (core/model)", "Phân nhóm nghiệp vụ", "Quyền Đọc / Ghi (Rules)", "Chỉ mục (indexOn)"]
+summary_rows = [
+⋮----
+# PHẦN 3: ĐẶC TẢ CHI TIẾT TỪNG ROOT NODE
+⋮----
+# --- 3.1 USERS ---
+⋮----
+users_fields = [
+⋮----
+# --- 3.2 CUSTOMERS ---
+⋮----
+cust_fields = [
+⋮----
+# --- 3.3 STORES ---
+⋮----
+store_fields = [
+⋮----
+# --- 3.4 DISHES (CON CỦA STORES) ---
+⋮----
+dish_fields = [
+⋮----
+# --- 3.5 COMBOS ---
+⋮----
+combo_fields = [
+⋮----
+# --- 3.6 ORDERS ---
+⋮----
+order_fields = [
+⋮----
+# --- 3.7 TRACKING & ORDER_CHATS ---
+⋮----
+track_fields = [
+⋮----
+chat_fields = [
+⋮----
+# --- 3.8 COMPLAINTS & TRUST_SCORE_LOGS ---
+⋮----
+cmp_fields = [
+⋮----
+trust_fields = [
+⋮----
+# --- 3.9 SYSTEM_CONFIG & DELIVERY_TIME_FRAMES ---
+⋮----
+sys_fields = [
+⋮----
+# PHẦN 4: CƠ CHẾ KỸ THUẬT ĐẶC THÙ TRÊN FIREBASE
+⋮----
+tx_code = """// Khóa nguyên tử khi Đầu bếp nhận đơn (assignChef)
+⋮----
+# PHẦN 5: PHÂN TÍCH QUY TẮC BẢO MẬT FIREBASE RULES
+⋮----
+rules_summary = [
+⋮----
+# Lưu tài liệu Word
 ````
 
 ## File: .firebaserc
@@ -100583,6 +100779,59 @@ data class OrderItem(
 </LinearLayout>
 ````
 
+## File: GEMINI.md
+````markdown
+# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
+# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
+
+---
+
+## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
+- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
+- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
+
+---
+
+## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
+- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
+- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
+- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
+
+---
+
+## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
+- **Đọc file có giới hạn (`view_file`)**:
+  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
+  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
+- **Tìm kiếm có bộ lọc (`grep_search`)**:
+  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
+  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
+  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
+- **Giới hạn Output dòng lệnh (`run_command`)**:
+  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
+  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
+
+---
+
+## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
+- **Kiến trúc 2 Ứng dụng (Multi-module)**:
+  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
+  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
+  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
+- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
+
+---
+
+## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
+- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau6.0` (`git push origin giau6.0`).
+
+---
+
+## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
+- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
+- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
+````
+
 ## File: core/src/main/java/com/chuyen_de_2/foodorder/core/data/firebase/AuthRepository.kt
 ````kotlin
 package com.chuyen_de_2.foodorder.core.data.firebase
@@ -101834,59 +102083,6 @@ class AuthRepository @Inject constructor(
     /** Kiểm tra đã đăng nhập chưa */
     val isLoggedIn: Boolean get() = auth.currentUser != null
 }
-````
-
-## File: GEMINI.md
-````markdown
-# WORKSPACE RULES & TOKEN OPTIMIZATION DIRECTIVE
-# Scope: e:\Android\Chuyen-De-2 (Áp dụng riêng cho dự án Chuyên đề 2 - Oishi Food)
-
----
-
-## 1. PHẠM VI & MỤC TIÊU (SCOPE & GOALS)
-- Các quy tắc dưới đây chỉ áp dụng cho workspace `e:\Android\Chuyen-De-2`.
-- Mục tiêu: Giảm thiểu tiêu thụ Token, tăng tốc độ phản hồi của AI, ngăn ngừa tràn Context Window (tránh nén ngữ cảnh sớm), và đảm bảo code chất lượng cao.
-
----
-
-## 2. QUY TẮC PHẢN HỒI (OUTPUT CONCISENESS)
-- **Trả lời súc tích, đi thẳng vào vấn đề**: Không chào hỏi rườm rà, không thêm đoạn mở đầu/kết thúc xã giao.
-- **Sửa code dạng Diff / Partial Chunk**: Khi chỉnh sửa code, CHỈ đưa ra đoạn code thay đổi hoặc dùng tool sửa code cục bộ. Tuyệt đối KHÔNG viết lại toàn bộ file nếu file chỉ sửa một vài vị trí.
-- **Không tóm tắt lại Artifacts**: Không tóm tắt nội dung tài liệu vừa tạo/sửa trong tin nhắn chat nếu tài liệu đã được ghi ra file.
-
----
-
-## 3. QUY TẮC THAO TÁC CÔNG CỤ (TOOL OPTIMIZATION)
-- **Đọc file có giới hạn (`view_file`)**:
-  - Không đọc toàn bộ file lớn (>150 dòng) nếu chỉ cần sửa 1 hàm.
-  - Luôn chỉ định `StartLine` và `EndLine` cụ thể.
-- **Tìm kiếm có bộ lọc (`grep_search`)**:
-  - Luôn lọc theo phần mở rộng (`*.kt`, `*.xml`, `*.gradle.kts`).
-  - Loại trừ các thư mục build: `build/`, `.gradle/`, `.idea/`, `captures/`, `dist/`.
-  - Sử dụng `MatchPerLine: false` khi chỉ cần tìm danh sách tên file.
-- **Giới hạn Output dòng lệnh (`run_command`)**:
-  - Khi chạy lệnh Gradle hoặc Git, giới hạn đầu ra tối thiểu (dùng `--quiet`, `git log -n 5`, v.v.).
-  - Khi xem lỗi Logcat/Crash, chỉ trích xuất đúng khối `FATAL EXCEPTION` và stacktrace thuộc package `com.chuyen_de_2...`. Bỏ qua toàn bộ log hệ thống MIUI, SurfaceFlinger, PerfHAL.
-
----
-
-## 4. QUY TẮC KIẾN TRÚC DỰ ÁN (PROJECT CONTEXT)
-- **Kiến trúc 2 Ứng dụng (Multi-module)**:
-  - `app-customer`: App dành cho Khách hàng (`HomeActivity`, xem quán, đặt món, giỏ hàng).
-  - `app-internal`: App dành cho Quán ăn (`OrderListFragment` - Kanban) và Shipper (`ShipperFragment` - GPS).
-  - `core`: Thư viện dùng chung (Models, Firebase Repositories, Utils).
-- **Phân quyền 4 Roles**: `CUSTOMER`, `MERCHANT` (hoặc `MANAGER`), `DRIVER` (hoặc `SHIPPER`), `ADMIN`.
-
----
-
-## 5. QUY TẮC ĐỒNG BỘ GIT (GIT DIRECTIVE)
-- Sau mỗi câu lệnh hoặc sau mỗi lần hoàn thành thay đổi code theo yêu cầu, luôn tự động chạy `git add .`, `git commit` và CHỈ push lên nhánh `giau6.0` (`git push origin giau6.0`).
-
----
-
-## 6. QUY TẮC BẢN ĐỒ MÃ NGUỒN REPOMIX (LIVING CODE MAP DIRECTIVE)
-- Mỗi khi Agent trong Antigravity cần nắm lại toàn bộ cấu trúc code, hoặc sau khi vừa sửa xong hàng loạt file, hãy chạy lệnh `npx repomix` trong terminal để cập nhật lại bản đồ `.antigravity/CODE_MAP.md`.
-- Tra cứu nhanh các Class, Interface, Method Signatures trong file `.antigravity/CODE_MAP.md` với chế độ nén AST (`compress: true`) để nắm cấu trúc toàn dự án trong 1 giây mà không tốn token đọc từng file.
 ````
 
 ## File: app-customer/src/main/java/com/chuyen_de_2/foodorder/customer/ui/tracking/TrackingActivity.kt
